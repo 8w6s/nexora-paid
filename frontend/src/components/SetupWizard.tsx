@@ -6,6 +6,10 @@ import { PasswordInput } from "./PasswordInput";
 import { Checkbox } from "./Checkbox";
 import { fadeRise, staggerIn } from "../lib/motion";
 
+// `comingSoon` toggles are rendered as locked cards — the flag exists in the
+// backend FEATURES map but no chain watcher / route is wired yet, so letting
+// the admin flip it on would silently break checkout. Will graduate when the
+// Cluster C multi-crypto work lands.
 const TOGGLEABLE = [
   { key: "reviews", label: "Product reviews", desc: "Customer ratings & feedback", icon: "star" },
   { key: "coupons", label: "Discount coupons", desc: "Promo codes & campaigns", icon: "tag" },
@@ -16,9 +20,9 @@ const TOGGLEABLE = [
   { key: "dark_mode", label: "Dark mode", desc: "Sleek dark theme support", icon: "moon" },
   { key: "email", label: "Transactional email", desc: "Automatic email receipts", icon: "mail" },
   { key: "coin_LTC", label: "Accept Litecoin", desc: "Self-hosted LTC wallet", icon: "credit-card" },
-  { key: "coin_BTC", label: "Accept Bitcoin", desc: "Self-hosted BTC wallet", icon: "credit-card" },
-  { key: "coin_ETH", label: "Accept Ethereum", desc: "Self-hosted ETH wallet", icon: "credit-card" },
-];
+  { key: "coin_BTC", label: "Accept Bitcoin", desc: "Self-hosted BTC wallet", icon: "credit-card", comingSoon: true },
+  { key: "coin_ETH", label: "Accept Ethereum", desc: "Self-hosted ETH wallet", icon: "credit-card", comingSoon: true },
+] as { key: string; label: string; desc: string; icon: string; comingSoon?: boolean }[];
 
 export const SetupWizard: React.FC = () => {
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -29,7 +33,10 @@ export const SetupWizard: React.FC = () => {
   const [faKitUrl, setFaKitUrl] = useState("");
   const [ltcXpub, setLtcXpub] = useState("");
   const [features, setFeatures] = useState<Record<string, boolean>>(
-    Object.fromEntries(TOGGLEABLE.map((f) => [f.key, f.key !== "coin_BTC" && f.key !== "coin_ETH" && f.key !== "email"]))
+    // coming-soon toggles default off and stay off; email defaults off (admin
+    // has to wire SMTP first); everything else defaults on for a friendly
+    // out-of-box experience.
+    Object.fromEntries(TOGGLEABLE.map((f) => [f.key, !f.comingSoon && f.key !== "email"]))
   );
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,6 +86,10 @@ export const SetupWizard: React.FC = () => {
   };
 
   const toggleFeature = (key: string) => {
+    // Coming-soon toggles are locked — user click does nothing. We still keep
+    // them in the list for visibility so admins know what's planned.
+    const meta = TOGGLEABLE.find((f) => f.key === key);
+    if (meta?.comingSoon) return;
     setFeatures(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -174,13 +185,23 @@ export const SetupWizard: React.FC = () => {
               <div className="su-feats">
                 {TOGGLEABLE.map((f) => {
                   const isChecked = !!features[f.key];
+                  const locked = !!f.comingSoon;
                   return (
-                    <div key={f.key} className={`su-toggle-card ${isChecked ? "active" : ""}`} onClick={() => toggleFeature(f.key)}>
+                    <div
+                      key={f.key}
+                      className={`su-toggle-card ${isChecked ? "active" : ""} ${locked ? "locked" : ""}`}
+                      onClick={() => toggleFeature(f.key)}
+                      aria-disabled={locked}
+                      title={locked ? "Coming soon — backend support lands with the multi-crypto milestone" : undefined}
+                    >
                       <span className="su-toggle-icon">
                         <Icon name={f.icon as any} size={15} variant={isChecked ? "badge" : "duotone-regular"} />
                       </span>
                       <div className="su-toggle-info">
-                        <strong>{f.label}</strong>
+                        <strong>
+                          {f.label}
+                          {locked && <span className="su-toggle-soon">Soon</span>}
+                        </strong>
                         <span>{f.desc}</span>
                       </div>
                       <span className={`su-toggle-check ${isChecked ? "checked" : ""}`} />
@@ -281,6 +302,9 @@ const Styles: React.FC = () => (
     .su-toggle-check { width: 18px; height: 18px; border-radius: 6px; border: 2px solid rgba(255, 255, 255, 0.15); position: relative; transition: all 0.15s; flex-shrink: 0; }
     .su-toggle-card.active .su-toggle-check { border-color: #6366f1; background: #6366f1; }
     .su-toggle-card.active .su-toggle-check::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+    .su-toggle-card.locked { cursor: not-allowed; opacity: 0.55; }
+    .su-toggle-card.locked:hover { transform: none; border-color: rgba(255, 255, 255, 0.08); background: rgba(30, 41, 59, 0.4); }
+    .su-toggle-soon { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 100px; background: rgba(99, 102, 241, 0.18); color: #c7d2fe; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: middle; }
 
     .su-err { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #f87171; padding: 10px 14px; border-radius: 12px; font-size: 0.82rem; font-weight: 600; }
     

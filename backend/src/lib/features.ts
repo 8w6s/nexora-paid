@@ -21,6 +21,10 @@ export const FEATURES = {
   captcha: { label: "Anti-bot challenge", default: true },
   realtime: { label: "Realtime notifications (SSE)", default: true },
   coin_LTC: { label: "Accept Litecoin", default: true },
+  // coin_BTC / coin_ETH are scaffolded flags — the SetupWizard renders them
+  // as "Soon"-locked toggles so admins can't enable an unimplemented coin.
+  // Backend has no watcher / address-derivation for these yet; the explorer
+  // adapter work lands with Cluster C (multi-crypto).
   coin_BTC: { label: "Accept Bitcoin", default: false },
   coin_ETH: { label: "Accept Ethereum", default: false },
 } as const;
