@@ -19,8 +19,10 @@
 import type { PaidModule } from "../lib/paid-modules.ts";
 import { searchModule } from "./search.ts";
 import { adminBulkModule } from "./admin-bulk.ts";
+import { adminExportModule } from "./admin-export.ts";
 
 export const paidModules: PaidModule[] = [
   searchModule,
   adminBulkModule,
+  adminExportModule,
 ];
