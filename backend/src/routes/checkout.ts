@@ -57,12 +57,30 @@ export const checkoutRoutes = new Elysia()
           checkoutEmail = existing.email;
           checkoutUserId = existing.id;
         } else {
+          // Race-safe guest insert. The pre-select above is best-effort;
+          // two concurrent guest checkouts with the same email would both
+          // observe "no existing user" and both try to INSERT. The users
+          // table has a UNIQUE index on email, so the loser's INSERT throws.
+          // We catch the conflict, re-read the now-existing row, and proceed
+          // with that user id — gracefully reusing instead of returning 500.
           const newId = randomUUID();
           const randPw = randomUUID() + "-guest-" + Date.now();
           const pwHash = await hashPassword(randPw);
-          await db.insert(users).values({ id: newId, email: emailNorm, passwordHash: pwHash, role: "customer" });
-          checkoutEmail = emailNorm;
-          checkoutUserId = newId;
+          try {
+            await db.insert(users).values({ id: newId, email: emailNorm, passwordHash: pwHash, role: "customer" });
+            checkoutEmail = emailNorm;
+            checkoutUserId = newId;
+          } catch (e) {
+            // SQLite UNIQUE violation surfaces as "UNIQUE constraint failed:
+            // users.email" in the error message. Re-read by the constraint's
+            // key — if the row now exists, the race winner committed and
+            // it's safe to reuse. Otherwise the failure was something else,
+            // rethrow so the surrounding handler maps it to a 500.
+            const winner = (await db.select().from(users).where(eq(users.email, emailNorm)))[0];
+            if (!winner) throw e;
+            checkoutEmail = winner.email;
+            checkoutUserId = winner.id;
+          }
         }
       }
 
