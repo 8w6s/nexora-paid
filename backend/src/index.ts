@@ -14,7 +14,7 @@ import { reviewRoutes } from "./routes/reviews.ts";
 import { ticketRoutes, adminTicketRoutes } from "./routes/tickets.ts";
 import { startWatcher, recoverStuckOrders, onOrderDelivered } from "./lib/watcher.ts";
 import { EmailService } from "./lib/email.ts";
-import { loadPaidModules } from "./lib/paid-modules.ts";
+import { loadPlugins } from "./lib/plugin/loader.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 
@@ -149,7 +149,7 @@ const baseApp = new Elysia()
   .use(ticketRoutes);
 
 // Paid modules register here (gated by license). Empty registry = no-op.
-const app = await loadPaidModules(baseApp);
+const app = await loadPlugins(baseApp);
 app.listen(Number(Bun.env.PORT ?? 3000));
 
 console.log(`Nexora API running at http://localhost:${Bun.env.PORT ?? 3000}`);
