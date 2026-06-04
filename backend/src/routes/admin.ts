@@ -466,6 +466,29 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     { body: t.Object({ key: t.String(), enabled: t.Boolean() }) }
   )
 
+  /* ───────── Plugins (per-id enable/disable; loader populates globalThis.__nexora_plugins) ───────── */
+  .get("/plugins", async () => {
+    const loaded = (globalThis as any).__nexora_plugins as { id: string; version: string; description: string; loaded: boolean; reason?: string }[] | undefined;
+    if (!loaded) return { plugins: [] };
+    const settings = await getAllSettings();
+    return {
+      plugins: loaded.map((p) => ({
+        ...p,
+        enabled: (settings[`feature_plugin_${p.id}`] ?? "true") === "true",
+      })),
+    };
+  })
+  .post(
+    "/plugins/:id/enabled",
+    async ({ params, body }) => {
+      const id = params.id;
+      const value = (body as { enabled: boolean })?.enabled === true;
+      await setSetting(`feature_plugin_${id}`, value ? "true" : "false");
+      return { ok: true, restart_required: true };
+    },
+    { body: t.Object({ enabled: t.Boolean() }) }
+  )
+
   /* ───────── Payment providers (multi-gateway, per-country) ───────── */
   .get("/payments", async () => {
     const providers = await adminProviderList();
