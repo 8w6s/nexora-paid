@@ -1,0 +1,4 @@
+# Placeholder so git tracks this empty folder. Migration files land here as
+# `NNNN_short_description.sql` (zero-padded sequence). The migrator in
+# `../connection.ts` reads them in lexicographic order on boot, skipping
+# any already recorded in the `_migrations` table.
