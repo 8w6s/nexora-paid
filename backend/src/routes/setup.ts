@@ -19,27 +19,56 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
   .post(
     "/",
     async ({ body, cookie, set }) => {
-      if (await hasAdmin()) {
-        set.status = 409;
-        return { error: "Setup already completed", code: "SETUP_DONE" };
-      }
-      // Validate xpub if provided (per chosen coin).
+      // Validate xpub OUTSIDE the transaction so we don't open one for
+      // requests that will be rejected on input shape anyway.
+      let xpubType: string | null = null;
       if (body.ltcXpub) {
         const v = validateXpub(body.ltcXpub);
         if (!v.ok) { set.status = 400; return { error: `Invalid LTC xpub: ${v.error}`, code: "BAD_XPUB" }; }
+        xpubType = (v as { type?: string }).type ?? null;
       }
 
-      // 1) create the first admin
+      // Hash the password BEFORE the transaction. argon2id is slow on purpose
+      // (>100ms) and holding a write transaction during that window would
+      // serialize all DB writes for the whole shop. We re-check hasAdmin()
+      // inside the transaction so a concurrent setup attempt still rolls back.
       const id = randomUUID();
       const email = normalizeEmail(body.adminEmail);
-      await db.insert(users).values({ id, email, passwordHash: await hashPassword(body.adminPassword), role: "admin" });
+      const passwordHash = await hashPassword(body.adminPassword);
 
-      // 2) branding + wallet
+      // Race guard: hasAdmin() outside-then-INSERT had a TOCTOU window where
+      // two concurrent requests could both observe "no admin" and both insert
+      // their own first-admin row. SQLite serializes write transactions, so
+      // re-checking inside the transaction closes the window — the loser
+      // throws and we translate to 409.
+      let created: { id: string; email: string } | null = null;
+      try {
+        created = await db.transaction(async (tx) => {
+          const existing = await tx.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+          if (existing.length > 0) {
+            // Throw to abort the transaction; caller maps to a 409.
+            throw new Error("SETUP_DONE");
+          }
+          await tx.insert(users).values({ id, email, passwordHash, role: "admin" });
+          return { id, email };
+        });
+      } catch (e) {
+        if (e instanceof Error && e.message === "SETUP_DONE") {
+          set.status = 409;
+          return { error: "Setup already completed", code: "SETUP_DONE" };
+        }
+        throw e;
+      }
+
+      // 2) branding + wallet — outside the admin-creation transaction so a
+      // settings hiccup can't lose the admin row. Each setSetting() is its
+      // own write; the admin already exists in the DB and the wizard can be
+      // resumed via /admin if any of these fail.
       await setSetting("store_name", body.storeName || "My Shop");
       if (body.faKitUrl) await setSetting("fa_kit_url", body.faKitUrl);
       if (body.ltcXpub) {
         await setSetting("ltc_xpub", body.ltcXpub);
-        await setSetting("hd_address_type", validateXpub(body.ltcXpub).ok ? (validateXpub(body.ltcXpub) as any).type : "");
+        if (xpubType) await setSetting("hd_address_type", xpubType);
       }
 
       // 3) feature flags chosen in the wizard (any omitted → keep defaults)
@@ -50,10 +79,10 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
       }
 
       // 4) auto-login the new admin
-      const { token, expiresAt } = await createSession(id);
+      const { token, expiresAt } = await createSession(created.id);
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       set.status = 201;
-      return { ok: true, adminId: id, email };
+      return { ok: true, adminId: created.id, email: created.email };
     },
     {
       body: t.Object({
