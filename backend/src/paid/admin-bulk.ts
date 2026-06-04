@@ -23,28 +23,16 @@
  * and acting admin email, so the activity log shows scope without
  * spamming N rows.
  */
-import { type Cookie, t } from "elysia";
+import { t } from "elysia";
 import { inArray } from "drizzle-orm";
 import { db } from "../db/connection.ts";
 import { products } from "../db/schema.ts";
-import { validateSession, SESSION_COOKIE, type SessionUser } from "../lib/auth.ts";
+import type { SessionUser } from "../lib/auth.ts";
 import { logAdminAction } from "../lib/audit.ts";
 import type { PaidModule } from "../lib/paid-modules.ts";
+import { requireAdmin } from "./lib/admin-guard.ts";
 
 const MAX_BULK = 200; // Cap a single bulk op so a runaway client can't flip the whole catalog.
-
-// Inline auth gate — see file header for why we can't piggyback on adminRoutes.
-// Returns the SessionUser on success, or `null` to signal the caller should
-// respond with the matching status code (already set on `status`).
-async function requireAdmin(
-  cookie: Record<string, Cookie<string | undefined>>,
-  status: (code: number, body: unknown) => unknown,
-): Promise<{ user: SessionUser } | { errorResponse: unknown }> {
-  const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
-  if (!user) return { errorResponse: status(401, { error: "Authentication required", code: "UNAUTHENTICATED" }) };
-  if (user.role !== "admin") return { errorResponse: status(403, { error: "Admin only", code: "FORBIDDEN" }) };
-  return { user };
-}
 
 // Shared bulk-toggle implementation. `target` is the new value of
 // products.active; `verb` differentiates the audit action + error messages.
