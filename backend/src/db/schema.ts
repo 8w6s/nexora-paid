@@ -302,7 +302,7 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 export const pluginMigrations = sqliteTable("__plugin_migrations", {
   pluginId: text("plugin_id").notNull(),
   idx: integer("idx").notNull(),
-  appliedAt: integer("applied_at", { mode: "timestamp" }).notNull(),
+  appliedAt: integer("applied_at", { mode: "timestamp_ms" }).notNull(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.pluginId, t.idx] }),
 }));

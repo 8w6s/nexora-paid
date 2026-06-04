@@ -29,7 +29,7 @@ export async function runPluginMigrations(
     if (done.has(i)) continue;
     try {
       await db.run(sql.raw(statements[i]));
-      await db.run(sql`INSERT INTO __plugin_migrations (plugin_id, idx, applied_at) VALUES (${pluginId}, ${i}, ${Math.floor(Date.now() / 1000)})`);
+      await db.run(sql`INSERT INTO __plugin_migrations (plugin_id, idx, applied_at) VALUES (${pluginId}, ${i}, ${Date.now()})`);
       count++;
     } catch (e) {
       return { applied: count, error: `migration ${i}: ${e instanceof Error ? e.message : String(e)}` };
