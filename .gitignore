@@ -46,5 +46,12 @@ test-results/
 skills-lock.json
 CONTEXT.md
 .claude/settings.local.json
+.loop/
+
+# License signing keys + issued licenses — maintainer-only artifacts.
+# If the private key leaks, anyone can forge Paid licenses for free.
+.keys/
+issued/
+*.license
 
 #

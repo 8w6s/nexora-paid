@@ -1,5 +1,5 @@
 {
-  "name": "shop-monorepo",
+  "name": "nexora-paid",
   "private": true,
   "workspaces": [
     "frontend",
@@ -12,6 +12,8 @@
     "seed": "bun --cwd backend src/db/seed.ts"
   },
   "devDependencies": {
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
     "concurrently": "^10.0.3"
   }
 }

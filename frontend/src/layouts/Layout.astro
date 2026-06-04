@@ -22,9 +22,16 @@ const {
     {/* Apply persisted theme BEFORE paint to avoid FOUC. */}
     <script is:inline>
       (function () {
+        // Canonical key is "nexora-theme" (lowercase). Older builds used
+        // "Nexora-theme" (mixed-case typo) and "gemvn-theme" (pre-rebrand);
+        // read all three so a returning visitor keeps their preference, then
+        // ConfigContext on hydrate writes the canonical key + clears legacy.
         try {
-          var t = localStorage.getItem("Nexora-theme");
-          if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+          var keys = ["nexora-theme", "Nexora-theme", "gemvn-theme"];
+          for (var i = 0; i < keys.length; i++) {
+            var t = localStorage.getItem(keys[i]);
+            if (t === "dark" || t === "light") { document.documentElement.dataset.theme = t; break; }
+          }
         } catch (_) {}
       })();
     </script>
