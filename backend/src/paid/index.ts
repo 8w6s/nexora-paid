@@ -17,7 +17,8 @@
  * directory entirely during the clone step.
  */
 import type { PaidModule } from "../lib/paid-modules.ts";
+import { searchModule } from "./search.ts";
 
 export const paidModules: PaidModule[] = [
-  // Modules added in subsequent commits. Cluster A (search) lands here first.
+  searchModule,
 ];
