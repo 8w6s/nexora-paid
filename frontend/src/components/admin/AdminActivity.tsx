@@ -13,6 +13,7 @@ const META: Record<string, { label: string; tone: string }> = {
   "product.bulk_activate": { label: "Bulk-activated products", tone: "good" },
   "product.bulk_deactivate": { label: "Bulk-deactivated products", tone: "warn" },
   "orders.csv_export": { label: "Exported orders CSV", tone: "neutral" },
+  "customers.csv_export": { label: "Exported customers CSV", tone: "neutral" },
   "customer.ban": { label: "Banned customer", tone: "bad" },
   "customer.unban": { label: "Unbanned customer", tone: "good" },
   "coupon.create": { label: "Created coupon", tone: "good" },
