@@ -23,7 +23,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "../db/connection.ts";
 import { orders } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
-import type { PaidModule } from "../lib/paid-modules.ts";
+import type { Plugin } from "../lib/plugin/types.ts";
 import { requireAdmin } from "./lib/admin-guard.ts";
 import { csvBody, todayStamp } from "./lib/csv.ts";
 
@@ -40,9 +40,13 @@ const CSV_COLUMNS = [
   "deliveredAt",
 ] as const;
 
-export const adminExportModule: PaidModule = {
-  id: "admin-export",
-  description: "Admin CSV export (GET /api/admin/orders/export.csv)",
+export const adminExportPlugin: Plugin = {
+  manifest: {
+    id: "admin-export",
+    version: "1.0.0",
+    nexoraVersion: ">=0.2 <0.3",
+    description: "Admin CSV export (GET /api/admin/orders/export.csv)",
+  },
   register: (app) =>
     app.get(
       "/api/admin/orders/export.csv",

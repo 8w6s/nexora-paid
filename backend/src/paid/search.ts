@@ -18,13 +18,17 @@ import type { Elysia } from "elysia";
 import { and, asc, eq, like, or } from "drizzle-orm";
 import { db } from "../db/connection.ts";
 import { products } from "../db/schema.ts";
-import type { PaidModule } from "../lib/paid-modules.ts";
+import type { Plugin } from "../lib/plugin/types.ts";
 
 const MAX_SUGGESTIONS = 8;
 
-export const searchModule: PaidModule = {
-  id: "search-suggest",
-  description: "Storefront search autocomplete (/api/products/suggest)",
+export const searchPlugin: Plugin = {
+  manifest: {
+    id: "search-suggest",
+    version: "1.0.0",
+    nexoraVersion: ">=0.2 <0.3",
+    description: "Storefront search autocomplete (/api/products/suggest)",
+  },
   register: (app: Elysia<any, any, any, any, any, any, any, any>) =>
     app.get("/api/products/suggest", async ({ query }) => {
       const q = (query as Record<string, string>)?.q?.trim() ?? "";

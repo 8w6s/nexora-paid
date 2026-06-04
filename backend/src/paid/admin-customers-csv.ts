@@ -16,16 +16,20 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
-import type { PaidModule } from "../lib/paid-modules.ts";
+import type { Plugin } from "../lib/plugin/types.ts";
 import { requireAdmin } from "./lib/admin-guard.ts";
 import { csvBody, todayStamp } from "./lib/csv.ts";
 
 // passwordHash deliberately omitted — never leaves the system, even to admins.
 const CSV_COLUMNS = ["id", "email", "role", "status", "createdAt"] as const;
 
-export const adminCustomersCsvModule: PaidModule = {
-  id: "admin-customers-csv",
-  description: "Admin CSV export (GET /api/admin/customers/export.csv)",
+export const adminCustomersCsvPlugin: Plugin = {
+  manifest: {
+    id: "admin-customers-csv",
+    version: "1.0.0",
+    nexoraVersion: ">=0.2 <0.3",
+    description: "Admin CSV export (GET /api/admin/customers/export.csv)",
+  },
   register: (app) =>
     app.get(
       "/api/admin/customers/export.csv",

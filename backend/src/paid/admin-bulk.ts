@@ -29,7 +29,7 @@ import { db } from "../db/connection.ts";
 import { products } from "../db/schema.ts";
 import type { SessionUser } from "../lib/auth.ts";
 import { logAdminAction } from "../lib/audit.ts";
-import type { PaidModule } from "../lib/paid-modules.ts";
+import type { Plugin } from "../lib/plugin/types.ts";
 import { requireAdmin } from "./lib/admin-guard.ts";
 
 const MAX_BULK = 200; // Cap a single bulk op so a runaway client can't flip the whole catalog.
@@ -74,9 +74,13 @@ const bulkBody = {
   body: t.Object({ ids: t.Array(t.String(), { minItems: 1 }) }),
 };
 
-export const adminBulkModule: PaidModule = {
-  id: "admin-bulk",
-  description: "Admin bulk ops (POST /api/admin/products/bulk-{delete,activate})",
+export const adminBulkPlugin: Plugin = {
+  manifest: {
+    id: "admin-bulk",
+    version: "1.0.0",
+    nexoraVersion: ">=0.2 <0.3",
+    description: "Admin bulk ops (POST /api/admin/products/bulk-{delete,activate})",
+  },
   register: (app) =>
     app
       .post(
