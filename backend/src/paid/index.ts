@@ -21,10 +21,12 @@ import { searchModule } from "./search.ts";
 import { adminBulkModule } from "./admin-bulk.ts";
 import { adminExportModule } from "./admin-export.ts";
 import { adminCustomersCsvModule } from "./admin-customers-csv.ts";
+import { adminStatsModule } from "./admin-stats.ts";
 
 export const paidModules: PaidModule[] = [
   searchModule,
   adminBulkModule,
   adminExportModule,
   adminCustomersCsvModule,
+  adminStatsModule,
 ];
