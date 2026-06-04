@@ -84,6 +84,9 @@ export const checkoutRoutes = new Elysia()
       totalUsd = Math.round(totalUsd * 100) / 100;
 
       // Apply coupon (discount on USD total, before coin conversion). Validated server-side.
+      // NOTE: this is the PRE-CHECK so we can compute totalUsd for the rate lock; the
+      // usedCount field is re-read + incremented INSIDE the order transaction below so
+      // two concurrent checkouts racing on a single-use coupon can't both consume it.
       let appliedCoupon: typeof coupons.$inferSelect | null = null;
       if (body.coupon && body.coupon.trim()) {
         const c = (await db.select().from(coupons).where(eq(coupons.code, body.coupon.trim().toUpperCase())))[0];
@@ -146,13 +149,25 @@ export const checkoutRoutes = new Elysia()
               quantity: qty,
             });
           }
+
+          // Atomic coupon consumption: re-read the row inside this transaction
+          // (SQLite serializes write txs, so this picks up another checkout's
+          // increment if it landed first) and only commit the use if there's
+          // still capacity. Throw a sentinel so the surrounding catch maps it
+          // to a 400, identical to the pre-check rejection path.
+          if (appliedCoupon) {
+            const fresh = (await tx.select().from(coupons).where(eq(coupons.id, appliedCoupon.id)))[0];
+            const stillValid = fresh && fresh.active
+              && (fresh.maxUses == null || fresh.usedCount < fresh.maxUses);
+            if (!stillValid) throw new Error("COUPON_EXHAUSTED");
+            await tx.update(coupons).set({ usedCount: fresh.usedCount + 1 }).where(eq(coupons.id, fresh.id));
+          }
+
           return { addressIndex, ltcAddress };
         });
 
         // Advance the monotonic counter AFTER a successful insert (UNIQUE backstops a race).
         await setSetting("hd_next_index", String(result.addressIndex + 1));
-        // Count the coupon use now that the order exists.
-        if (appliedCoupon) await db.update(coupons).set({ usedCount: appliedCoupon.usedCount + 1 }).where(eq(coupons.id, appliedCoupon.id));
 
         set.status = 201;
         return {
@@ -171,6 +186,8 @@ export const checkoutRoutes = new Elysia()
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.startsWith("OUT_OF_STOCK"))
           return status(400, { error: `${msg.split(":")[1] ?? "Item"} is out of stock`, code: "OUT_OF_STOCK" });
+        if (msg === "COUPON_EXHAUSTED")
+          return status(400, { error: "Coupon just ran out — try again without it", code: "COUPON_EXHAUSTED" });
         console.error("[checkout] failed:", e);
         return status(500, { error: "Checkout failed", code: "CHECKOUT_FAILED" });
       }
