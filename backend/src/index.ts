@@ -14,6 +14,7 @@ import { reviewRoutes } from "./routes/reviews.ts";
 import { ticketRoutes, adminTicketRoutes } from "./routes/tickets.ts";
 import { startWatcher, recoverStuckOrders, onOrderDelivered } from "./lib/watcher.ts";
 import { EmailService } from "./lib/email.ts";
+import { loadPaidModules } from "./lib/paid-modules.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 
@@ -30,7 +31,10 @@ async function stockMap(productIds: string[]): Promise<Record<string, number>> {
   return m;
 }
 
-const app = new Elysia()
+// Free-tier app: every route in the Free baseline is chained here. Paid
+// modules are loaded right before `.listen()` via `loadPaidModules()` so a
+// Free build (with an empty registry) is byte-identical to "no Paid wiring".
+const baseApp = new Elysia()
   // CORS for cookie auth: explicit origin + credentials (no wildcard).
   .use(cors({ origin: PUBLIC_ORIGIN, credentials: true }))
   // CSRF defense-in-depth: reject cross-origin state-changing requests.
@@ -142,8 +146,11 @@ const app = new Elysia()
   .use(checkoutRoutes)
   .use(setupRoutes)
   .use(reviewRoutes)
-  .use(ticketRoutes)
-  .listen(Number(Bun.env.PORT ?? 3000));
+  .use(ticketRoutes);
+
+// Paid modules register here (gated by license). Empty registry = no-op.
+const app = await loadPaidModules(baseApp);
+app.listen(Number(Bun.env.PORT ?? 3000));
 
 console.log(`Nexora API running at http://localhost:${Bun.env.PORT ?? 3000}`);
 console.log(`CORS origin: ${PUBLIC_ORIGIN}`);
