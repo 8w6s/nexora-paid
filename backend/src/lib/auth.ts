@@ -1,4 +1,4 @@
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, createHash, timingSafeEqual } from "crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../db/connection.ts";
 import { users, sessions } from "../db/schema.ts";
@@ -75,6 +75,20 @@ export function generateOrderToken(orderId: string): string {
 
 export function verifyOrderToken(orderId: string, token: string | undefined): boolean {
   if (!token) return false;
-  return generateOrderToken(orderId) === token;
+  // Constant-time compare so response time can't leak prefix bytes of the
+  // expected token. Both sides are hex SHA-256 (64 chars) when well-formed,
+  // but a hostile caller can send any string — length-mismatch must NOT throw
+  // (timingSafeEqual throws on unequal buffer lengths) and must NOT short-
+  // circuit (early-return on length leaks one bit per request).
+  const expected = Buffer.from(generateOrderToken(orderId), "utf8");
+  const supplied = Buffer.from(token, "utf8");
+  if (expected.length !== supplied.length) {
+    // Burn the same work timingSafeEqual would do, on a same-sized dummy.
+    // Result is discarded; the function still returns false because the
+    // lengths can't match a valid token.
+    timingSafeEqual(expected, expected);
+    return false;
+  }
+  return timingSafeEqual(expected, supplied);
 }
 
