@@ -25,7 +25,12 @@ export const ProductList: React.FC = () => {
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState("newest");
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [search, setSearch] = useState("");
+  // Seed from URL so SearchBox / Free fallback (`/?q=term`) lands on a
+  // pre-filtered grid instead of the full catalog.
+  const [search, setSearch] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q")?.trim() ?? "";
+  });
   const gridRef = useRef<HTMLDivElement>(null);
   const firstLoad = useRef(true);
 
