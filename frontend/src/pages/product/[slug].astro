@@ -1,0 +1,57 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SEO from '../../components/SEO.astro';
+import { ProductDetailApp } from '../../components/ProductDetailApp';
+
+export const prerender = false;
+
+const API = import.meta.env.PUBLIC_API_ORIGIN || 'http://localhost:3000';
+const { slug } = Astro.params;
+
+let product: any = null;
+try {
+  const res = await fetch(`${API}/api/products/${slug}`);
+  if (res.ok) product = await res.json();
+} catch (e) { /* fall through to 404 */ }
+
+if (!product) return Astro.redirect('/404');
+
+const site = Astro.site ?? new URL('http://localhost:4321');
+const url = new URL(`/product/${product.slug}`, site).href;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Product',
+      name: product.name,
+      description: product.description,
+      image: product.image,
+      category: product.category,
+      offers: {
+        '@type': 'Offer',
+        url,
+        priceCurrency: 'USD',
+        price: Number(product.priceUsd).toFixed(2),
+        availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        itemCondition: 'https://schema.org/NewCondition',
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: site.href },
+        { '@type': 'ListItem', position: 2, name: product.category, item: new URL(`/?category=${encodeURIComponent(product.category)}`, site).href },
+        { '@type': 'ListItem', position: 3, name: product.name, item: url },
+      ],
+    },
+  ],
+};
+const title = `${product.name} — Nexora`;
+const description = String(product.description).slice(0, 155);
+---
+
+<Layout title={title} description={description}>
+  <SEO slot="head" title={title} description={description} type="product" image={product.image} />
+  <script slot="head" type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <ProductDetailApp product={product} client:load />
+</Layout>

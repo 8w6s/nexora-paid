@@ -1,0 +1,9 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { OrdersApp } from '../../components/OrdersApp';
+export const prerender = false;
+const { id } = Astro.params;
+---
+<Layout title={`Order ${id} — Nexora`}>
+  <OrdersApp orderId={id} client:load />
+</Layout>

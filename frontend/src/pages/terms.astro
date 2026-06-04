@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { TermsApp } from '../components/TermsApp';
+export const prerender = false;
+---
+<Layout title="Terms of Service — Nexora">
+  <TermsApp client:load />
+</Layout>

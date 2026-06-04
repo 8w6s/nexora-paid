@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.astro/
+
+# Vite cache
+**/.vite/
+
+# Database (local dev / seed lại được)
+backend/sqlite.db
+backend/sqlite.db-shm
+backend/sqlite.db-wal
+backend/*.db
+backend/sqlite.db.bak-*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+bun-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Playwright artifacts
+.playwright-mcp/
+test-results/
+.dual-graph/
+
+# Local MCP server config (per-developer, e.g. chrome-devtools)
+.mcp.json
+
+# Per-developer scratch and tool state
+.agents/
+skills-lock.json
+CONTEXT.md
+.claude/settings.local.json
+
+#

@@ -1,0 +1,36 @@
+---
+import Layout from '../layouts/Layout.astro';
+export const prerender = false;
+---
+<Layout title="Page not found — Nexora">
+  <main class="nf">
+    <a href="/" class="nf-brand">
+      <span class="nf-logo"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg></span>
+      <span>Nexo<span class="accent">ra</span></span>
+    </a>
+    <div class="nf-card">
+      <div class="nf-code">404</div>
+      <h1>This page doesn't exist</h1>
+      <p>The link might be broken, or the page may have moved. From here you can head back to the shop or open a support ticket.</p>
+      <div class="nf-actions">
+        <a class="btn" href="/">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 12 4l9 8"/><path d="M5 10v10h14V10"/></svg>
+          Back to shop
+        </a>
+        <a class="btn btn-ghost" href="/tickets">Support</a>
+      </div>
+    </div>
+  </main>
+
+  <style>
+    .nf { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 40px 20px; }
+    .nf-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.2rem; color: var(--ink); letter-spacing: -.02em; }
+    .nf-brand .accent { color: var(--brand); }
+    .nf-logo { width: 36px; height: 36px; border-radius: 10px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; }
+    .nf-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 40px 32px; max-width: 480px; width: 100%; text-align: center; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; align-items: center; }
+    .nf-code { font-size: 4.2rem; font-weight: 800; line-height: 1; background: linear-gradient(135deg, var(--brand), var(--tag, #a78bfa)); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: -.04em; }
+    .nf-card h1 { font-size: 1.3rem; font-weight: 700; color: var(--ink); }
+    .nf-card p { color: var(--ink-soft); font-size: .92rem; line-height: 1.55; max-width: 380px; }
+    .nf-actions { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
+  </style>
+</Layout>

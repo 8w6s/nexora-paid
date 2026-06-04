@@ -1,0 +1,48 @@
+---
+// Reusable SEO <head> component. Slotted into Layout via slot="head".
+// Emits title, meta description, canonical, OpenGraph + Twitter card tags.
+interface Props {
+  title: string;
+  description: string;
+  image?: string;
+  type?: string;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  image,
+  type = 'website',
+  noindex = false,
+} = Astro.props;
+
+// Astro.site must be configured in astro.config for absolute URLs.
+const canonical = Astro.site
+  ? new URL(Astro.url.pathname, Astro.site).href
+  : Astro.url.pathname;
+
+const ogImage = image
+  ? (Astro.site ? new URL(image, Astro.site).href : image)
+  : undefined;
+
+const siteName = 'Nexora';
+---
+
+<!-- title + description live in Layout.astro to avoid duplicate tags -->
+<link rel="canonical" href={canonical} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+<!-- OpenGraph -->
+<meta property="og:type" content={type} />
+<meta property="og:site_name" content={siteName} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+{ogImage && <meta property="og:image" content={ogImage} />}
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+{ogImage && <meta name="twitter:image" content={ogImage} />}

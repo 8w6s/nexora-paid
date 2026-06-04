@@ -1,0 +1,17 @@
+{
+  "name": "shop-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:backend": "bun --cwd backend dev",
+    "dev:frontend": "bun --cwd frontend dev",
+    "dev": "concurrently -k -n backend,frontend -c blue,magenta \"bun --cwd backend dev\" \"bun --cwd frontend dev\"",
+    "seed": "bun --cwd backend src/db/seed.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}

@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { TicketsApp } from '../components/TicketsApp';
+export const prerender = false;
+---
+<Layout title="Support — Nexora">
+  <TicketsApp client:load />
+</Layout>

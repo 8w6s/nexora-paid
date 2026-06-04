@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { RefundApp } from '../components/RefundApp';
+export const prerender = false;
+---
+<Layout title="Refund Policy — Nexora">
+  <RefundApp client:load />
+</Layout>

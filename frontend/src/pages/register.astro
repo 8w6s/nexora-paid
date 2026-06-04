@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { AuthApp } from '../components/AuthApp';
+export const prerender = false;
+---
+<Layout title="Create account — Nexora">
+  <AuthApp mode="register" client:load />
+</Layout>

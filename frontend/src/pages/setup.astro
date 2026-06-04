@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SetupWizard } from '../components/SetupWizard';
+export const prerender = false;
+---
+<Layout title="Setup — Nexora">
+  <SetupWizard client:load />
+</Layout>

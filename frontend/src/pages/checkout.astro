@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { CheckoutApp } from '../components/CheckoutApp';
+export const prerender = false;
+---
+<Layout title="Checkout — Nexora">
+  <CheckoutApp client:load />
+</Layout>

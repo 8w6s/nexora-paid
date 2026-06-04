@@ -1,0 +1,32 @@
+# Nexora — backend (Elysia/Bun/SQLite) + frontend (Astro SSR).
+# SQLite persists via the named volume mounted at /app/sqlite.db's directory.
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      PUBLIC_ORIGIN: "${PUBLIC_SITE_URL:-http://localhost:4321}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@nexora.local}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me}"
+      # Optional: ADMIN_PASSWORD_HASH, LTC_XPUB, EMAIL_PROVIDER, RESEND_API_KEY, SMTP_*
+    volumes:
+      - nexora-db:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        PUBLIC_API_ORIGIN: "${PUBLIC_API_ORIGIN:-http://localhost:3000}"
+        PUBLIC_SITE_URL: "${PUBLIC_SITE_URL:-http://localhost:4321}"
+    ports:
+      - "4321:4321"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  nexora-db:

@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SEO from '../components/SEO.astro';
+import { AdminApp } from '../components/AdminApp';
+export const prerender = false;
+---
+<Layout title="Admin — Nexora">
+  <SEO slot="head" title="Admin — Nexora" description="Admin area" noindex={true} />
+  <AdminApp client:load />
+</Layout>

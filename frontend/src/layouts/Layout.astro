@@ -1,0 +1,54 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = 'Nexora — digital goods store: license keys, accounts, software. Instant automated delivery, paid with Litecoin.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    {/* Apply persisted theme BEFORE paint to avoid FOUC. */}
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem("Nexora-theme");
+          if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+        } catch (_) {}
+      })();
+    </script>
+
+    <!-- Default head; per-page SEO / JSON-LD is injected via the "head" slot -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    {/* Font Awesome Pro (self-hosted from /public/fontawesome). CSS Webfonts mode
+        is used instead of SVG replacement mode to avoid DOM mutations that break 
+        React client-side hydration. */}
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css" />
+
+    <!-- Google Fonts: Fredoka (primary, rounded) + Kosugi Maru (Japanese) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Kosugi+Maru&display=swap"
+      rel="stylesheet"
+    />
+
+    <slot name="head" />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

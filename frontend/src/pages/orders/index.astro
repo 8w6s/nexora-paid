@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { OrdersApp } from '../../components/OrdersApp';
+export const prerender = false;
+---
+<Layout title="My Orders — Nexora">
+  <OrdersApp client:load />
+</Layout>

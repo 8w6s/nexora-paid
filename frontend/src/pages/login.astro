@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { AuthApp } from '../components/AuthApp';
+export const prerender = false;
+---
+<Layout title="Sign in — Nexora">
+  <AuthApp mode="login" client:load />
+</Layout>

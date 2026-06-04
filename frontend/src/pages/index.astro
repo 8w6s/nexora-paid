@@ -1,0 +1,22 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SEO from '../components/SEO.astro';
+import { App } from '../components/App';
+
+export const prerender = false;
+
+const title = 'Nexora — Digital goods, paid with Litecoin';
+const description = 'Buy software license keys, premium accounts and top-ups. Instant automated delivery. Pay in Litecoin.';
+const org = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Nexora',
+  url: (Astro.site ?? new URL('http://localhost:4321')).href,
+};
+---
+
+<Layout title={title} description={description}>
+  <SEO slot="head" title={title} description={description} />
+  <script slot="head" type="application/ld+json" set:html={JSON.stringify(org)} />
+  <App client:load />
+</Layout>

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /orders
+Disallow: /checkout
+Disallow: /api
+Sitemap: http://localhost:4321/sitemap-index.xml
