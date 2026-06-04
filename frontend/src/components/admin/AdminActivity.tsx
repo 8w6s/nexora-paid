@@ -8,6 +8,11 @@ interface Action { id: string; adminEmail: string; action: string; detail: strin
 const META: Record<string, { label: string; tone: string }> = {
   "product.create": { label: "Created product", tone: "good" },
   "product.deactivate": { label: "Deactivated product", tone: "warn" },
+  // Cluster F bulk + export actions land here so the activity log
+  // shows real labels instead of raw "product.bulk_deactivate" keys.
+  "product.bulk_activate": { label: "Bulk-activated products", tone: "good" },
+  "product.bulk_deactivate": { label: "Bulk-deactivated products", tone: "warn" },
+  "orders.csv_export": { label: "Exported orders CSV", tone: "neutral" },
   "customer.ban": { label: "Banned customer", tone: "bad" },
   "customer.unban": { label: "Unbanned customer", tone: "good" },
   "coupon.create": { label: "Created coupon", tone: "good" },
