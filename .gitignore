@@ -45,7 +45,7 @@ test-results/
 .agents/
 skills-lock.json
 CONTEXT.md
-.claude/settings.local.json
+.claude/
 .loop/
 
 # License signing keys + issued licenses — maintainer-only artifacts.
