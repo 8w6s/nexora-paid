@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql, relations } from "drizzle-orm";
 
 /**
@@ -292,4 +292,17 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, { fields: [orderItems.orderId], references: [orders.id] }),
   product: one(products, { fields: [orderItems.productId], references: [products.id] }),
+}));
+
+/* ─────────────────────── plugin_migrations ─────────────────────── */
+// Per-plugin migration tracker. Each plugin ships an ordered list of SQL
+// statements; we record the index of each successfully applied statement so
+// reruns skip already-applied ones. Composite PK ensures one row per
+// (plugin, statement index).
+export const pluginMigrations = sqliteTable("__plugin_migrations", {
+  pluginId: text("plugin_id").notNull(),
+  idx: integer("idx").notNull(),
+  appliedAt: integer("applied_at", { mode: "timestamp" }).notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.pluginId, t.idx] }),
 }));
