@@ -40,6 +40,13 @@ const CSV_COLUMNS = [
   "deliveredAt",
 ] as const;
 
+// Allowlist mirrors the orders.status union in the schema. Anything else is
+// silently treated as "no filter" rather than passed through to drizzle —
+// avoids surprising query failures from typos or hostile inputs.
+const ORDER_STATUSES = new Set([
+  "pending", "awaiting_payment", "underpaid", "paid", "completed", "expired", "cancelled",
+]);
+
 export const adminExportPlugin: Plugin = {
   manifest: {
     id: "admin-export",
@@ -55,8 +62,9 @@ export const adminExportPlugin: Plugin = {
         if ("errorResponse" in auth) return auth.errorResponse;
 
         const q = query as Record<string, string>;
-        const rows = q.status
-          ? await db.select().from(orders).where(eq(orders.status, q.status as never)).orderBy(desc(orders.createdAt))
+        const statusFilter = q.status && ORDER_STATUSES.has(q.status) ? q.status : null;
+        const rows = statusFilter
+          ? await db.select().from(orders).where(eq(orders.status, statusFilter as never)).orderBy(desc(orders.createdAt))
           : await db.select().from(orders).orderBy(desc(orders.createdAt));
 
         const csv = csvBody(CSV_COLUMNS, rows as Record<string, unknown>[]);
@@ -65,7 +73,7 @@ export const adminExportPlugin: Plugin = {
         set.headers["content-type"] = "text/csv; charset=utf-8";
         set.headers["content-disposition"] = `attachment; filename="nexora-orders-${stamp}.csv"`;
 
-        await logAdminAction(auth.user.email, "orders.csv_export", `${rows.length} row(s)${q.status ? ` (status=${q.status})` : ""}`);
+        await logAdminAction(auth.user.email, "orders.csv_export", `${rows.length} row(s)${statusFilter ? ` (status=${statusFilter})` : ""}`);
         return csv;
       },
       {

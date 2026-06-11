@@ -7,6 +7,13 @@ import { hashPassword, normalizeEmail, createSession, sessionCookieOptions, SESS
 import { setSetting } from "../lib/settings.ts";
 import { setFlag, type FeatureKey, FEATURES } from "../lib/features.ts";
 import { validateXpub } from "../lib/hd.ts";
+import { rateLimitCheck, clientIp as resolveClientIp } from "../lib/rate-limit.ts";
+
+// /api/setup is a CPU-bound endpoint (argon2id hashing) and the only path
+// without auth that can move state. Cap at 3 attempts / hour / IP — enough for
+// a fat-fingered admin retry, ruinous for a brute-force.
+const SETUP_RATE_MAX = 3;
+const SETUP_RATE_WINDOW_MS = 60 * 60_000;
 
 async function hasAdmin(): Promise<boolean> {
   return (await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"))).length > 0;
@@ -18,7 +25,14 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
   .get("/status", async () => ({ needsSetup: !(await hasAdmin()) }))
   .post(
     "/",
-    async ({ body, cookie, set }) => {
+    async ({ body, cookie, set, request }) => {
+      const ip = resolveClientIp(request);
+      const rl = rateLimitCheck(`setup:${ip}`, SETUP_RATE_MAX, SETUP_RATE_WINDOW_MS);
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return { error: "Too many setup attempts", code: "RATE_LIMITED", retryAfterMs: rl.resetMs };
+      }
       // Validate xpub OUTSIDE the transaction so we don't open one for
       // requests that will be rejected on input shape anyway.
       let xpubType: string | null = null;

@@ -1,8 +1,8 @@
 import { Elysia, t } from "elysia";
 import { randomUUID } from "crypto";
-import { and, eq, count, inArray, desc } from "drizzle-orm";
+import { and, eq, count, inArray, desc, sql } from "drizzle-orm";
 import { db } from "../db/connection.ts";
-import { products, productKeys, orders, orderItems, users, sessions, coupons, reviews, adminActions, categories } from "../db/schema.ts";
+import { products, productKeys, productVariants, orders, orderItems, users, sessions, coupons, reviews, adminActions, categories } from "../db/schema.ts";
 import { validateSession, SESSION_COOKIE } from "../lib/auth.ts";
 import { uniqueSlug } from "../lib/slug.ts";
 import { getAllSettings, setSetting } from "../lib/settings.ts";
@@ -11,9 +11,35 @@ import { getFlags, setFlag, FEATURES, type FeatureKey } from "../lib/features.ts
 import { adminProviderList, setProviderEnabled, setProviderField, PROVIDER_BY_ID } from "../lib/payments.ts";
 import { logAdminAction } from "../lib/audit.ts";
 import { EmailService } from "../lib/email.ts";
+import { rateLimitCheck } from "../lib/rate-limit.ts";
+
+// Defense-in-depth rate limit on admin mutations. The admin is already
+// authenticated, but if their cookie is ever stolen (XSS in a third-party
+// admin tool, malware on the laptop, etc.) this caps the blast radius — an
+// attacker can't run a 1000-product bulk-deactivate inside one minute. 60
+// mutations/min is far above any human admin's pace and well below abuse.
+const ADMIN_MUTATE_MAX = 60;
+const ADMIN_MUTATE_WINDOW_MS = 60_000;
 
 // Settings keys whose values must never leave the server in cleartext.
-const SECRET_KEYS = new Set(["resend_api_key", "smtp_pass", "blockcypher_token"]);
+// `order_token_secret` is added so it never appears in the admin /settings GET
+// even though the admin can otherwise see all key/value pairs — leaking it
+// would let anyone forge guest order-view tokens.
+const SECRET_KEYS = new Set([
+  "resend_api_key",
+  "smtp_pass",
+  "blockcypher_token",
+  "order_token_secret",
+]);
+
+// Allowlist for ?status= filters on admin orders / keys endpoints. Same set
+// as the orders.status union; any other value falls through to "no filter"
+// instead of being passed verbatim to drizzle.
+const ORDER_STATUSES = new Set([
+  "pending", "awaiting_payment", "underpaid", "paid", "completed", "expired", "cancelled",
+]);
+const KEY_STATUSES = new Set(["available", "reserved", "delivered"]);
+const CUSTOMER_STATUSES = new Set(["active", "banned"]);
 
 /* key counts (available + delivered) per product */
 async function keyCounts(productIds: string[]) {
@@ -32,12 +58,44 @@ async function keyCounts(productIds: string[]) {
   return m;
 }
 
+/* key counts per variant */
+async function variantKeyCounts(productIds: string[]) {
+  const m: Record<string, Record<string, { available: number; delivered: number }>> = {};
+  if (productIds.length === 0) return m;
+  const rows = await db
+    .select({ productId: productKeys.productId, variantId: productKeys.variantId, status: productKeys.status, c: count() })
+    .from(productKeys)
+    .where(and(inArray(productKeys.productId, productIds), sql`${productKeys.variantId} IS NOT NULL`))
+    .groupBy(productKeys.productId, productKeys.variantId, productKeys.status);
+  for (const r of rows) {
+    if (!r.variantId) continue;
+    const prod = (m[r.productId] ??= {});
+    const e = (prod[r.variantId] ??= { available: 0, delivered: 0 });
+    if (r.status === "available") e.available = Number(r.c);
+    if (r.status === "delivered") e.delivered = Number(r.c);
+  }
+  return m;
+}
+
 // Every /api/admin/* route requires an admin session. Instance-level guard applies to all.
 export const adminRoutes = new Elysia({ prefix: "/api/admin" })
-  .onBeforeHandle(async ({ cookie, status }) => {
+  .onBeforeHandle(async ({ cookie, status, request, set }) => {
     const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
     if (!user) return status(401, { error: "Authentication required", code: "UNAUTHENTICATED" });
     if (user.role !== "admin") return status(403, { error: "Admin only", code: "FORBIDDEN" });
+    // Defense-in-depth: cap admin mutation rate per user id. GET reads remain
+    // unthrottled — the dashboard polls them frequently. Stolen cookies
+    // therefore can read everything (which the legitimate admin can also do)
+    // but can't burst-write the catalog.
+    const m = request.method;
+    if (m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE") {
+      const rl = rateLimitCheck(`admin-mutate:${user.id}`, ADMIN_MUTATE_MAX, ADMIN_MUTATE_WINDOW_MS);
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return { error: "Admin mutation rate limit hit", code: "RATE_LIMITED", retryAfterMs: rl.resetMs };
+      }
+    }
     return;
   })
   // Expose the acting admin's email to handlers (for the audit log).
@@ -54,12 +112,33 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     "/products",
     async () => {
       const all = await db.select().from(products).orderBy(desc(products.createdAt));
-      const counts = await keyCounts(all.map((p) => p.id));
-      return all.map((p) => ({
-        ...p,
-        available: counts[p.id]?.available ?? 0,
-        delivered: counts[p.id]?.delivered ?? 0,
-      }));
+      const productIds = all.map((p) => p.id);
+      const counts = await keyCounts(productIds);
+      const vCounts = await variantKeyCounts(productIds);
+
+      const allVariants = productIds.length > 0
+        ? await db.select().from(productVariants).where(inArray(productVariants.productId, productIds))
+        : [];
+      
+      const variantsByProduct: Record<string, any[]> = {};
+      for (const v of allVariants) {
+        const vc = vCounts[v.productId]?.[v.id] ?? { available: 0, delivered: 0 };
+        (variantsByProduct[v.productId] ??= []).push({
+          ...v,
+          available: vc.available,
+          delivered: vc.delivered,
+        });
+      }
+
+      return all.map((p) => {
+        const pVariants = variantsByProduct[p.id] ?? [];
+        return {
+          ...p,
+          available: pVariants.length > 0 ? pVariants.reduce((sum, v) => sum + v.available, 0) : (counts[p.id]?.available ?? 0),
+          delivered: pVariants.length > 0 ? pVariants.reduce((sum, v) => sum + v.delivered, 0) : (counts[p.id]?.delivered ?? 0),
+          variants: pVariants,
+        };
+      });
     }
   )
 
@@ -74,6 +153,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         name: body.name,
         description: body.description,
         priceUsd: body.priceUsd,
+        compareAtPrice: body.compareAtPrice ?? null,
         image: body.image,
         category: body.category,
         categoryId: body.categoryId ?? null,
@@ -81,14 +161,31 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         deliverables: body.deliverables ?? "serials" as const,
       };
       await db.insert(products).values(row);
+
+      const createdVariants: any[] = [];
+      if (body.variants && body.variants.length > 0) {
+        for (const v of body.variants) {
+          const vRow = {
+            id: randomUUID(),
+            productId: id,
+            name: v.name,
+            priceUsd: v.priceUsd,
+            compareAtPrice: v.compareAtPrice ?? null,
+          };
+          await db.insert(productVariants).values(vRow);
+          createdVariants.push({ ...vRow, available: 0, delivered: 0 });
+        }
+      }
+
       await logAdminAction(adminEmail, "product.create", `${row.name} ($${row.priceUsd})`);
       set.status = 201;
-      return { ...row, available: 0, delivered: 0 };
+      return { ...row, available: 0, delivered: 0, variants: createdVariants };
     },
     {
       body: t.Object({
         name: t.String({ minLength: 1 }),
         priceUsd: t.Number({ minimum: 0 }),
+        compareAtPrice: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
         description: t.String({ default: "" }),
         image: t.String({ default: "" }),
         category: t.String({ minLength: 1 }),
@@ -96,6 +193,11 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         slug: t.Optional(t.String()),
         active: t.Optional(t.Boolean()),
         deliverables: t.Optional(t.Union([t.Literal("serials"), t.Literal("service"), t.Literal("dynamic")])),
+        variants: t.Optional(t.Array(t.Object({
+          name: t.String({ minLength: 1 }),
+          priceUsd: t.Number({ minimum: 0 }),
+          compareAtPrice: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
+        }))),
       }),
     }
   )
@@ -111,6 +213,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       const updates: Record<string, unknown> = {};
       if (body.name !== undefined) updates.name = body.name;
       if (body.priceUsd !== undefined) updates.priceUsd = body.priceUsd;
+      if (body.compareAtPrice !== undefined) updates.compareAtPrice = body.compareAtPrice;
       if (body.description !== undefined) updates.description = body.description;
       if (body.image !== undefined) updates.image = body.image;
       if (body.category !== undefined) updates.category = body.category;
@@ -119,12 +222,47 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       if (body.categoryId !== undefined) updates.categoryId = body.categoryId;
       if (body.slug !== undefined) updates.slug = await uniqueSlug(body.slug, id);
       await db.update(products).set(updates).where(eq(products.id, id));
+
+      if (body.variants !== undefined) {
+        const currentVariants = await db.select().from(productVariants).where(eq(productVariants.productId, id));
+        const currentIds = currentVariants.map((v) => v.id);
+        const incomingIds = body.variants.map((v) => v.id).filter(Boolean) as string[];
+
+        // Delete removed variants
+        const toDelete = currentIds.filter((cid) => !incomingIds.includes(cid));
+        if (toDelete.length > 0) {
+          await db.delete(productVariants).where(inArray(productVariants.id, toDelete));
+        }
+
+        // Add/Update incoming variants
+        for (const v of body.variants) {
+          if (v.id && currentIds.includes(v.id)) {
+            await db.update(productVariants)
+              .set({
+                name: v.name,
+                priceUsd: v.priceUsd,
+                compareAtPrice: v.compareAtPrice ?? null,
+              })
+              .where(eq(productVariants.id, v.id));
+          } else {
+            await db.insert(productVariants).values({
+              id: v.id || randomUUID(),
+              productId: id,
+              name: v.name,
+              priceUsd: v.priceUsd,
+              compareAtPrice: v.compareAtPrice ?? null,
+            });
+          }
+        }
+      }
+
       return { ...existing, ...updates };
     },
     {
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
         priceUsd: t.Optional(t.Number({ minimum: 0 })),
+        compareAtPrice: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
         description: t.Optional(t.String()),
         image: t.Optional(t.String()),
         category: t.Optional(t.String({ minLength: 1 })),
@@ -132,6 +270,12 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         slug: t.Optional(t.String()),
         active: t.Optional(t.Boolean()),
         deliverables: t.Optional(t.Union([t.Literal("serials"), t.Literal("service"), t.Literal("dynamic")])),
+        variants: t.Optional(t.Array(t.Object({
+          id: t.Optional(t.String()),
+          name: t.String({ minLength: 1 }),
+          priceUsd: t.Number({ minimum: 0 }),
+          compareAtPrice: t.Optional(t.Nullable(t.Number({ minimum: 0 }))),
+        }))),
       }),
     }
   )
@@ -161,27 +305,50 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         set.status = 404;
         return { error: "Product not found", code: "NOT_FOUND" };
       }
+      if (body.variantId) {
+        const variant = (await db.select().from(productVariants).where(and(eq(productVariants.id, body.variantId), eq(productVariants.productId, id))))[0];
+        if (!variant) {
+          set.status = 400;
+          return { error: "Variant not found for this product", code: "BAD_VARIANT" };
+        }
+      }
       // Normalize, drop blanks, de-dupe within the request.
       const incoming = Array.from(
         new Set(body.codes.map((c) => c.trim()).filter((c) => c.length > 0))
       );
-      // De-dupe against existing codes for this product.
+      // De-dupe against existing codes for this product & variant combination.
       const existing = await db
         .select({ code: productKeys.code })
         .from(productKeys)
-        .where(eq(productKeys.productId, id));
+        .where(
+          and(
+            eq(productKeys.productId, id),
+            body.variantId ? eq(productKeys.variantId, body.variantId) : sql`${productKeys.variantId} IS NULL`
+          )
+        );
       const existingSet = new Set(existing.map((e) => e.code));
       const fresh = incoming.filter((c) => !existingSet.has(c));
       if (fresh.length > 0) {
         await db.insert(productKeys).values(
-          fresh.map((code) => ({ id: randomUUID(), productId: id, code, status: "available" as const }))
+          fresh.map((code) => ({
+            id: randomUUID(),
+            productId: id,
+            variantId: body.variantId ?? null,
+            code,
+            keyType: body.keyType ?? "code",
+            status: "available" as const
+          }))
         );
       }
       set.status = 201;
       return { added: fresh.length, duplicatesSkipped: incoming.length - fresh.length };
     },
     {
-      body: t.Object({ codes: t.Array(t.String(), { minItems: 1 }) }),
+      body: t.Object({
+        codes: t.Array(t.String(), { minItems: 1 }),
+        variantId: t.Optional(t.Nullable(t.String())),
+        keyType: t.Optional(t.Union([t.Literal("code"), t.Literal("account"), t.Literal("file"), t.Literal("instructions")])),
+      }),
     }
   )
 
@@ -189,7 +356,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     "/products/:id/keys",
     async ({ params: { id }, query }) => {
       const status = (query as Record<string, string>).status;
-      const where = status
+      const where = status && KEY_STATUSES.has(status)
         ? and(eq(productKeys.productId, id), eq(productKeys.status, status as any))
         : eq(productKeys.productId, id);
       return db.select().from(productKeys).where(where).orderBy(desc(productKeys.createdAt));
@@ -219,7 +386,13 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     const all = await getAllSettings();
     const out: Record<string, string | boolean | null> = {};
     for (const [k, v] of Object.entries(all)) {
-      out[k] = SECRET_KEYS.has(k) ? (v ? true : false) : v; // secrets → boolean "is set"
+      // Secrets like resend_api_key / smtp_pass are surfaced as a boolean
+      // "is set" flag so the admin UI can render a status indicator without
+      // ever shipping the cleartext value to the browser.
+      // order_token_secret is fully hidden (not even a boolean): leaking
+      // its presence is fine but surfacing the value would be a forge key.
+      if (k === "order_token_secret") continue;
+      out[k] = SECRET_KEYS.has(k) ? (v ? true : false) : v;
     }
     // also surface the detected xpub type + sample address (no secret)
     const xpub = all.ltc_xpub;
@@ -278,8 +451,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   /* ───────── Orders (admin view) ───────── */
   .get("/orders", async ({ query }) => {
     const status = (query as Record<string, string>).status;
-    const valid = ["pending", "awaiting_payment", "underpaid", "paid", "completed", "expired", "cancelled"];
-    const list = valid.includes(status)
+    const list = status && ORDER_STATUSES.has(status)
       ? await db.select().from(orders).where(eq(orders.status, status as any)).orderBy(desc(orders.createdAt))
       : await db.select().from(orders).orderBy(desc(orders.createdAt));
     return Promise.all(
@@ -357,7 +529,11 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   /* ───────── Stats / revenue ───────── */
   .get("/stats", async ({ query }) => {
     const q = query as Record<string, string>;
+    // Range is parsed/clamped — `?days=99999` capped at 90, `?days=foo` defaults to 14.
     const days = Math.max(1, Math.min(90, parseInt(q.days ?? "14", 10) || 14));
+    // For shops with millions of orders this is still a full scan; in that
+    // regime move to a materialised daily-stats table. For everything else,
+    // scanning under the admin guard is fine.
     const all = await db.select().from(orders);
     const byStatus: Record<string, number> = {
       pending: 0, awaiting_payment: 0, underpaid: 0, paid: 0, completed: 0, expired: 0, cancelled: 0,
@@ -577,6 +753,26 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     "/coupons",
     async ({ body, set, adminEmail }) => {
       const code = body.code.trim().toUpperCase();
+      // Tighten coupon code shape: must be alnum + dash/underscore, 1..40
+      // chars. Without this, an admin (or a compromised admin session) could
+      // store a multi-line / unicode code that breaks audit log formatting
+      // or matches loosely if the comparison is ever changed.
+      if (!/^[A-Z0-9_-]{1,40}$/.test(code)) {
+        set.status = 400;
+        return { error: "Coupon code must be 1-40 chars: A-Z, 0-9, _ or -", code: "BAD_CODE" };
+      }
+      // Percent coupons must be 0..100; fixed coupons must be reasonable.
+      // Without this, percent=1000 would compute a 1000% discount and
+      // produce a negative totalUsd before the Math.max(0.01, ...) clamp in
+      // checkout.ts — which is also why we clamp here belt-and-braces.
+      if (body.type === "percent" && (body.value < 0 || body.value > 100)) {
+        set.status = 400;
+        return { error: "Percent coupons must be 0..100", code: "BAD_VALUE" };
+      }
+      if (body.type === "fixed" && body.value > 10_000) {
+        set.status = 400;
+        return { error: "Fixed coupons capped at $10,000", code: "BAD_VALUE" };
+      }
       const exists = (await db.select().from(coupons).where(eq(coupons.code, code)))[0];
       if (exists) { set.status = 409; return { error: "Code already exists", code: "DUP_CODE" }; }
       const row = {
@@ -585,18 +781,24 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         active: body.active ?? true,
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       };
-      await db.insert(coupons).values(row);
+      try {
+        await db.insert(coupons).values(row);
+      } catch {
+        // UNIQUE collision under a concurrent admin race — surface 409.
+        set.status = 409;
+        return { error: "Code already exists", code: "DUP_CODE" };
+      }
       await logAdminAction(adminEmail, "coupon.create", `${code} (${body.type === "percent" ? body.value + "%" : "$" + body.value})`);
       set.status = 201;
       return row;
     },
     {
       body: t.Object({
-        code: t.String({ minLength: 1 }),
+        code: t.String({ minLength: 1, maxLength: 40 }),
         type: t.Union([t.Literal("percent"), t.Literal("fixed")]),
         value: t.Number({ minimum: 0 }),
-        maxUses: t.Optional(t.Integer({ minimum: 1 })),
-        minOrderUsd: t.Optional(t.Number({ minimum: 0 })),
+        maxUses: t.Optional(t.Integer({ minimum: 1, maximum: 1_000_000 })),
+        minOrderUsd: t.Optional(t.Number({ minimum: 0, maximum: 1_000_000 })),
         active: t.Optional(t.Boolean()),
         expiresAt: t.Optional(t.Number()),
       }),

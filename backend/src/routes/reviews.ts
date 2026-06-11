@@ -76,8 +76,16 @@ export const reviewRoutes = new Elysia()
       if (!(await hasPurchased(user.id, id))) return status(403, { error: "Only buyers can review", code: "NOT_PURCHASED" });
       const existing = (await db.select().from(reviews).where(and(eq(reviews.userId, user.id), eq(reviews.productId, id))))[0];
       if (existing) return status(409, { error: "You already reviewed this", code: "ALREADY_REVIEWED" });
-      const row = { id: randomUUID(), productId: id, userId: user.id, email: user.email, rating: body.rating, body: body.body ?? "", hidden: false };
-      await db.insert(reviews).values(row);
+      // Strip C0 control chars (except newline + CR) so a review can't
+      // smuggle ANSI escape sequences into terminal-rendered admin tooling.
+      const clean = (body.body ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+      const row = { id: randomUUID(), productId: id, userId: user.id, email: user.email, rating: body.rating, body: clean, hidden: false };
+      try {
+        await db.insert(reviews).values(row);
+      } catch {
+        // UNIQUE(userId, productId) collision under a concurrent double-submit.
+        return status(409, { error: "You already reviewed this", code: "ALREADY_REVIEWED" });
+      }
       set.status = 201;
       return { ok: true };
     },

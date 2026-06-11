@@ -1,7 +1,7 @@
-import { randomBytes, createHash, timingSafeEqual } from "crypto";
+import { randomBytes, createHash, createHmac, timingSafeEqual } from "crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../db/connection.ts";
-import { users, sessions } from "../db/schema.ts";
+import { users, sessions, settings } from "../db/schema.ts";
 
 /* ───────────────────────── password (argon2id via Bun) ───────────────────────── */
 export const hashPassword = (pw: string) =>
@@ -50,6 +50,11 @@ export async function validateSession(token: string | undefined): Promise<Sessio
   }
   const u = (await db.select().from(users).where(eq(users.id, row.userId)))[0];
   if (!u) return null;
+  // Refuse banned customers even if their session row hasn't been swept yet.
+  if (u.status === "banned") {
+    await db.delete(sessions).where(eq(sessions.token, id));
+    return null;
+  }
   return { id: u.id, email: u.email, role: u.role };
 }
 
@@ -62,33 +67,117 @@ export function sessionCookieOptions(expires: Date) {
   return {
     httpOnly: true,
     secure: Bun.env.NODE_ENV === "production", // dev over http://localhost keeps the cookie
-    sameSite: "lax" as const,
-    path: "/",
+    sameSite: "strict" as const,
+    path: "/api",
     expires,
   };
 }
 
-export function generateOrderToken(orderId: string): string {
-  const secret = Bun.env.ADMIN_PASSWORD_HASH ?? "nexora-default-secret-salt-2026";
-  return createHash("sha256").update(orderId + secret).digest("hex");
+/* ─────────────────── order-token HMAC secret (per-deploy random) ───────────────────
+ * Token used by guest order pages (`?token=…`). Previous behavior fell back to a
+ * hardcoded string when ADMIN_PASSWORD_HASH was unset → an attacker who knew the
+ * fallback could forge tokens for any orderId and read other customers' delivered
+ * keys (CRITICAL IDOR). We now require an explicit secret. Sources, in order:
+ *   1. ORDER_TOKEN_SECRET env var (highest priority — survives DB wipe).
+ *   2. settings.order_token_secret (auto-provisioned random 32-byte hex on boot).
+ * The token itself is HMAC-SHA256(secret, "v1:order:" + orderId) → switching the
+ * version prefix or the secret invalidates outstanding guest links, which is the
+ * desired property when rotating after a suspected compromise.
+ *
+ * Versioning: the prefix `v1:` is reserved so we can ship a `v2:` (e.g. binding
+ * userId or createdAt) without breaking outstanding links — verifier accepts
+ * any known version, generator emits the latest.
+ */
+let ORDER_TOKEN_SECRET_CACHE: string | null = null;
+
+async function getOrderTokenSecret(): Promise<string> {
+  if (ORDER_TOKEN_SECRET_CACHE) return ORDER_TOKEN_SECRET_CACHE;
+  const env = Bun.env.ORDER_TOKEN_SECRET;
+  if (env && env.length >= 32) {
+    ORDER_TOKEN_SECRET_CACHE = env;
+    return env;
+  }
+  // Fall back to a DB-persisted, lazy-generated random secret. SQLite serializes
+  // writes so a concurrent first-boot is safe (UNIQUE on settings.key).
+  const existing = (await db.select().from(settings).where(eq(settings.key, "order_token_secret")))[0];
+  if (existing && existing.value && existing.value.length >= 32) {
+    ORDER_TOKEN_SECRET_CACHE = existing.value;
+    return existing.value;
+  }
+  const fresh = randomBytes(32).toString("hex");
+  try {
+    await db.insert(settings).values({ key: "order_token_secret", value: fresh });
+    ORDER_TOKEN_SECRET_CACHE = fresh;
+    return fresh;
+  } catch {
+    // Lost the race — re-read the row the winner inserted.
+    const row = (await db.select().from(settings).where(eq(settings.key, "order_token_secret")))[0];
+    const v = row?.value && row.value.length >= 32 ? row.value : fresh;
+    ORDER_TOKEN_SECRET_CACHE = v;
+    return v;
+  }
 }
 
-export function verifyOrderToken(orderId: string, token: string | undefined): boolean {
-  if (!token) return false;
-  // Constant-time compare so response time can't leak prefix bytes of the
-  // expected token. Both sides are hex SHA-256 (64 chars) when well-formed,
-  // but a hostile caller can send any string — length-mismatch must NOT throw
-  // (timingSafeEqual throws on unequal buffer lengths) and must NOT short-
-  // circuit (early-return on length leaks one bit per request).
-  const expected = Buffer.from(generateOrderToken(orderId), "utf8");
-  const supplied = Buffer.from(token, "utf8");
-  if (expected.length !== supplied.length) {
-    // Burn the same work timingSafeEqual would do, on a same-sized dummy.
-    // Result is discarded; the function still returns false because the
-    // lengths can't match a valid token.
-    timingSafeEqual(expected, expected);
+// Synchronous wrappers kept for hot paths (checkout response). Throw if the
+// secret hasn't been primed yet — callers should `await primeOrderTokenSecret()`
+// during boot. We prime in index.ts immediately after bootstrapAdmin().
+//
+// `generateOrderToken(orderId)` — version-1 token, suitable for guest orders
+// where the buyer is identified only by email. Anyone with the orderId AND the
+// token can view the order.
+//
+// `generateOrderTokenForUser(orderId, userId)` — version-2 token, binds the
+// token to a specific user id. Only the owner (after authenticating again)
+// would be able to forge an equivalent token, since the user id is part of
+// the HMAC payload. We don't currently use v2 in the response (the existing
+// checkout response stays compatible with guest flows), but verifyOrderToken
+// will accept either flavor so a future client can opt in without a server
+// upgrade dance.
+export function generateOrderToken(orderId: string): string {
+  if (!ORDER_TOKEN_SECRET_CACHE) {
+    throw new Error("ORDER_TOKEN_SECRET not initialized — call primeOrderTokenSecret() at boot");
+  }
+  return createHmac("sha256", ORDER_TOKEN_SECRET_CACHE).update("v1:order:" + orderId).digest("hex");
+}
+
+export function generateOrderTokenForUser(orderId: string, userId: string): string {
+  if (!ORDER_TOKEN_SECRET_CACHE) {
+    throw new Error("ORDER_TOKEN_SECRET not initialized — call primeOrderTokenSecret() at boot");
+  }
+  return createHmac("sha256", ORDER_TOKEN_SECRET_CACHE).update("v2:order:" + orderId + ":user:" + userId).digest("hex");
+}
+
+export async function primeOrderTokenSecret(): Promise<void> {
+  await getOrderTokenSecret();
+}
+
+// Constant-time hex compare on equal-length buffers. Returns false on any
+// length mismatch without leaking via early-exit timing.
+function ctEqHex(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ab.length !== bb.length) {
+    timingSafeEqual(ab, ab); // burn equivalent work
     return false;
   }
-  return timingSafeEqual(expected, supplied);
+  return timingSafeEqual(ab, bb);
+}
+
+export function verifyOrderToken(orderId: string, token: string | undefined, userId?: string): boolean {
+  if (!token) return false;
+  // Reject any token that isn't a 64-char hex string up front so an attacker
+  // can't probe with arbitrary-length buffers.
+  if (typeof token !== "string" || token.length !== 64 || !/^[0-9a-f]+$/i.test(token)) return false;
+  if (!ORDER_TOKEN_SECRET_CACHE) return false; // pre-boot — refuse.
+  // Try v1 (guest token). If a userId was supplied, ALSO try v2 — either
+  // flavor is acceptable: callers that don't have a user in context just
+  // omit userId and v2 is silently skipped.
+  const v1 = generateOrderToken(orderId);
+  if (ctEqHex(v1, token)) return true;
+  if (userId) {
+    const v2 = generateOrderTokenForUser(orderId, userId);
+    if (ctEqHex(v2, token)) return true;
+  }
+  return false;
 }
 

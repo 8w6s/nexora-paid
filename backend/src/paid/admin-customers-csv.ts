@@ -23,6 +23,9 @@ import { csvBody, todayStamp } from "./lib/csv.ts";
 // passwordHash deliberately omitted — never leaves the system, even to admins.
 const CSV_COLUMNS = ["id", "email", "role", "status", "createdAt"] as const;
 
+// Allowlist for ?role=. Mirrors users.role union in schema.ts.
+const USER_ROLES = new Set(["customer", "admin"]);
+
 export const adminCustomersCsvPlugin: Plugin = {
   manifest: {
     id: "admin-customers-csv",
@@ -38,8 +41,9 @@ export const adminCustomersCsvPlugin: Plugin = {
         if ("errorResponse" in auth) return auth.errorResponse;
 
         const q = query as Record<string, string>;
-        const rows = q.role
-          ? await db.select().from(users).where(eq(users.role, q.role as never)).orderBy(desc(users.createdAt))
+        const roleFilter = q.role && USER_ROLES.has(q.role) ? q.role : null;
+        const rows = roleFilter
+          ? await db.select().from(users).where(eq(users.role, roleFilter as never)).orderBy(desc(users.createdAt))
           : await db.select().from(users).orderBy(desc(users.createdAt));
 
         // Strip passwordHash defensively even though it's not in CSV_COLUMNS —
@@ -51,7 +55,7 @@ export const adminCustomersCsvPlugin: Plugin = {
         set.headers["content-type"] = "text/csv; charset=utf-8";
         set.headers["content-disposition"] = `attachment; filename="nexora-customers-${stamp}.csv"`;
 
-        await logAdminAction(auth.user.email, "customers.csv_export", `${rows.length} row(s)${q.role ? ` (role=${q.role})` : ""}`);
+        await logAdminAction(auth.user.email, "customers.csv_export", `${rows.length} row(s)${roleFilter ? ` (role=${roleFilter})` : ""}`);
         return csv;
       },
       {

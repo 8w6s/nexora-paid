@@ -36,13 +36,33 @@ export const ticketRoutes = new Elysia()
       if (!(await isEnabled("tickets"))) return status(403, { error: "Tickets disabled", code: "DISABLED" });
       const user = await requireUser(cookie);
       if (!user) return status(401, { error: "Sign in", code: "UNAUTHENTICATED" });
+      const cleanSubject = body.subject.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
+      const cleanMessage = body.message.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
+      if (!cleanSubject || !cleanMessage) return status(400, { error: "Subject and message required", code: "EMPTY" });
+      // Verify the orderId, when supplied, actually belongs to this user — a
+      // hostile customer could otherwise attach an arbitrary order id (incl.
+      // someone else's GG-XXXX) to their ticket and gain a referenced
+      // tooltip in admin UI hover. Validate at write time.
+      if (body.orderId) {
+        // Lazy import to avoid a circular dep at top-of-file.
+        const { orders } = await import("../db/schema.ts");
+        const o = (await db.select({ id: orders.id, userId: orders.userId })
+          .from(orders).where(eq(orders.id, body.orderId)))[0];
+        if (!o || (o.userId !== user.id && user.role !== "admin")) {
+          return status(400, { error: "Unknown order id", code: "BAD_ORDER" });
+        }
+      }
       const id = randomUUID();
-      await db.insert(tickets).values({ id, userId: user.id, email: user.email, subject: body.subject, orderId: body.orderId ?? null });
-      await db.insert(ticketMessages).values({ id: randomUUID(), ticketId: id, fromAdmin: false, body: body.message });
+      await db.insert(tickets).values({ id, userId: user.id, email: user.email, subject: cleanSubject, orderId: body.orderId ?? null });
+      await db.insert(ticketMessages).values({ id: randomUUID(), ticketId: id, fromAdmin: false, body: cleanMessage });
       set.status = 201;
       return { id };
     },
-    { body: t.Object({ subject: t.String({ minLength: 1 }), message: t.String({ minLength: 1 }), orderId: t.Optional(t.String()) }) }
+    { body: t.Object({
+      subject: t.String({ minLength: 1, maxLength: 200 }),
+      message: t.String({ minLength: 1, maxLength: 8000 }),
+      orderId: t.Optional(t.String({ maxLength: 64 })),
+    }) }
   )
 
   .post(
@@ -53,15 +73,17 @@ export const ticketRoutes = new Elysia()
       const tk = (await db.select().from(tickets).where(eq(tickets.id, id)))[0];
       if (!tk || (tk.userId !== user.id && user.role !== "admin")) return status(404, { error: "Not found", code: "NOT_FOUND" });
       if (tk.status === "closed") return status(400, { error: "Ticket closed", code: "CLOSED" });
+      const cleanMessage = body.message.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
+      if (!cleanMessage) return status(400, { error: "Empty message", code: "EMPTY" });
       const fromAdmin = user.role === "admin" && tk.userId !== user.id;
-      await db.insert(ticketMessages).values({ id: randomUUID(), ticketId: id, fromAdmin, body: body.message });
+      await db.insert(ticketMessages).values({ id: randomUUID(), ticketId: id, fromAdmin, body: cleanMessage });
       await db.update(tickets).set({ updatedAt: new Date() }).where(eq(tickets.id, id));
       // Notify the customer by email when an admin replies (best-effort; no-op if email is off).
-      if (user.role === "admin") void EmailService.ticketReply(tk.email, tk.subject, body.message);
+      if (user.role === "admin") void EmailService.ticketReply(tk.email, tk.subject, cleanMessage);
       set.status = 201;
       return { ok: true };
     },
-    { body: t.Object({ message: t.String({ minLength: 1 }) }) }
+    { body: t.Object({ message: t.String({ minLength: 1, maxLength: 8000 }) }) }
   );
 
 // Admin-side ticket management (mounted under /api/admin via the admin guard separately).

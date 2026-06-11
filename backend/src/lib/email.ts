@@ -92,16 +92,28 @@ function renderTicketReply(subject: string, body: string) {
   return { html, text };
 }
 
+// Strip CR/LF from an email-header source value to prevent SMTP header
+// injection (an attacker who can put a CRLF into the subject could append
+// `Bcc: ...` and silently fan out the email). Cap length defensively too.
+const SAFE_HEADER_RE = new RegExp("[\\r\
+]+", "g");
+const safeHeader = (s: string, max = 200) =>
+  s.replace(SAFE_HEADER_RE, " ").slice(0, max);
+
 export const EmailService = {
   deliveredKeys: (orderId: string, to: string, keys: { name: string; code: string }[]) =>
-    send({ to, subject: `Your Nexora order ${orderId} — keys inside`, idempotencyKey: `delivered-keys/${orderId}`, ...renderDeliveredKeys(orderId, keys) }),
+    send({ to, subject: safeHeader(`Your Nexora order ${orderId} — keys inside`), idempotencyKey: `delivered-keys/${orderId}`, ...renderDeliveredKeys(orderId, keys) }),
   ticketReply: (to: string, subject: string, body: string) =>
-    send({ to, subject: `Re: ${subject} — Nexora Support`, ...renderTicketReply(subject, body) }),
-  lowStockAlert: (to: string, productName: string, remaining: number) =>
-    send({
+    send({ to, subject: safeHeader(`Re: ${subject} — Nexora Support`), ...renderTicketReply(subject, body) }),
+  lowStockAlert: (to: string, productName: string, remaining: number) => {
+    // Sanitize the subject line so an attacker who can name a product can't
+    // smuggle CRLF / quotes into the SMTP envelope (header injection).
+    const safeName = safeHeader(productName, 120).replace(/"/g, " ");
+    return send({
       to,
-      subject: `[Low Stock Warning] Product "${productName}" is running out!`,
+      subject: `[Low Stock Warning] Product "${safeName}" is running out!`,
       html: `<p>Warning: Product <strong>${esc(productName)}</strong> has only <strong>${remaining}</strong> keys remaining in stock.</p><p>Please replenish the keys as soon as possible.</p>`,
-      text: `Low Stock Warning: Product "${productName}" has only ${remaining} keys remaining. Please replenish stock.`
-    }),
+      text: `Low Stock Warning: Product "${safeName}" has only ${remaining} keys remaining. Please replenish stock.`
+    });
+  },
 };
