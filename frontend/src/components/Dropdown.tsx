@@ -46,13 +46,8 @@ export function Dropdown<T extends string>({
       setActive(null);
       return;
     }
-    // When opened, focus on selected index only if using keyboard
-    if (isKeyNavRef.current) {
-      const idx = options.findIndex((o) => o.value === value);
-      setActive(idx >= 0 ? idx : 0);
-    } else {
-      setActive(null);
-    }
+    const idx = options.findIndex((o) => o.value === value);
+    setActive(idx >= 0 ? idx : null);
 
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
@@ -131,7 +126,8 @@ export function Dropdown<T extends string>({
 
   const handleMouseLeave = () => {
     isKeyNavRef.current = false;
-    setActive(null);
+    const idx = options.findIndex((o) => o.value === value);
+    setActive(idx >= 0 ? idx : null);
   };
 
   return (
