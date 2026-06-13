@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { AdminActivity } from "./admin/AdminActivity";
 import { AdminCategories } from "./admin/AdminCategories";
@@ -108,8 +108,36 @@ const NAV_GROUPS: { title?: string; items: { key: Tab; label: string; icon: any;
 export const AdminDashboard: React.FC = () => {
   const { user, loading, logout } = useAuth();
   const { config, theme } = useConfig();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get("tab") as Tab;
+      if (t) return t;
+    }
+    return "overview";
+  });
   const [navOpen, setNavOpen] = useState(false); // mobile drawer
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get("tab") as Tab;
+      setTab(t || "overview");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const changeTab = (newTab: Tab) => {
+    setTab(newTab);
+    setNavOpen(false);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", newTab);
+      window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`);
+    }
+  };
 
   if (loading)
     return (
@@ -185,10 +213,7 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   key={item.key}
                   className={`adm-link ${tab === item.key ? "active" : ""}`}
-                  onClick={() => {
-                    setTab(item.key);
-                    setNavOpen(false);
-                  }}
+                  onClick={() => changeTab(item.key)}
                 >
                   <Icon name={item.icon} size={15} />
                   <span style={{ flex: 1 }}>{item.label}</span>
