@@ -1,8 +1,9 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 
 interface Ticket {
   id: string;
@@ -29,29 +30,41 @@ export const AdminTickets: React.FC = () => {
   const [active, setActive] = useState<TicketDetail | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
-  const load = () => {
+  const load = useCallback(() => {
     const qs = filter === "all" ? "" : `?status=${filter}`;
     api
       .get<Ticket[]>(`/api/admin/tickets${qs}`)
       .then(setList)
       .catch(() => {});
-  };
-  useEffect(load, [filter]);
+  }, [filter]);
 
-  const open = async (id: string) => {
-    setActive(await api.get<TicketDetail>(`/api/tickets/${id}`));
-  };
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const open = useCallback(async (id: string) => {
+    try {
+      const details = await api.get<TicketDetail>(`/api/tickets/${id}`);
+      setActive(details);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load ticket details");
+    }
+  }, [toast]);
 
   const sendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!active) return;
+    if (!active || !reply.trim()) return;
     setBusy(true);
     try {
       await api.post(`/api/tickets/${active.id}/reply`, { message: reply.trim() });
       setReply("");
+      toast.success("Reply sent successfully.");
       await open(active.id);
       load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send reply");
     } finally {
       setBusy(false);
     }
@@ -63,7 +76,10 @@ export const AdminTickets: React.FC = () => {
     try {
       await api.put(`/api/admin/tickets/${active.id}/status`, { status });
       setActive({ ...active, status });
+      toast.success(`Ticket marked as ${status}.`);
       load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to change status");
     } finally {
       setBusy(false);
     }
