@@ -42,6 +42,7 @@ export function Dropdown<T extends string>({
   );
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const isKeyNavRef = useRef(false);
 
   const current = options.find((o) => o.value === value);
 
@@ -62,7 +63,7 @@ export function Dropdown<T extends string>({
 
   // Scroll the active item into view.
   useEffect(() => {
-    if (!open || !listRef.current) return;
+    if (!open || !listRef.current || !isKeyNavRef.current) return;
     const el = listRef.current.children[active] as HTMLElement | undefined;
     el?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
@@ -97,15 +98,19 @@ export function Dropdown<T extends string>({
       setOpen(false);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
+      isKeyNavRef.current = true;
       move(1);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      isKeyNavRef.current = true;
       move(-1);
     } else if (e.key === "Home") {
       e.preventDefault();
+      isKeyNavRef.current = true;
       setActive(0);
     } else if (e.key === "End") {
       e.preventDefault();
+      isKeyNavRef.current = true;
       setActive(options.length - 1);
     } else if (e.key === "Enter") {
       e.preventDefault();
@@ -149,7 +154,12 @@ export function Dropdown<T extends string>({
               aria-selected={value === o.value}
               aria-disabled={o.disabled || undefined}
               className={`dd-opt ${i === active ? "active" : ""} ${value === o.value ? "selected" : ""} ${o.disabled ? "disabled" : ""}`}
-              onMouseEnter={() => !o.disabled && setActive(i)}
+              onMouseEnter={() => {
+                if (!o.disabled) {
+                  isKeyNavRef.current = false;
+                  setActive(i);
+                }
+              }}
               onClick={() => choose(i)}
             >
               {o.icon && (
