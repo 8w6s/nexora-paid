@@ -34,12 +34,7 @@ export function Dropdown<T extends string>({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState<number>(() =>
-    Math.max(
-      0,
-      options.findIndex((o) => o.value === value),
-    ),
-  );
+  const [active, setActive] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const isKeyNavRef = useRef(false);
@@ -47,13 +42,18 @@ export function Dropdown<T extends string>({
   const current = options.find((o) => o.value === value);
 
   useEffect(() => {
-    if (!open) return;
-    setActive(
-      Math.max(
-        0,
-        options.findIndex((o) => o.value === value),
-      ),
-    );
+    if (!open) {
+      setActive(null);
+      return;
+    }
+    // When opened, focus on selected index only if using keyboard
+    if (isKeyNavRef.current) {
+      const idx = options.findIndex((o) => o.value === value);
+      setActive(idx >= 0 ? idx : 0);
+    } else {
+      setActive(null);
+    }
+
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
@@ -63,7 +63,7 @@ export function Dropdown<T extends string>({
 
   // Scroll the active item into view.
   useEffect(() => {
-    if (!open || !listRef.current || !isKeyNavRef.current) return;
+    if (!open || !listRef.current || !isKeyNavRef.current || active === null) return;
     const el = listRef.current.children[active] as HTMLElement | undefined;
     el?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
@@ -71,11 +71,15 @@ export function Dropdown<T extends string>({
   const move = (delta: number) => {
     const n = options.length;
     if (n === 0) return;
-    let i = active;
-    for (let step = 0; step < n; step++) {
+    let i = active !== null ? active : options.findIndex((o) => o.value === value);
+    if (i < 0) i = 0;
+
+    let step = 0;
+    do {
       i = (i + delta + n) % n;
-      if (!options[i].disabled) break;
-    }
+      step++;
+    } while (options[i].disabled && step < n);
+
     setActive(i);
   };
 
@@ -89,6 +93,7 @@ export function Dropdown<T extends string>({
   const onKey = (e: React.KeyboardEvent) => {
     if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
+      isKeyNavRef.current = true;
       setOpen(true);
       return;
     }
@@ -114,7 +119,7 @@ export function Dropdown<T extends string>({
       setActive(options.length - 1);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      choose(active);
+      if (active !== null) choose(active);
     } else if (e.key === "Tab") {
       setOpen(false);
     }
@@ -123,6 +128,11 @@ export function Dropdown<T extends string>({
   const styleW: React.CSSProperties = width
     ? { width: typeof width === "number" ? `${width}px` : width }
     : {};
+
+  const handleMouseLeave = () => {
+    isKeyNavRef.current = false;
+    setActive(null);
+  };
 
   return (
     <div
@@ -137,7 +147,10 @@ export function Dropdown<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={`${id}-list`}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          isKeyNavRef.current = false;
+          setOpen((o) => !o);
+        }}
       >
         <span className="dd-value">
           {current?.icon && <Icon name={current.icon} size={14} variant="duotone-regular" />}
@@ -147,7 +160,13 @@ export function Dropdown<T extends string>({
       </button>
 
       {open && (
-        <ul ref={listRef} id={`${id}-list`} className="dd-list" tabIndex={-1}>
+        <ul
+          ref={listRef}
+          id={`${id}-list`}
+          className="dd-list"
+          tabIndex={-1}
+          onMouseLeave={handleMouseLeave}
+        >
           {options.map((o, i) => (
             <li
               key={String(o.value)}
