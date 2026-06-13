@@ -1,5 +1,4 @@
-import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { Icon } from "../Icon";
 import { Modal } from "../Modal";
@@ -7,6 +6,7 @@ import { Sk, SkeletonStyles } from "../Skeleton";
 import { useToast } from "../Toast";
 import { AdminProductEditor, type ProductRow } from "./AdminProductEditor";
 import { AdminProductWizard } from "./AdminProductWizard";
+import { ConfirmModal } from "../ConfirmModal";
 
 interface AdminProduct extends ProductRow {}
 
@@ -22,14 +22,17 @@ export const AdminProducts: React.FC = () => {
   const [keysVariantId, setKeysVariantId] = useState("");
   const [keysType, setKeysType] = useState<"code" | "account" | "file" | "instructions">("code");
   const [wizard, setWizard] = useState(false);
+  const [deletingProduct, setDeletingProduct] = useState<AdminProduct | null>(null);
   const toast = useToast();
 
-  const load = () =>
+  const load = useCallback(() => {
     api
       .get<AdminProduct[]>("/api/admin/products")
       .then(setList)
       .catch(() => {})
       .finally(() => setLoaded(true));
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -37,6 +40,9 @@ export const AdminProducts: React.FC = () => {
   const toggleActive = async (p: AdminProduct) => {
     await api.patch(`/api/admin/products/${p.id}`, { active: !p.active });
     load();
+  };
+  const handleDelete = (p: AdminProduct) => {
+    setDeletingProduct(p);
   };
   const uploadKeys = async () => {
     if (!keysFor) return;
@@ -193,6 +199,15 @@ export const AdminProducts: React.FC = () => {
                         >
                           <Icon name="key" size={15} variant="duotone-regular" />
                         </button>
+                        <button
+                          className="lnk icon-btn"
+                          style={{ color: "var(--price)" }}
+                          onClick={() => handleDelete(p)}
+                          aria-label={`Delete ${p.name}`}
+                          title="Delete"
+                        >
+                          <Icon name="trash" size={15} variant="duotone-regular" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -278,6 +293,25 @@ export const AdminProducts: React.FC = () => {
           placeholder={keysType === "account" ? "user1:pass1\nuser2:pass2" : "CODE-1\nCODE-2\n…"}
         />
       </Modal>
+
+      <ConfirmModal
+        open={!!deletingProduct}
+        onClose={() => setDeletingProduct(null)}
+        onConfirm={async () => {
+          if (!deletingProduct) return;
+          try {
+            await api.delete(`/api/admin/products/${deletingProduct.id}`);
+            toast.success("Product deleted.");
+            load();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Delete failed");
+          }
+        }}
+        title="Delete Product"
+        message={`Are you sure you want to delete "${deletingProduct?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        danger
+      />
 
       <style>{`
         .ap { position: relative; }

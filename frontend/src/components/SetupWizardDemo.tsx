@@ -67,12 +67,24 @@ export const SetupWizardDemo: React.FC = () => {
           <h1>Setup completed successfully</h1>
           <p className="su-subhead">Demo mode — no data was saved. Reload to start over.</p>
           <div className="su-success-actions">
-            <a href="/setup-demo" className="btn btn-primary">
+            <div
+              className="btn btn-primary"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = "/setup-demo";
+              }}
+            >
               Restart demo
-            </a>
-            <a href="/" className="btn btn-ghost">
+            </div>
+            <div
+              className="btn btn-ghost"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = "/";
+              }}
+            >
               Storefront
-            </a>
+            </div>
           </div>
         </div>
         <Styles />

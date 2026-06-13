@@ -14,6 +14,17 @@ import { AdminProducts } from "./admin/AdminProducts";
 import { AdminReviews } from "./admin/AdminReviews";
 import { AdminSettings } from "./admin/AdminSettings";
 import { AdminTickets } from "./admin/AdminTickets";
+import { AdminGroups } from "./admin/AdminGroups";
+import { AdminAddons } from "./admin/AdminAddons";
+import { AdminQuantityDeals } from "./admin/AdminQuantityDeals";
+import { AdminBundleOffers } from "./admin/AdminBundleOffers";
+import { AdminAbandonedCheckouts } from "./admin/AdminAbandonedCheckouts";
+import { AdminBlog } from "./admin/AdminBlog";
+import { AdminNotifications } from "./admin/AdminNotifications";
+import { AdminBlacklist } from "./admin/AdminBlacklist";
+import { AdminImport } from "./admin/AdminImport";
+import { AdminTeam } from "./admin/AdminTeam";
+import { AdminDevelopers } from "./admin/AdminDevelopers";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -22,48 +33,74 @@ type Tab =
   | "overview"
   | "products"
   | "categories"
+  | "groups"
+  | "addons"
+  | "quantity-deals"
+  | "bundle-offers"
   | "orders"
   | "customers"
   | "coupons"
+  | "abandoned"
   | "reviews"
   | "tickets"
   | "payments"
   | "features"
+  | "blog"
+  | "notifications"
+  | "blacklist"
+  | "import"
   | "activity"
+  | "team"
+  | "developers"
   | "settings";
 
-// SellAuth-style grouped sidebar nav. Order matters — Overview standalone at top, then themed groups.
-const NAV_GROUPS: { title?: string; items: { key: Tab; label: string; icon: any }[] }[] = [
+const NAV_GROUPS: { title?: string; items: { key: Tab; label: string; icon: any; badge?: string }[] }[] = [
   { items: [{ key: "overview", label: "Dashboard", icon: "home" }] },
   {
     title: "Catalog",
     items: [
       { key: "products", label: "Products", icon: "box" },
-      { key: "categories", label: "Categories", icon: "folder" },
+      { key: "addons", label: "Addons", icon: "tag" },
+      { key: "groups", label: "Groups", icon: "folder" },
+      { key: "categories", label: "Categories", icon: "menu" },
       { key: "coupons", label: "Coupons", icon: "tag" },
+      { key: "quantity-deals", label: "Quantity Deals", icon: "receipt", badge: "NEW" },
+      { key: "bundle-offers", label: "Bundle Offers", icon: "box", badge: "NEW" },
     ],
   },
   {
-    title: "Sales",
+    title: "Orders",
     items: [
-      { key: "orders", label: "Orders", icon: "receipt" },
+      { key: "orders", label: "Invoices", icon: "receipt" },
       { key: "customers", label: "Customers", icon: "users" },
-      { key: "reviews", label: "Reviews", icon: "star" },
     ],
   },
-  { title: "Support", items: [{ key: "tickets", label: "Tickets", icon: "ticket" }] },
+  { items: [{ key: "reviews", label: "Feedbacks", icon: "star" }] },
+  { items: [{ key: "tickets", label: "Tickets", icon: "ticket" }] },
+  { items: [{ key: "abandoned", label: "Abandoned Checkouts", icon: "close" }] },
   {
     title: "Storefront",
     items: [
-      { key: "payments", label: "Payments", icon: "credit-card" },
-      { key: "features", label: "Features", icon: "bolt" },
+      { key: "settings", label: "Configure", icon: "settings" },
+      { key: "blog", label: "Blog", icon: "receipt" },
+      { key: "notifications", label: "Push Notifications", icon: "bell" },
+    ],
+  },
+  { items: [{ key: "activity", label: "Activity Logs", icon: "activity" }] },
+  {
+    title: "Settings",
+    items: [
+      { key: "payments", label: "Payment Methods", icon: "credit-card" },
+      { key: "team", label: "Team", icon: "users" },
+      { key: "blacklist", label: "Blacklist", icon: "shield" },
+      { key: "import", label: "Import", icon: "arrow-right" },
     ],
   },
   {
-    title: "System",
+    title: "Account",
     items: [
-      { key: "activity", label: "Activity", icon: "activity" },
-      { key: "settings", label: "Settings", icon: "settings" },
+      { key: "developers", label: "Developers", icon: "zap" },
+      { key: "features", label: "Features", icon: "bolt" },
     ],
   },
 ];
@@ -76,7 +113,16 @@ export const AdminDashboard: React.FC = () => {
 
   if (loading)
     return (
-      <div className="adm-loading">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "80vh",
+          width: "100%",
+          color: "var(--ink-soft)",
+        }}
+      >
         <Icon name="spinner" size={28} className="is-spinning" />
       </div>
     );
@@ -98,7 +144,7 @@ export const AdminDashboard: React.FC = () => {
       {/* Mobile topbar — only visible <900px */}
       <div className="adm-topbar">
         <button className="adm-burger" onClick={() => setNavOpen((o) => !o)} aria-label="Open menu">
-          <Icon name={navOpen ? "close" : "bell"} size={18} />
+          <Icon name={navOpen ? "close" : "menu"} size={18} />
         </button>
         <span className="adm-topbar-title">{activeLabel}</span>
       </div>
@@ -109,13 +155,19 @@ export const AdminDashboard: React.FC = () => {
             <Icon name="key" size={16} />
           </span>
           <span className="adm-logo-text">
-            <span className="adm-logo-name">Nexora</span>
+            <span className="adm-logo-name">{config.storeName || "Nexora"}</span>
             <span className="adm-tag">Admin</span>
-            <span className="adm-tag-free">FREE</span>
           </span>
         </div>
 
-        <a href="/" className="adm-store" title="Open storefront">
+        <div
+          onClick={() => {
+            window.location.href = "/";
+          }}
+          className="adm-store"
+          title="Open storefront"
+          style={{ cursor: "pointer" }}
+        >
           <span className="adm-store-icon">
             <Icon name="box" size={14} />
           </span>
@@ -123,7 +175,7 @@ export const AdminDashboard: React.FC = () => {
           <span className="adm-store-link">
             <Icon name="arrow-right" size={12} />
           </span>
-        </a>
+        </div>
 
         <nav className="adm-nav">
           {NAV_GROUPS.map((g, gi) => (
@@ -139,7 +191,8 @@ export const AdminDashboard: React.FC = () => {
                   }}
                 >
                   <Icon name={item.icon} size={15} />
-                  <span>{item.label}</span>
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.badge && <span className="adm-badge">{item.badge}</span>}
                 </button>
               ))}
             </div>
@@ -178,15 +231,26 @@ export const AdminDashboard: React.FC = () => {
         <div className="adm-body">
           {tab === "overview" && <AdminOverview />}
           {tab === "products" && <AdminProducts />}
+          {tab === "groups" && <AdminGroups />}
+          {tab === "addons" && <AdminAddons />}
           {tab === "categories" && <AdminCategories />}
+          {tab === "coupons" && <AdminCoupons />}
+          {tab === "quantity-deals" && <AdminQuantityDeals />}
+          {tab === "bundle-offers" && <AdminBundleOffers />}
           {tab === "orders" && <AdminOrders />}
           {tab === "customers" && <AdminCustomers />}
-          {tab === "coupons" && <AdminCoupons />}
           {tab === "reviews" && <AdminReviews />}
+          {tab === "abandoned" && <AdminAbandonedCheckouts />}
           {tab === "tickets" && <AdminTickets />}
           {tab === "payments" && <AdminPayments />}
           {tab === "features" && <AdminFeatures />}
+          {tab === "blog" && <AdminBlog />}
+          {tab === "notifications" && <AdminNotifications />}
+          {tab === "blacklist" && <AdminBlacklist />}
+          {tab === "import" && <AdminImport />}
           {tab === "activity" && <AdminActivity />}
+          {tab === "team" && <AdminTeam />}
+          {tab === "developers" && <AdminDevelopers />}
           {tab === "settings" && <AdminSettings />}
         </div>
       </main>
@@ -237,6 +301,17 @@ export const AdminDashboard: React.FC = () => {
         .adm-pagehead { margin-bottom: 22px; }
         .adm-pagehead h1 { font-size: 1.6rem; font-weight: 700; color: var(--ink); }
         .adm-body { display: flex; flex-direction: column; }
+
+        /* ───── Badge in sidebar ───── */
+        .adm-badge { font-size: .6rem; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: var(--brand); color: #fff; letter-spacing: .04em; flex-shrink: 0; }
+
+        /* ───── Shared section layout ───── */
+        .adm-section { display: flex; flex-direction: column; gap: 18px; }
+        .adm-sec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .adm-sec-head h2 { font-size: 1.4rem; font-weight: 700; color: var(--ink); }
+        .adm-sec-head h3 { font-size: 1rem; font-weight: 700; color: var(--ink); }
+        .adm-sec-head p { font-size: .88rem; color: var(--ink-soft); margin-top: 2px; }
+        .adm-section-label { font-size: .75rem; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--line); padding-bottom: 8px; display: flex; align-items: center; gap: 8px; }
 
         /* ───── Mobile ───── */
         .adm-topbar { display: none; }

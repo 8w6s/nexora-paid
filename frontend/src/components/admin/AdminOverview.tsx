@@ -4,6 +4,7 @@ import { api, fmtUsd } from "../../lib/api";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { Chart } from "../Chart";
 
 interface RecentOrder {
   id: string;
@@ -34,6 +35,8 @@ const RANGES: { days: number; label: string }[] = [
 export const AdminOverview: React.FC = () => {
   const [s, setS] = useState<Stats | null>(null);
   const [days, setDays] = useState(14);
+  const [metric, setMetric] = useState<"revenue" | "orders">("revenue");
+
   useEffect(() => {
     const load = () =>
       api
@@ -93,11 +96,8 @@ export const AdminOverview: React.FC = () => {
       </div>
     );
 
-  const max = Math.max(1, ...s.revenueSeries.map((d) => d.revenueUsd));
-  const W = 560,
-    H = 120,
-    pad = 4;
-  const bw = (W - pad * 2) / s.revenueSeries.length;
+  const series = s.revenueSeries;
+  const isRevenue = metric === "revenue";
 
   return (
     <div className="ov">
@@ -127,9 +127,25 @@ export const AdminOverview: React.FC = () => {
 
       <div className="card chart-card">
         <div className="chart-head">
-          <span className="section-title">
-            <Icon name="zap" size={15} /> Revenue
-          </span>
+          <div className="chart-title-group">
+            <span className="section-title">
+              <Icon name={isRevenue ? "zap" : "receipt"} size={15} /> {isRevenue ? "Revenue" : "Orders"}
+            </span>
+            <div className="metric-chips">
+              <button
+                className={`metric-chip ${isRevenue ? "on" : ""}`}
+                onClick={() => setMetric("revenue")}
+              >
+                Revenue ($)
+              </button>
+              <button
+                className={`metric-chip ${!isRevenue ? "on" : ""}`}
+                onClick={() => setMetric("orders")}
+              >
+                Orders (qty)
+              </button>
+            </div>
+          </div>
           <div className="range-chips" role="tablist" aria-label="Time range">
             {RANGES.map((r) => (
               <button
@@ -145,36 +161,16 @@ export const AdminOverview: React.FC = () => {
           </div>
         </div>
         <div className="chart-wrap">
-          <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Revenue chart">
-            {s.revenueSeries.map((d, i) => {
-              const h = (d.revenueUsd / max) * (H - 20);
-              return (
-                <rect
-                  key={i}
-                  x={pad + i * bw + 1}
-                  y={H - h - 2}
-                  width={bw - 2}
-                  height={Math.max(0, h)}
-                  rx={2}
-                  fill="var(--brand)"
-                  opacity={d.revenueUsd > 0 ? 0.9 : 0.18}
-                >
-                  <title>
-                    {d.day}: {fmtUsd(d.revenueUsd)} ({d.orders})
-                  </title>
-                </rect>
-              );
-            })}
-          </svg>
-          {s.revenueSeries.every((d) => d.revenueUsd === 0) && (
-            <div className="chart-empty">
-              <span>No revenue in this period yet.</span>
-            </div>
-          )}
-        </div>
-        <div className="chart-x">
-          <span>{s.revenueSeries[0]?.day}</span>
-          <span>{s.revenueSeries[s.revenueSeries.length - 1]?.day}</span>
+          <Chart
+            data={series.map((d) => ({
+              label: d.day,
+              value: isRevenue ? d.revenueUsd : d.orders,
+              hoverLabel: isRevenue
+                ? `${d.orders} order${d.orders === 1 ? "" : "s"}`
+                : undefined,
+            }))}
+            isCurrency={isRevenue}
+          />
         </div>
       </div>
 
@@ -231,19 +227,26 @@ export const AdminOverview: React.FC = () => {
 
       <div className="card list-card">
         <span className="section-title">
-          <Icon name="receipt" size={15} /> Latest orders
+          <Icon name="receipt" size={15} /> Latest invoices
         </span>
         {s.recentOrders.length === 0 ? (
           <EmptyState
             icon="receipt"
-            title="No orders yet"
-            desc="When customers buy, their orders will show up here in real time."
+            title="No invoices yet"
+            desc="When customers buy, their invoices will show up here in real time."
             compact
           />
         ) : (
           <div className="recent-list">
             {s.recentOrders.map((o) => (
-              <a key={o.id} className="recent-row" href={`/orders/${o.id}`}>
+              <div
+                key={o.id}
+                className="recent-row"
+                style={{ cursor: "pointer" }}
+                onClick={() => {
+                  window.location.href = `/orders/${o.id}`;
+                }}
+              >
                 <span className="recent-id" title={o.id}>
                   {o.id.slice(0, 8)}
                 </span>
@@ -251,7 +254,7 @@ export const AdminOverview: React.FC = () => {
                 <span className={`badge ${o.status}`}>{o.status.replace("_", " ")}</span>
                 <span className="recent-amt price">{fmtUsd(o.totalUsd)}</span>
                 <span className="muted recent-when">{new Date(o.createdAt).toLocaleString()}</span>
-              </a>
+              </div>
             ))}
           </div>
         )}
@@ -281,6 +284,11 @@ export const AdminOverview: React.FC = () => {
         .danger { color: var(--price); font-weight: 600; }
         .chart-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
         .chart-head .section-title { margin-bottom: 0; }
+        .chart-title-group { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .metric-chips { display: flex; gap: 2px; background: var(--surface-2); padding: 3px; border-radius: 100px; }
+        .metric-chip { background: none; border: none; color: var(--ink-soft); font-family: var(--font-sans); font-weight: 600; font-size: .74rem; padding: 4px 10px; border-radius: 100px; cursor: pointer; transition: background .15s, color .15s; }
+        .metric-chip:hover { color: var(--ink); }
+        .metric-chip.on { background: var(--surface); color: var(--brand); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
         .range-chips { display: flex; gap: 4px; background: var(--surface-2); padding: 3px; border-radius: 100px; }
         .range-chip { background: none; border: none; color: var(--ink-soft); font-family: var(--font-sans); font-weight: 600; font-size: .78rem; padding: 5px 12px; border-radius: 100px; cursor: pointer; transition: background .15s, color .15s; }
         .range-chip:hover { color: var(--ink); }

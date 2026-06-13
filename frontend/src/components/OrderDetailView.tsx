@@ -71,7 +71,7 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
         ))}
       </div>
       <div className="od-total">
-        <span>Total</span>
+        <span className="od-total-label">Total</span>
         <span className="price">
           {fmtUsd(o?.totalUsd)} · {o?.ltcAmount} LTC
         </span>
@@ -92,9 +92,15 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
         </div>
       )}
       {payable && (
-        <a className="btn" href={`/checkout?id=${o?.id}`} style={{ justifyContent: "center" }}>
+        <div
+          className="btn"
+          style={{ justifyContent: "center", cursor: "pointer" }}
+          onClick={() => {
+            window.location.href = `/checkout?id=${o?.id}`;
+          }}
+        >
           Complete payment
-        </a>
+        </div>
       )}
     </div>,
   );
@@ -111,7 +117,9 @@ const Styles: React.FC = () => (
     .muted { font-size: .76rem; color: var(--ink-faint); }
     .od-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
     .od-line { display: flex; justify-content: space-between; font-size: .9rem; }
-    .od-total { display: flex; justify-content: space-between; padding: 14px 0; border-top: 1px solid var(--line); margin-bottom: 16px; font-weight: 600; }
+    .od-total { display: flex; flex-direction: column; gap: 4px; padding: 14px 0; border-top: 1px solid var(--line); margin-bottom: 16px; }
+    .od-total-label { font-weight: 600; color: var(--ink-soft); font-size: .95rem; }
+    .od-total .price { font-size: 1.3rem; font-weight: 700; }
     .od-keys .ok { display: flex; align-items: center; gap: 7px; color: var(--auto,#137333); font-weight: 700; margin-bottom: 12px; }
     .od-keys ul { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
     .od-keys code { display: block; background: #0f172a; color: #a5f3fc; padding: 11px 14px; border-radius: var(--radius-sm); font-size: .9rem; word-break: break-all; }

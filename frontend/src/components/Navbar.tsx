@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useCart } from "./CartContext";
 import { useConfig } from "./ConfigContext";
@@ -15,15 +15,18 @@ export const Navbar: React.FC = () => {
   const [path, setPath] = useState("/");
   useEffect(() => setPath(window.location.pathname), []);
 
-  const accountOptions = [
+  const accountOptions = useMemo(() => [
+    ...(user?.role === "admin" ? [{ value: "admin", label: "Admin Panel", icon: "key" as const }] : []),
     { value: "orders", label: "My Orders", icon: "receipt" as const },
     ...(isOn("tickets") ? [{ value: "support", label: "Support", icon: "ticket" as const }] : []),
     { value: "logout", label: "Sign out", icon: "close" as const },
-  ];
+  ], [isOn, user]);
 
   const handleAccountChange = (val: string) => {
-    if (val === "orders") {
-      window.location.assign("/orders");
+    if (val === "admin") {
+      window.location.assign("/admin");
+    } else if (val === "orders") {
+      window.location.assign("/orders"); // keep /orders for customer view
     } else if (val === "support") {
       window.location.assign("/tickets");
     } else if (val === "logout") {
@@ -54,17 +57,25 @@ export const Navbar: React.FC = () => {
   return (
     <header className="navbar">
       <div className="container nav-inner">
-        <a href="/" className="logo">
+        <div
+          onClick={() => window.location.assign("/")}
+          className="logo"
+          style={{ cursor: "pointer" }}
+        >
           <span className="logo-mark">
             <Icon name="key" size={17} />
           </span>
           {renderLogoText()}
-        </a>
+        </div>
 
         <nav className="nav-links">
-          <a href="/" className={path === "/" ? "active" : ""}>
+          <span
+            onClick={() => window.location.assign("/")}
+            className={path === "/" ? "active" : ""}
+            style={{ cursor: "pointer" }}
+          >
             Shop
-          </a>
+          </span>
         </nav>
 
         <div className="nav-right">
@@ -80,9 +91,13 @@ export const Navbar: React.FC = () => {
               width={180}
             />
           ) : (
-            <a href="/login" className="btn-link">
+            <span
+              onClick={() => window.location.assign("/login")}
+              className="btn-link"
+              style={{ cursor: "pointer" }}
+            >
               Sign in
-            </a>
+            </span>
           )}
           <button
             id="cart-trigger-btn"
@@ -108,9 +123,9 @@ export const Navbar: React.FC = () => {
         .logo .accent { color: var(--brand); }
         .logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; }
         .nav-links { display: flex; gap: 26px; margin-right: auto; margin-left: 14px; }
-        .nav-links a { color: var(--ink-soft); font-size: .92rem; font-weight: 500; padding: 4px 0; border-bottom: 2px solid transparent; transition: color .18s var(--ease), border-color .18s var(--ease); }
-        .nav-links a:hover { color: var(--ink); }
-        .nav-links a.active { color: var(--brand); border-bottom-color: var(--brand); }
+        .nav-links span { color: var(--ink-soft); font-size: .92rem; font-weight: 500; padding: 4px 0; border-bottom: 2px solid transparent; transition: color .18s var(--ease), border-color .18s var(--ease); }
+        .nav-links span:hover { color: var(--ink); }
+        .nav-links span.active { color: var(--brand); border-bottom-color: var(--brand); }
         .nav-right { display: flex; align-items: center; gap: 14px; }
         .btn-link { background: none; border: none; color: var(--brand); font-family: var(--font-sans); font-weight: 600; font-size: .88rem; cursor: pointer; padding: 0; }
         .btn-link:hover { text-decoration: underline; }

@@ -33,7 +33,16 @@ export const MyOrders: React.FC = () => {
     return (
       <main className="container ord-page">
         <div className="ord-state">
-          Please <a href="/login?redirect=/orders">sign in</a> to view your orders.
+          Please{" "}
+          <span
+            style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
+            onClick={() => {
+              window.location.href = "/login?redirect=/orders";
+            }}
+          >
+            sign in
+          </span>{" "}
+          to view your orders.
         </div>
         <Styles />
       </main>
@@ -65,14 +74,27 @@ export const MyOrders: React.FC = () => {
           </span>
           <h2>No orders yet</h2>
           <p>Once you complete a purchase, your keys and order history will live here forever.</p>
-          <a className="btn" href="/">
+          <div
+            className="btn"
+            style={{ cursor: "pointer" }}
+            onClick={() => {
+              window.location.href = "/";
+            }}
+          >
             <Icon name="cart" size={16} variant="duotone-regular" /> Start shopping
-          </a>
+          </div>
         </div>
       ) : (
         <div className="ord-list">
           {orders.map((o) => (
-            <a key={o.id} className="ord card" href={`/orders/${o.id}`}>
+            <div
+              key={o.id}
+              className="ord card"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = `/orders/${o.id}`;
+              }}
+            >
               <div className="ord-top">
                 <strong>{o.id}</strong>
                 <span className={`badge ${o.status}`}>{label[o.status] ?? o.status}</span>
@@ -90,7 +112,7 @@ export const MyOrders: React.FC = () => {
                   {fmtUsd(o.totalUsd)} · {o.ltcAmount} LTC
                 </span>
               </div>
-            </a>
+            </div>
           ))}
         </div>
       )}

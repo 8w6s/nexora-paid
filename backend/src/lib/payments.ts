@@ -83,13 +83,20 @@ export const PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    id: "oxapay",
-    label: "OxaPay (crypto gateway)",
-    kind: "crypto-gateway",
+    id: "crypto_sol",
+    label: "Solana (self-hosted)",
+    kind: "crypto-native",
     countries: "*",
     defaultOn: false,
-    fields: [{ key: "merchant_key", label: "OxaPay merchant API key", secret: true }],
-    note: "Hosted crypto processor — supports many coins, they handle the blockchain.",
+    fields: [
+      {
+        key: "address",
+        label: "Solana wallet address",
+        placeholder: "HN7c… / sol…",
+        hint: "Your static Solana receive address.",
+      },
+    ],
+    note: "Self-custody Solana wallet — no third party, no fees.",
   },
   {
     id: "stripe",
@@ -114,30 +121,6 @@ export const PROVIDERS: ProviderDef[] = [
       { key: "client_id", label: "PayPal client ID" },
       { key: "client_secret", label: "PayPal client secret", secret: true },
     ],
-  },
-  {
-    id: "paypay",
-    label: "PayPay (Japan)",
-    kind: "wallet",
-    countries: ["JP"],
-    defaultOn: false,
-    fields: [
-      { key: "api_key", label: "PayPay API key" },
-      { key: "api_secret", label: "PayPay API secret", secret: true },
-      { key: "merchant_id", label: "Merchant ID" },
-    ],
-  },
-  {
-    id: "bank_manual",
-    label: "Bank transfer (manual)",
-    kind: "manual",
-    countries: "*",
-    defaultOn: false,
-    fields: [
-      { key: "instructions", label: "Payment instructions (shown to buyer)" },
-      { key: "qr_image_url", label: "QR image URL", optional: true },
-    ],
-    note: "Buyer pays offline; you confirm orders manually in admin.",
   },
 ];
 

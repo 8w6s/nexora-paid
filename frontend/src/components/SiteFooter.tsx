@@ -13,10 +13,10 @@ export const SiteFooter: React.FC = () => {
           <span className="sf-foot-cr">© {year} — Digital goods, delivered instantly.</span>
         </div>
         <nav className="sf-foot-links" aria-label="Footer">
-          <a href="/terms">Terms of Service</a>
-          <a href="/privacy">Privacy Policy</a>
-          <a href="/refund">Refund Policy</a>
-          <a href="/tickets">Support</a>
+          <span onClick={() => window.location.assign("/terms")}>Terms of Service</span>
+          <span onClick={() => window.location.assign("/privacy")}>Privacy Policy</span>
+          <span onClick={() => window.location.assign("/refund")}>Refund Policy</span>
+          <span onClick={() => window.location.assign("/tickets")}>Support</span>
         </nav>
       </div>
       <style>{`
@@ -26,8 +26,8 @@ export const SiteFooter: React.FC = () => {
         .sf-foot-name { font-weight: 700; font-size: 1rem; color: var(--ink); }
         .sf-foot-cr { font-size: .8rem; color: var(--ink-faint); }
         .sf-foot-links { display: flex; gap: 22px; flex-wrap: wrap; }
-        .sf-foot-links a { font-size: .85rem; color: var(--ink-soft); transition: color .15s var(--ease); }
-        .sf-foot-links a:hover { color: var(--brand); }
+        .sf-foot-links span { font-size: .85rem; color: var(--ink-soft); cursor: pointer; transition: color .15s var(--ease); }
+        .sf-foot-links span:hover { color: var(--brand); }
         @media (max-width: 560px) { .sf-foot-inner { flex-direction: column; align-items: flex-start; } }
       `}</style>
     </footer>

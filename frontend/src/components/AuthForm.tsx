@@ -82,11 +82,27 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
         <p className="switch">
           {isLogin ? (
             <>
-              No account? <a href="/register">Create one</a>
+              No account?{" "}
+              <span
+                style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
+                onClick={() => {
+                  window.location.href = `/register${window.location.search}`;
+                }}
+              >
+                Create one
+              </span>
             </>
           ) : (
             <>
-              Already have an account? <a href="/login">Sign in</a>
+              Already have an account?{" "}
+              <span
+                style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
+                onClick={() => {
+                  window.location.href = `/login${window.location.search}`;
+                }}
+              >
+                Sign in
+              </span>
             </>
           )}
         </p>

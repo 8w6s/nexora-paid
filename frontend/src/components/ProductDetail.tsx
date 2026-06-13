@@ -57,9 +57,9 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
   return (
     <div className="pd container">
       <nav className="crumbs" aria-label="Breadcrumb">
-        <a href="/">Home</a>
+        <span style={{ cursor: "pointer" }} onClick={() => { window.location.href = "/"; }}>Home</span>
         <span>/</span>
-        <a href={`/?category=${encodeURIComponent(product.category)}`}>{product.category}</a>
+        <span style={{ cursor: "pointer" }} onClick={() => { window.location.href = `/?category=${encodeURIComponent(product.category)}`; }}>{product.category}</span>
         <span>/</span>
         <span aria-current="page">{product.name}</span>
       </nav>

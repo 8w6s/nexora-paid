@@ -96,12 +96,24 @@ export const SetupWizard: React.FC = () => {
           <h1>Setup completed successfully</h1>
           <p className="su-subhead">Your Nexora store is already configured and ready to go.</p>
           <div className="su-success-actions">
-            <a href="/" className="btn btn-primary">
+            <div
+              className="btn btn-primary"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = "/";
+              }}
+            >
               Go to storefront
-            </a>
-            <a href="/admin" className="btn btn-ghost">
+            </div>
+            <div
+              className="btn btn-ghost"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = "/admin";
+              }}
+            >
               Admin Panel
-            </a>
+            </div>
           </div>
         </div>
         <Styles />

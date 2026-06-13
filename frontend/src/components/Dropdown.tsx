@@ -40,21 +40,28 @@ export function Dropdown<T extends string>({
   const isKeyNavRef = useRef(false);
 
   const current = options.find((o) => o.value === value);
+  const optionsRef = useRef(options);
+  const valueRef = useRef(value);
+  optionsRef.current = options;
+  valueRef.current = value;
 
   useEffect(() => {
     if (!open) {
       setActive(null);
       return;
     }
-    const idx = options.findIndex((o) => o.value === value);
+    const idx = optionsRef.current.findIndex((o) => o.value === valueRef.current);
     setActive(idx >= 0 ? idx : null);
+  }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [open, options, value]);
+  }, [open]);
 
   // Scroll the active item into view.
   useEffect(() => {

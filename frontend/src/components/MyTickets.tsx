@@ -137,7 +137,16 @@ export const MyTickets: React.FC = () => {
     return (
       <main className="container tk-page">
         <div className="tk-state">
-          Please <a href="/login?redirect=/tickets">sign in</a> to view your support tickets.
+          Please{" "}
+          <span
+            style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
+            onClick={() => {
+              window.location.href = "/login?redirect=/tickets";
+            }}
+          >
+            sign in
+          </span>{" "}
+          to view your support tickets.
         </div>
         <Styles />
       </main>

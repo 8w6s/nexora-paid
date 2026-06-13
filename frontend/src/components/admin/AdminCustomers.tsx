@@ -1,5 +1,4 @@
-import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { AdminCustomerDetail } from "./AdminCustomerDetail";
@@ -23,11 +22,13 @@ export const AdminCustomers: React.FC = () => {
     { type: "customer"; id: string } | { type: "order"; id: string; fromCustomer?: string } | null
   >(null);
 
-  const load = () =>
+  const load = useCallback(() => {
     api
       .get<Customer[]>("/api/admin/customers")
       .then(setList)
       .catch(() => {});
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);

@@ -1,5 +1,4 @@
-import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { AdminOrderDetail } from "./AdminOrderDetail";
@@ -32,12 +31,15 @@ export const AdminOrders: React.FC = () => {
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState("all");
   const [openId, setOpenId] = useState<string | null>(null);
-  const load = (f: string) =>
+
+  const load = useCallback((f: string) => {
     api
       .get<AdminOrder[]>(`/api/admin/orders${f !== "all" ? `?status=${f}` : ""}`)
       .then(setOrders)
       .catch(() => {})
       .finally(() => setLoaded(true));
+  }, []);
+
   useEffect(() => {
     setLoaded(false);
     load(filter);
@@ -66,7 +68,7 @@ export const AdminOrders: React.FC = () => {
           <table>
             <thead>
               <tr>
-                <th>Order</th>
+                <th>Invoice</th>
                 <th>Customer</th>
                 <th>Items</th>
                 <th className="num">Total</th>

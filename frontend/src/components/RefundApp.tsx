@@ -57,7 +57,15 @@ export const RefundApp: React.FC = () => (
               <h2>3. Support Requests</h2>
               <p>
                 If you encounter an issue with your purchase, please open a support ticket under the{" "}
-                <a href="/tickets">Support</a> section. Include your Order ID and screenshots
+                <span
+                  style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
+                  onClick={() => {
+                    window.location.href = "/tickets";
+                  }}
+                >
+                  Support
+                </span>{" "}
+                section. Include your Order ID and screenshots
                 showing the error. We will investigate and respond within 24 hours.
               </p>
             </div>

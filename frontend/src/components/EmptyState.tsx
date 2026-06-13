@@ -9,16 +9,23 @@ export const EmptyState: React.FC<{
   icon?: React.ComponentProps<typeof Icon>["name"];
   title: string;
   desc?: string;
+  message?: string;
   cta?: React.ReactNode;
+  action?: { label: string; onClick: () => void };
   compact?: boolean;
-}> = ({ icon = "box", title, desc, cta, compact }) => (
+}> = ({ icon = "box", title, desc, message, cta, action, compact }) => (
   <div className={`empty-state ${compact ? "compact" : ""}`}>
     <span className="es-icon">
       <Icon name={icon} size={compact ? 20 : 26} variant="badge" />
     </span>
     <h3>{title}</h3>
-    {desc && <p>{desc}</p>}
-    {cta && <div className="es-cta">{cta}</div>}
+    {(desc || message) && <p>{desc ?? message}</p>}
+    {(cta || action) && (
+      <div className="es-cta">
+        {cta}
+        {action && <button className="btn btn-outline" onClick={action.onClick}>{action.label}</button>}
+      </div>
+    )}
     <style>{`
       .empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 24px; text-align: center; color: var(--ink-soft); }
       .empty-state.compact { padding: 28px 18px; gap: 6px; }

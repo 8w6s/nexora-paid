@@ -146,10 +146,16 @@ export const CartDrawer: React.FC = () => {
               <span>Total</span>
               <span className="total-amount price">{fmtUsd(getCartTotal())}</span>
             </div>
-            <a className="btn" href="/checkout" style={{ width: "100%", justifyContent: "center" }}>
+            <div
+              className="btn"
+              onClick={() => {
+                window.location.href = "/checkout";
+              }}
+              style={{ width: "100%", justifyContent: "center", cursor: "pointer" }}
+            >
               <span>Continue to checkout</span>
               <Icon name="arrow-right" size={17} />
-            </a>
+            </div>
           </div>
         )}
       </aside>

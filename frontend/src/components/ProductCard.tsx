@@ -14,20 +14,31 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
 
   return (
     <article className="product-card">
-      <a href={`/product/${product.slug}`} className="banner" aria-label={`View ${product.name}`}>
+      <div
+        onClick={() => window.location.assign(`/product/${product.slug}`)}
+        className="banner"
+        style={{ cursor: "pointer" }}
+        role="link"
+        aria-label={`View ${product.name}`}
+      >
         <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
         <span className="tag-auto banner-tag">
           <Icon name="zap" size={12} />
           Instant delivery
         </span>
         {out && <span className="sold-out">Out of stock</span>}
-      </a>
+      </div>
 
       <div className="info">
         <span className="pill cat-pill">{product.category}</span>
-        <a href={`/product/${product.slug}`} className="name-link">
+        <span
+          onClick={() => window.location.assign(`/product/${product.slug}`)}
+          className="name-link"
+          style={{ cursor: "pointer" }}
+          role="link"
+        >
           <h3 className="name">{product.name}</h3>
-        </a>
+        </span>
         <p className="desc">{product.description}</p>
 
         <div className="meta">
@@ -37,9 +48,13 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         <div className="footer">
           <span className="price">{fmtUsd(product.priceUsd)}</span>
           <div className="card-actions">
-            <a href={`/product/${product.slug}`} className="btn btn-ghost detail-btn">
+            <button
+              onClick={() => window.location.assign(`/product/${product.slug}`)}
+              className="btn btn-ghost detail-btn"
+              style={{ cursor: "pointer" }}
+            >
               Details
-            </a>
+            </button>
             <button
               ref={btnRef}
               className="btn add-btn"

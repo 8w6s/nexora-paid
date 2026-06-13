@@ -90,10 +90,10 @@ export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }>
       <header className="aod-head">
         <div>
           <button className="btn btn-ghost" onClick={onBack} type="button">
-            <Icon name="arrow-right" size={14} className="flip" /> Back to orders
+            <Icon name="arrow-right" size={14} className="flip" /> Back to invoices
           </button>
           <h1>
-            Order <span className="mono">{o.id}</span>
+            Invoice <span className="mono">{o.id}</span>
           </h1>
           <p className="muted">Created {new Date(o.createdAt).toLocaleString()}</p>
         </div>

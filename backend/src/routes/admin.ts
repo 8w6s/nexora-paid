@@ -497,6 +497,84 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         await setSetting("payment_window_minutes", String(body.payment_window_minutes));
       if (body.store_name !== undefined) await setSetting("store_name", body.store_name);
 
+      // Save additional storefront configuration
+      if (body.subdomain !== undefined) await setSetting("subdomain", body.subdomain);
+      if (body.currency !== undefined) await setSetting("currency", body.currency);
+      if (body.description !== undefined) await setSetting("description", body.description);
+      
+      // Socials
+      if (body.discord !== undefined) await setSetting("discord", body.discord);
+      if (body.youtube !== undefined) await setSetting("youtube", body.youtube);
+      if (body.telegram !== undefined) await setSetting("telegram", body.telegram);
+      if (body.tiktok !== undefined) await setSetting("tiktok", body.tiktok);
+      if (body.instagram !== undefined) await setSetting("instagram", body.instagram);
+
+      // Checkout Toggles
+      if (body.allow_change_theme !== undefined) await setSetting("allow_change_theme", body.allow_change_theme ? "true" : "false");
+      if (body.collect_billing !== undefined) await setSetting("collect_billing", body.collect_billing ? "true" : "false");
+      if (body.show_coupon !== undefined) await setSetting("show_coupon", body.show_coupon ? "true" : "false");
+      if (body.show_terms !== undefined) await setSetting("show_terms", body.show_terms ? "true" : "false");
+      if (body.precheck_terms !== undefined) await setSetting("precheck_terms", body.precheck_terms ? "true" : "false");
+      if (body.show_newsletter !== undefined) await setSetting("show_newsletter", body.show_newsletter ? "true" : "false");
+
+      // Invoices & Tax
+      if (body.enable_tax_calculation !== undefined) await setSetting("enable_tax_calculation", body.enable_tax_calculation ? "true" : "false");
+      if (body.tax_rate !== undefined) await setSetting("tax_rate", String(body.tax_rate));
+      if (body.send_invoice_pdfs !== undefined) await setSetting("send_invoice_pdfs", body.send_invoice_pdfs ? "true" : "false");
+      if (body.show_invoice_pdf_link !== undefined) await setSetting("show_invoice_pdf_link", body.show_invoice_pdf_link ? "true" : "false");
+      if (body.invoice_pdf_header !== undefined) await setSetting("invoice_pdf_header", body.invoice_pdf_header);
+      if (body.invoice_pdf_notes !== undefined) await setSetting("invoice_pdf_notes", body.invoice_pdf_notes);
+      if (body.invoice_pdf_footer !== undefined) await setSetting("invoice_pdf_footer", body.invoice_pdf_footer);
+
+      // Feedbacks
+      if (body.enable_automatic_feedbacks !== undefined) await setSetting("enable_automatic_feedbacks", body.enable_automatic_feedbacks ? "true" : "false");
+
+      // Affiliate Program
+      if (body.enable_affiliate_program !== undefined) await setSetting("enable_affiliate_program", body.enable_affiliate_program ? "true" : "false");
+      if (body.make_affiliate_program_public !== undefined) await setSetting("make_affiliate_program_public", body.make_affiliate_program_public ? "true" : "false");
+      if (body.allow_customers_edit_affiliate_code !== undefined) await setSetting("allow_customers_edit_affiliate_code", body.allow_customers_edit_affiliate_code ? "true" : "false");
+      if (body.affiliate_percentage !== undefined) await setSetting("affiliate_percentage", String(body.affiliate_percentage));
+
+      // Tickets
+      if (body.enable_tickets !== undefined) await setSetting("enable_tickets", body.enable_tickets ? "true" : "false");
+
+      // Legal Pages
+      if (body.terms_of_service !== undefined) await setSetting("terms_of_service", body.terms_of_service);
+      if (body.privacy_policy !== undefined) await setSetting("privacy_policy", body.privacy_policy);
+      if (body.refund_policy !== undefined) await setSetting("refund_policy", body.refund_policy);
+
+      // Integrations
+      if (body.google_analytics !== undefined) await setSetting("google_analytics", body.google_analytics);
+      if (body.crisp !== undefined) await setSetting("crisp", body.crisp);
+      if (body.tawk_to !== undefined) await setSetting("tawk_to", body.tawk_to);
+      if (body.trustpilot !== undefined) await setSetting("trustpilot", body.trustpilot);
+
+      // Discord Integration
+      if (body.discord_client_id !== undefined) await setSetting("discord_client_id", body.discord_client_id);
+      if (body.discord_client_secret !== undefined) await setSetting("discord_client_secret", body.discord_client_secret);
+      if (body.discord_bot_token !== undefined) await setSetting("discord_bot_token", body.discord_bot_token);
+
+      // SEO & Meta
+      if (body.meta_title !== undefined) await setSetting("meta_title", body.meta_title);
+      if (body.meta_description !== undefined) await setSetting("meta_description", body.meta_description);
+      if (body.meta_twitter_card !== undefined) await setSetting("meta_twitter_card", body.meta_twitter_card);
+
+      // Checkout Color Scheme
+      if (body.checkout_color_scheme !== undefined) await setSetting("checkout_color_scheme", body.checkout_color_scheme);
+
+      // Additional Miscellaneous
+      if (body.redirect_custom_domain !== undefined) await setSetting("redirect_custom_domain", body.redirect_custom_domain ? "true" : "false");
+      if (body.hide_out_of_stock !== undefined) await setSetting("hide_out_of_stock", body.hide_out_of_stock ? "true" : "false");
+      if (body.refund_out_of_stock_to_balance !== undefined) await setSetting("refund_out_of_stock_to_balance", body.refund_out_of_stock_to_balance ? "true" : "false");
+      if (body.maintenance_password !== undefined) await setSetting("maintenance_password", body.maintenance_password);
+
+      // Custom Domain name
+      if (body.custom_domain_name !== undefined) await setSetting("custom_domain_name", body.custom_domain_name);
+
+      // Misc
+      if (body.maintenance_mode !== undefined) await setSetting("maintenance_mode", body.maintenance_mode ? "true" : "false");
+      if (body.custom_header_script !== undefined) await setSetting("custom_header_script", body.custom_header_script);
+
       const all = await getAllSettings();
       const xpub = all.ltc_xpub;
       const v = xpub ? validateXpub(xpub) : null;
@@ -513,6 +591,54 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         required_confirmations: t.Optional(t.Integer({ minimum: 1, maximum: 12 })),
         payment_window_minutes: t.Optional(t.Integer({ minimum: 5, maximum: 120 })),
         store_name: t.Optional(t.String()),
+        subdomain: t.Optional(t.String()),
+        currency: t.Optional(t.String()),
+        description: t.Optional(t.String()),
+        discord: t.Optional(t.String()),
+        youtube: t.Optional(t.String()),
+        telegram: t.Optional(t.String()),
+        tiktok: t.Optional(t.String()),
+        instagram: t.Optional(t.String()),
+        allow_change_theme: t.Optional(t.Boolean()),
+        collect_billing: t.Optional(t.Boolean()),
+        show_coupon: t.Optional(t.Boolean()),
+        show_terms: t.Optional(t.Boolean()),
+        precheck_terms: t.Optional(t.Boolean()),
+        show_newsletter: t.Optional(t.Boolean()),
+        enable_tax_calculation: t.Optional(t.Boolean()),
+        tax_rate: t.Optional(t.Number()),
+        send_invoice_pdfs: t.Optional(t.Boolean()),
+        show_invoice_pdf_link: t.Optional(t.Boolean()),
+        invoice_pdf_header: t.Optional(t.String()),
+        invoice_pdf_notes: t.Optional(t.String()),
+        invoice_pdf_footer: t.Optional(t.String()),
+        enable_automatic_feedbacks: t.Optional(t.Boolean()),
+        enable_affiliate_program: t.Optional(t.Boolean()),
+        make_affiliate_program_public: t.Optional(t.Boolean()),
+        allow_customers_edit_affiliate_code: t.Optional(t.Boolean()),
+        affiliate_percentage: t.Optional(t.Number()),
+        enable_tickets: t.Optional(t.Boolean()),
+        terms_of_service: t.Optional(t.String()),
+        privacy_policy: t.Optional(t.String()),
+        refund_policy: t.Optional(t.String()),
+        google_analytics: t.Optional(t.String()),
+        crisp: t.Optional(t.String()),
+        tawk_to: t.Optional(t.String()),
+        trustpilot: t.Optional(t.String()),
+        discord_client_id: t.Optional(t.String()),
+        discord_client_secret: t.Optional(t.String()),
+        discord_bot_token: t.Optional(t.String()),
+        meta_title: t.Optional(t.String()),
+        meta_description: t.Optional(t.String()),
+        meta_twitter_card: t.Optional(t.String()),
+        checkout_color_scheme: t.Optional(t.String()),
+        redirect_custom_domain: t.Optional(t.Boolean()),
+        hide_out_of_stock: t.Optional(t.Boolean()),
+        refund_out_of_stock_to_balance: t.Optional(t.Boolean()),
+        maintenance_password: t.Optional(t.String()),
+        custom_domain_name: t.Optional(t.String()),
+        maintenance_mode: t.Optional(t.Boolean()),
+        custom_header_script: t.Optional(t.String()),
       }),
     },
   )

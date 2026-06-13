@@ -13,6 +13,8 @@ type IconName =
   | "receipt"
   | "home"
   | "arrow-right"
+  | "arrow-left"
+  | "arrow-up"
   | "package"
   | "shield"
   | "truck"
@@ -28,11 +30,14 @@ type IconName =
   | "moon"
   | "pencil"
   | "folder"
+  | "menu"
   | "users"
   | "tag"
   | "credit-card"
   | "activity"
-  | "settings";
+  | "settings"
+  | "globe"
+  | "link";
 
 interface IconProps {
   name: IconName;
@@ -86,6 +91,8 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   "arrow-right": <path d="M5 12h14M12 5l7 7-7 7" />,
+  "arrow-left": <path d="M19 12H5M12 19l-7-7 7-7" />,
+  "arrow-up": <path d="M12 19V5M5 12l7-7 7 7" />,
   package: (
     <>
       <path d="M16.5 9.4 7.5 4.21" />
@@ -149,6 +156,13 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   folder: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />,
+  menu: (
+    <>
+      <path d="M3 12h18" />
+      <path d="M3 6h18" />
+      <path d="M3 18h18" />
+    </>
+  ),
   users: (
     <>
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -170,6 +184,19 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -188,10 +215,12 @@ const faName: Record<IconName, string> = {
   close: "xmark",
   check: "circle-check",
   spinner: "spinner-third",
-  box: "box",
+  box: "box-taped",
   receipt: "receipt",
   home: "house",
   "arrow-right": "arrow-right",
+  "arrow-left": "arrow-left",
+  "arrow-up": "arrow-up",
   package: "box-open",
   shield: "shield-check",
   truck: "truck",
@@ -207,11 +236,14 @@ const faName: Record<IconName, string> = {
   moon: "moon",
   pencil: "pencil",
   folder: "folder",
+  menu: "bars",
   users: "users",
   tag: "tag",
   "credit-card": "credit-card",
   activity: "chart-line",
   settings: "gear",
+  globe: "globe",
+  link: "link",
 };
 
 export const Icon: React.FC<IconProps> = ({
