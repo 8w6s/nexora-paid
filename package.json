@@ -1,5 +1,5 @@
 {
-  "name": "nexora-paid",
+  "name": "nexora",
   "private": true,
   "workspaces": [
     "frontend",
