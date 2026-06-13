@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
-import { SearchBox } from "./SearchBox";
 
 interface Stats {
   sales: number;
@@ -28,7 +27,6 @@ export const StorefrontHeader: React.FC = () => {
   return (
     <header className="sf-head card">
       <h1 className="sf-name">{config.storeName ?? "Nexora"}</h1>
-      <SearchBox />
       {s &&
         (empty ? (
           <span className="sf-new">

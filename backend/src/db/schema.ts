@@ -1,78 +1,83 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  boolean,
+  customType,
+  doublePrecision,
   index,
   integer,
+  pgTable,
   primaryKey,
-  real,
-  sqliteTable,
   text,
+  timestamp,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
+import { decrypt, encrypt } from "../lib/encryption.ts";
+
+const encryptedText = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "text";
+  },
+  toDriver(value: string): string {
+    return encrypt(value);
+  },
+  fromDriver(value: string): string {
+    return decrypt(value);
+  },
+});
 
 /**
- * Nexora digital-goods shop — Drizzle (SQLite/bun:sqlite) schema.
+ * Nexora digital-goods shop — Drizzle PostgreSQL schema.
  *
  * Conventions:
  *  - PKs are app-generated text ids (uuid/nanoid) — portable, no AUTOINCREMENT coupling.
- *  - Timestamps: epoch MILLISECONDS as integer({ mode: "timestamp_ms" }) → JS Date in app code.
- *  - Money: priceUsd/totalUsd stored as `real` (USD). Crypto amount stored BOTH as a display
+ *  - Timestamps: timestamp with precision 3 and mode "date" -> JS Date in app code.
+ *  - Money: priceUsd/totalUsd stored as `doublePrecision` (USD). Crypto amount stored BOTH as a display
  *    string (ltcAmount, 8dp) AND as integer litoshis (expectedLitoshi) for exact, float-free compare.
  *  - Stock is DERIVED, never stored: stock(product) = count(product_keys WHERE status='available').
  */
 
 /* ───────────────────────────── users ───────────────────────────── */
-export const users = sqliteTable(
+export const users = pgTable(
   "users",
   {
     id: text("id").primaryKey(),
-    // Always stored lower-cased + trimmed at the application layer (register/login),
-    // so a plain unique index gives case-insensitive uniqueness (drizzle-kit 0.21 has no
-    // expression-index support in push).
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     role: text("role").$type<"customer" | "admin">().default("customer").notNull(),
     status: text("status").$type<"active" | "banned">().default("active").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({ emailUnique: uniqueIndex("users_email_unique").on(t.email) }),
 );
 
 /* ──────────────────────────── coupons ──────────────────────────── */
-// Discount codes applied at checkout. Discount computed on the USD total before coin conversion.
-export const coupons = sqliteTable(
+export const coupons = pgTable(
   "coupons",
   {
     id: text("id").primaryKey(),
     code: text("code").notNull(), // case-insensitive match at app layer
     type: text("type").$type<"percent" | "fixed">().notNull(),
-    value: real("value").notNull(), // percent (0-100) or fixed USD
+    value: doublePrecision("value").notNull(), // percent (0-100) or fixed USD
     maxUses: integer("max_uses"), // null = unlimited
     usedCount: integer("used_count").notNull().default(0),
-    minOrderUsd: real("min_order_usd").notNull().default(0),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    minOrderUsd: doublePrecision("min_order_usd").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    expiresAt: timestamp("expires_at", { precision: 3, mode: "date" }),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({ codeUnique: uniqueIndex("coupons_code_unique").on(t.code) }),
 );
 
 /* ──────────────────────────── sessions ─────────────────────────── */
-// Cookie value === sessions.token. We store SHA-256(rawToken) here; the cookie carries the raw token.
-export const sessions = sqliteTable(
+export const sessions = pgTable(
   "sessions",
   {
     token: text("token").primaryKey(),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    expiresAt: timestamp("expires_at", { precision: 3, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({
     userIdx: index("sessions_user_idx").on(t.userId),
@@ -81,10 +86,7 @@ export const sessions = sqliteTable(
 );
 
 /* ──────────────────────────── categories ───────────────────────── */
-// Hierarchical product categories (up to 4 levels). parentId is a self-reference
-// for the tree; null = top-level. Slug is unique across ALL categories (flat
-// URL space). sortOrder gives admins explicit ordering within a parent.
-export const categories = sqliteTable(
+export const categories = pgTable(
   "categories",
   {
     id: text("id").primaryKey(),
@@ -94,9 +96,7 @@ export const categories = sqliteTable(
     description: text("description").notNull().default(""),
     image: text("image").notNull().default(""),
     sortOrder: integer("sort_order").notNull().default(0),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({
     slugUnique: uniqueIndex("categories_slug_unique").on(t.slug),
@@ -105,33 +105,25 @@ export const categories = sqliteTable(
 );
 
 /* ──────────────────────────── products ─────────────────────────── */
-export const products = sqliteTable(
+export const products = pgTable(
   "products",
   {
     id: text("id").primaryKey(),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     description: text("description").notNull(),
-    priceUsd: real("price_usd").notNull().default(0),
+    priceUsd: doublePrecision("price_usd").notNull().default(0),
     image: text("image").notNull(),
-    // Legacy free-text category. Kept for backwards-compat; new code reads categoryId.
     category: text("category").notNull(),
-    // Optional FK to the categories table (preferred going forward). Nullable so
-    // pre-migration rows don't break and so admins can keep using the string field
-    // until they finish organising the tree.
     categoryId: text("category_id"),
-    compareAtPrice: real("compare_at_price"),
-    // Delivery model: serials = auto-deliver from product_keys (current behavior).
-    // service = manual / instructions only. dynamic = fetch from webhook (groundwork).
+    compareAtPrice: doublePrecision("compare_at_price"),
     deliverables: text("deliverables")
       .$type<"serials" | "service" | "dynamic">()
       .notNull()
       .default("serials"),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    active: boolean("active").notNull().default(true),
     sold: integer("sold").notNull().default(0),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({
     slugUnique: uniqueIndex("products_slug_unique").on(t.slug),
@@ -142,7 +134,7 @@ export const products = sqliteTable(
 );
 
 /* ──────────────────────── product_variants ─────────────────────── */
-export const productVariants = sqliteTable(
+export const productVariants = pgTable(
   "product_variants",
   {
     id: text("id").primaryKey(),
@@ -150,11 +142,9 @@ export const productVariants = sqliteTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    priceUsd: real("price_usd").notNull().default(0),
-    compareAtPrice: real("compare_at_price"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    priceUsd: doublePrecision("price_usd").notNull().default(0),
+    compareAtPrice: doublePrecision("compare_at_price"),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({
     productIdx: index("product_variants_product_idx").on(t.productId),
@@ -162,7 +152,7 @@ export const productVariants = sqliteTable(
 );
 
 /* ───────────────────── product_keys (REAL inventory) ────────────── */
-export const productKeys = sqliteTable(
+export const productKeys = pgTable(
   "product_keys",
   {
     id: text("id").primaryKey(),
@@ -170,7 +160,7 @@ export const productKeys = sqliteTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     variantId: text("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
-    code: text("code").notNull(),
+    code: encryptedText("code").notNull(),
     status: text("status")
       .$type<"available" | "reserved" | "delivered">()
       .notNull()
@@ -180,11 +170,9 @@ export const productKeys = sqliteTable(
       .notNull()
       .default("code"),
     orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
-    reservedAt: integer("reserved_at", { mode: "timestamp_ms" }),
-    deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    reservedAt: timestamp("reserved_at", { precision: 3, mode: "date" }),
+    deliveredAt: timestamp("delivered_at", { precision: 3, mode: "date" }),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({
     productStatusIdx: index("product_keys_product_status_idx").on(t.productId, t.status),
@@ -194,16 +182,14 @@ export const productKeys = sqliteTable(
 );
 
 /* ───────────────────────────── orders ──────────────────────────── */
-export const orders = sqliteTable(
+export const orders = pgTable(
   "orders",
   {
     id: text("id").primaryKey(),
-    // Login required to purchase → userId NOT NULL (no guest checkout).
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     email: text("email").notNull(),
-
     status: text("status")
       .$type<
         | "pending"
@@ -216,29 +202,20 @@ export const orders = sqliteTable(
       >()
       .notNull()
       .default("pending"),
-
-    // ── Pricing / rate lock (frozen at checkout) ──
-    totalUsd: real("total_usd").notNull(),
-    ltcRate: real("ltc_rate").notNull(), // locked USD-per-LTC
+    totalUsd: doublePrecision("total_usd").notNull(),
+    ltcRate: doublePrecision("ltc_rate").notNull(),
     rateSource: text("rate_source"),
-    ltcAmount: text("ltc_amount").notNull(), // expected LTC, 8dp string (display)
-    expectedLitoshi: integer("expected_litoshi").notNull(), // integer target (1 LTC = 1e8)
-
-    // ── HD wallet derived receive address (watch-only) ──
+    ltcAmount: text("ltc_amount").notNull(),
+    expectedLitoshi: integer("expected_litoshi").notNull(),
     addressIndex: integer("address_index").notNull(),
     ltcAddress: text("ltc_address").notNull(),
-
-    // ── Settlement state (written by the poller) ──
     receivedLitoshi: integer("received_litoshi").notNull().default(0),
     confirmations: integer("confirmations").notNull().default(0),
     paidTxId: text("paid_tx_id"),
-
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
-    paidAt: integer("paid_at", { mode: "timestamp_ms" }),
-    deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(), // payment window end
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
+    paidAt: timestamp("paid_at", { precision: 3, mode: "date" }),
+    deliveredAt: timestamp("delivered_at", { precision: 3, mode: "date" }),
+    expiresAt: timestamp("expires_at", { precision: 3, mode: "date" }).notNull(),
   },
   (t) => ({
     statusIdx: index("orders_status_idx").on(t.status),
@@ -250,7 +227,7 @@ export const orders = sqliteTable(
 );
 
 /* ─────────────────────────── order_items ───────────────────────── */
-export const orderItems = sqliteTable(
+export const orderItems = pgTable(
   "order_items",
   {
     id: text("id").primaryKey(),
@@ -261,7 +238,7 @@ export const orderItems = sqliteTable(
       .notNull()
       .references(() => products.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
-    priceUsd: real("price_usd").notNull(),
+    priceUsd: doublePrecision("price_usd").notNull(),
     quantity: integer("quantity").notNull(),
   },
   (t) => ({
@@ -271,18 +248,14 @@ export const orderItems = sqliteTable(
 );
 
 /* ───────────────────────────── settings ────────────────────────── */
-// Key/value config editable in admin. Secrets prefer .env; DB holds toggles + non-secret config.
-export const settings = sqliteTable("settings", {
+export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
-  value: text("value"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-    .notNull()
-    .default(sql`(unixepoch() * 1000)`),
+  value: encryptedText("value"),
+  updatedAt: timestamp("updated_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
 });
 
 /* ───────────────────────────── reviews ─────────────────────────── */
-// Verified-purchase product reviews. Shown immediately; admin can hide abusive ones.
-export const reviews = sqliteTable(
+export const reviews = pgTable(
   "reviews",
   {
     id: text("id").primaryKey(),
@@ -292,22 +265,20 @@ export const reviews = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    email: text("email").notNull(), // snapshot for display ("j***@x.com")
-    rating: integer("rating").notNull(), // 1-5
+    email: text("email").notNull(),
+    rating: integer("rating").notNull(),
     body: text("body").notNull().default(""),
-    hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    hidden: boolean("hidden").notNull().default(false),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({
     productIdx: index("reviews_product_idx").on(t.productId),
-    userProductUnique: uniqueIndex("reviews_user_product_unique").on(t.userId, t.productId), // one review per product
+    userProductUnique: uniqueIndex("reviews_user_product_unique").on(t.userId, t.productId),
   }),
 );
 
 /* ───────────────────────────── tickets ─────────────────────────── */
-export const tickets = sqliteTable(
+export const tickets = pgTable(
   "tickets",
   {
     id: text("id").primaryKey(),
@@ -315,15 +286,11 @@ export const tickets = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
-    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }), // optional link
+    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
     subject: text("subject").notNull(),
     status: text("status").$type<"open" | "closed">().notNull().default("open"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({
     userIdx: index("tickets_user_idx").on(t.userId),
@@ -331,34 +298,29 @@ export const tickets = sqliteTable(
   }),
 );
 
-export const ticketMessages = sqliteTable(
+export const ticketMessages = pgTable(
   "ticket_messages",
   {
     id: text("id").primaryKey(),
     ticketId: text("ticket_id")
       .notNull()
       .references(() => tickets.id, { onDelete: "cascade" }),
-    fromAdmin: integer("from_admin", { mode: "boolean" }).notNull().default(false),
+    fromAdmin: boolean("from_admin").notNull().default(false),
     body: text("body").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({ ticketIdx: index("ticket_messages_ticket_idx").on(t.ticketId) }),
 );
 
 /* ─────────────────────────── admin_actions ─────────────────────── */
-// Audit log of admin operations.
-export const adminActions = sqliteTable(
+export const adminActions = pgTable(
   "admin_actions",
   {
     id: text("id").primaryKey(),
     adminEmail: text("admin_email").notNull(),
-    action: text("action").notNull(), // e.g. "product.create", "customer.ban"
+    action: text("action").notNull(),
     detail: text("detail"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`(unixepoch() * 1000)`),
+    createdAt: timestamp("created_at", { precision: 3, mode: "date" }).notNull().defaultNow(),
   },
   (t) => ({ createdIdx: index("admin_actions_created_idx").on(t.createdAt) }),
 );
@@ -399,16 +361,12 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 }));
 
 /* ─────────────────────── plugin_migrations ─────────────────────── */
-// Per-plugin migration tracker. Each plugin ships an ordered list of SQL
-// statements; we record the index of each successfully applied statement so
-// reruns skip already-applied ones. Composite PK ensures one row per
-// (plugin, statement index).
-export const pluginMigrations = sqliteTable(
+export const pluginMigrations = pgTable(
   "__plugin_migrations",
   {
     pluginId: text("plugin_id").notNull(),
     idx: integer("idx").notNull(),
-    appliedAt: integer("applied_at", { mode: "timestamp_ms" }).notNull(),
+    appliedAt: timestamp("applied_at", { precision: 3, mode: "date" }).notNull(),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.pluginId, t.idx] }),

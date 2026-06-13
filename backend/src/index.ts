@@ -119,6 +119,38 @@ const baseApp = new Elysia()
 
   .get("/api/health", () => ({ ok: true }))
 
+  // ───── Real-time Payment Updates (SSE) ─────
+  .get("/api/orders/:id/events", ({ params: { id }, set }) => {
+    set.headers["content-type"] = "text/event-stream";
+    set.headers["cache-control"] = "no-cache";
+    set.headers["connection"] = "keep-alive";
+
+    return new ReadableStream({
+      start(controller) {
+        const send = (data: any) => {
+          controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
+        };
+
+        // Gửi trạng thái ban đầu
+        send({ type: "connected", orderId: id });
+
+        // Đăng ký lắng nghe từ watcher qua EventEmitter (hoặc HookBus)
+        const cleanup = onOrderDelivered((deliveredId) => {
+          if (deliveredId === id) {
+            send({ type: "status_update", status: "paid" });
+            // controller.close(); // Tùy chọn: đóng stream khi xong
+          }
+        });
+
+        // Loop heartbeat để giữ connection
+        const heartbeat = setInterval(() => send({ type: "heartbeat" }), 30000);
+
+        // Cleanup khi client disconnect
+        // request.signal.addEventListener("abort", () => { ... });
+      },
+    });
+  })
+
   // ───── Public routes (no auth required) ─────
   .use(configRoutes)
   .use(productRoutes)

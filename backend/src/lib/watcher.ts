@@ -16,9 +16,13 @@ const POLL_INTERVAL_MS = 30_000;
 const PER_ADDRESS_DELAY_MS = 350; // stay under ~3 req/s
 
 type DeliverHook = (orderId: string, email: string, keys: { name: string; code: string }[]) => void;
-let onDelivered: DeliverHook | null = null;
+const deliverHooks: DeliverHook[] = [];
 export function onOrderDelivered(hook: DeliverHook) {
-  onDelivered = hook;
+  deliverHooks.push(hook);
+  return () => {
+    const i = deliverHooks.indexOf(hook);
+    if (i !== -1) deliverHooks.splice(i, 1);
+  };
 }
 
 const PAYABLE = sql`${orders.status} in ('pending','awaiting_payment','underpaid')`;
@@ -80,7 +84,11 @@ async function checkOrder(
       status.maxConfirmations,
     );
     if (delivered) {
-      onDelivered?.(o.id, o.email, delivered);
+      for (const h of deliverHooks) {
+        try {
+          h(o.id, o.email, delivered);
+        } catch (_e) {}
+      }
       // Emit hooks for plugins (analytics, external webhooks, etc.)
       hookBus
         .emit("payment.paid", { orderId: o.id, userId: o.userId, amountUsd: o.totalUsd })

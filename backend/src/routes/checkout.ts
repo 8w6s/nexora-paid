@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
+import * as v from "valibot";
 import { db } from "../db/connection.ts";
 import {
   coupons,
@@ -36,6 +37,32 @@ const CHECKOUT_RATE_WINDOW_MS = 60_000;
 const ORDER_STATUS_RATE_MAX = 60; // 60 polls / IP / minute (1/sec)
 const ORDER_STATUS_WINDOW_MS = 60_000;
 
+const CheckoutSchema = v.object({
+  items: v.array(
+    v.object({
+      productId: v.string(),
+      variantId: v.optional(v.nullable(v.string())),
+      qty: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_LINE_QTY)),
+    }),
+    [v.minLength(1), v.maxLength(MAX_LINES_PER_ORDER)],
+  ),
+  method: v.optional(v.string()),
+  coupon: v.optional(
+    v.pipe(
+      v.string(),
+      v.transform((s) => s.trim().toUpperCase()),
+    ),
+  ),
+  email: v.optional(
+    v.pipe(
+      v.string(),
+      v.transform((s) => s.trim().toLowerCase()),
+      v.email(),
+      v.maxLength(254),
+    ),
+  ),
+});
+
 function ltcQrUrl(address: string, ltcAmount: string): string {
   // BIP21 litecoin URI rendered as a QR by a public image service (no key needed).
   const uri = `litecoin:${address}?amount=${ltcAmount}`;
@@ -61,7 +88,18 @@ export const checkoutRoutes = new Elysia()
   /* ───────── Checkout (login optional; server-trusted prices) ───────── */
   .post(
     "/api/checkout",
-    async ({ body, user, status, set, request }) => {
+    async ({ body: rawBody, user, status, set, request }) => {
+      // Validation with Valibot
+      const result = v.safeParse(CheckoutSchema, rawBody);
+      if (!result.success) {
+        return status(400, {
+          error: "Invalid input",
+          code: "VALIDATION_ERROR",
+          details: v.flatten(result.issues).nested,
+        });
+      }
+      const body: any = result.output;
+
       // Per-IP throttle. Each successful checkout burns an HD address index
       // and a rate-lock against the upstream exchange — letting a single IP
       // spam this endpoint exhausts both. 5/min is generous for a real human.
@@ -77,22 +115,6 @@ export const checkoutRoutes = new Elysia()
         };
       }
 
-      if (body.items.length === 0)
-        return status(400, { error: "Cart is empty", code: "EMPTY_CART" });
-      if (body.items.length > MAX_LINES_PER_ORDER)
-        return status(400, {
-          error: `Max ${MAX_LINES_PER_ORDER} line items per order`,
-          code: "TOO_MANY_LINES",
-        });
-      // Sanitize qty: Elysia validates min=1 already, but it has no max — a
-      // qty of Number.MAX_SAFE_INTEGER would reach the coupon-discount math
-      // (totalUsd * qty) and could integer-overflow the float into Infinity.
-      for (const it of body.items) {
-        if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > MAX_LINE_QTY) {
-          return status(400, { error: `qty must be 1..${MAX_LINE_QTY}`, code: "BAD_QTY" });
-        }
-      }
-
       // Wallet must be configured.
       const xpub = await getSetting("ltc_xpub");
       if (!xpub) return status(503, { error: "Store wallet not configured", code: "NO_WALLET" });
@@ -104,24 +126,13 @@ export const checkoutRoutes = new Elysia()
         checkoutEmail = user.email;
         checkoutUserId = user.id;
       } else {
-        if (!body.email?.trim()) {
+        const emailNorm = body.email;
+        if (!emailNorm) {
           return status(400, {
             error: "Email is required for guest checkout",
             code: "EMAIL_REQUIRED",
           });
         }
-        // Length sanity: RFC-5321 caps email at 254 chars total. Reject early
-        // so a 50KB email body doesn't hit argon2id below.
-        if (body.email.length > 254) {
-          return status(400, { error: "Email too long", code: "EMAIL_TOO_LONG" });
-        }
-        // Cheap shape check — a fully RFC-compliant regex isn't worth the
-        // DoS risk; this rejects obvious garbage (no `@`, multiple `@`, no `.`).
-        const emailShape = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailShape.test(body.email.trim())) {
-          return status(400, { error: "Invalid email", code: "BAD_EMAIL" });
-        }
-        const emailNorm = body.email.trim().toLowerCase();
         const existing = (await db.select().from(users).where(eq(users.email, emailNorm)))[0];
         if (existing) {
           checkoutEmail = existing.email;
@@ -218,10 +229,8 @@ export const checkoutRoutes = new Elysia()
       // usedCount field is re-read + incremented INSIDE the order transaction below so
       // two concurrent checkouts racing on a single-use coupon can't both consume it.
       let appliedCoupon: typeof coupons.$inferSelect | null = null;
-      if (body.coupon?.trim()) {
-        const c = (
-          await db.select().from(coupons).where(eq(coupons.code, body.coupon.trim().toUpperCase()))
-        )[0];
+      if (body.coupon) {
+        const c = (await db.select().from(coupons).where(eq(coupons.code, body.coupon)))[0];
         const now = Date.now();
         const valid =
           c?.active &&
@@ -344,19 +353,6 @@ export const checkoutRoutes = new Elysia()
     },
     {
       optionalUser: true,
-      body: t.Object({
-        items: t.Array(
-          t.Object({
-            productId: t.String(),
-            variantId: t.Optional(t.Nullable(t.String())),
-            qty: t.Integer({ minimum: 1 }),
-          }),
-          { minItems: 1 },
-        ),
-        method: t.Optional(t.String()),
-        coupon: t.Optional(t.String()),
-        email: t.Optional(t.String()),
-      }),
     },
   )
 
