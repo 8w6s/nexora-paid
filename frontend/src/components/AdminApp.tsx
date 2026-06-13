@@ -4,11 +4,11 @@ import { AuthProvider } from "./AuthContext";
 import { ConfigProvider } from "./ConfigContext";
 import { ToastProvider } from "./Toast";
 
-export const AdminApp: React.FC = () => (
+export const AdminApp: React.FC<{ activeTabPath?: string }> = ({ activeTabPath }) => (
   <ConfigProvider>
     <ToastProvider>
       <AuthProvider>
-        <AdminDashboard />
+        <AdminDashboard activeTabPath={activeTabPath} />
       </AuthProvider>
     </ToastProvider>
   </ConfigProvider>

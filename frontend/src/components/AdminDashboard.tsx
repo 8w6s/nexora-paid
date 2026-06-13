@@ -105,14 +105,17 @@ const NAV_GROUPS: { title?: string; items: { key: Tab; label: string; icon: any;
   },
 ];
 
-export const AdminDashboard: React.FC = () => {
+export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTabPath }) => {
   const { user, loading, logout } = useAuth();
   const { config, theme } = useConfig();
   const [tab, setTab] = useState<Tab>(() => {
+    if (activeTabPath) return activeTabPath as Tab;
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const t = params.get("tab") as Tab;
-      if (t) return t;
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      // Format /admin/tab -> parts: ['admin', 'tab']
+      if (parts[0] === "admin" && parts[1]) {
+        return parts[1] as Tab;
+      }
     }
     return "overview";
   });
@@ -121,9 +124,12 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const t = params.get("tab") as Tab;
-      setTab(t || "overview");
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      if (parts[0] === "admin" && parts[1]) {
+        setTab(parts[1] as Tab);
+      } else {
+        setTab("overview");
+      }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -133,9 +139,8 @@ export const AdminDashboard: React.FC = () => {
     setTab(newTab);
     setNavOpen(false);
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      params.set("tab", newTab);
-      window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`);
+      const path = newTab === "overview" ? "/admin" : `/admin/${newTab}`;
+      window.history.pushState(null, "", path);
     }
   };
 
