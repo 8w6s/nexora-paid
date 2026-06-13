@@ -44,7 +44,7 @@ const LICENSE_PUBKEY_HEX = "b20fc9037c686ef41ae162dc95f95a7ce16f7557d5c4884d8f28
 export interface LicensePayload {
   /** Buyer email (also watermarks the license file) */
   email: string;
-  /** Product SKU — must match for the license to apply, e.g. "nexora-paid" */
+  /** Product SKU — must match for the license to apply, e.g. "nexora" */
   productId: string;
   /** ISO timestamp of issuance — informational, not enforced (one-time pay) */
   issuedAt: string;
@@ -99,7 +99,7 @@ export async function verifyLicense(): Promise<VerifyResult> {
   if (typeof signed.payload.email !== "string" || typeof signed.payload.productId !== "string") {
     return { valid: false, reason: "malformed payload (email/productId)" };
   }
-  if (signed.payload.productId !== "nexora-paid") {
+  if (signed.payload.productId !== "nexora") {
     return { valid: false, reason: `wrong productId: ${signed.payload.productId}` };
   }
   if (LICENSE_PUBKEY_HEX === "00".repeat(32)) {
