@@ -14,7 +14,7 @@
 #        CLOUDFLARE_TUNNEL_TOKEN=... docker compose --profile tunnel up -d
 #      No need to open 80/443. CF terminates TLS, tunnels to caddy:80 internally.
 #
-# PostgreSQL persists in the `nexora-pgdata` named volume.
+# SQLite persists in the `nexora-db` named volume.
 # Caddy cert/key data persists in `caddy-data` (do NOT delete — re-issuing certs
 # repeatedly hits Let's Encrypt rate limits).
 
@@ -37,18 +37,6 @@ services:
       - backend
       - frontend
 
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: "${DB_USER:-postgres}"
-      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgrespassword}"
-      POSTGRES_DB: "${DB_NAME:-nexora}"
-    volumes:
-      - nexora-pgdata:/var/lib/postgresql/data
-    expose:
-      - "5432"
-
   backend:
     build: ./backend
     expose:
@@ -56,7 +44,6 @@ services:
     environment:
       PORT: "3000"
       NODE_ENV: production
-      DATABASE_URL: "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgrespassword}@db:5432/${DB_NAME:-nexora}"
       # When behind Caddy on a real domain, PUBLIC_ORIGIN should match.
       PUBLIC_ORIGIN: "${PUBLIC_ORIGIN:-http://localhost}"
       ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@nexora.local}"
@@ -65,8 +52,8 @@ services:
       # (otherwise per-IP rate limits all see the same docker network address).
       TRUST_PROXY: "true"
       # Optional: ADMIN_PASSWORD_HASH, LTC_XPUB, EMAIL_PROVIDER, RESEND_API_KEY, SMTP_*
-    depends_on:
-      - db
+    volumes:
+      - nexora-db:/app
     restart: unless-stopped
 
   frontend:
@@ -95,6 +82,6 @@ services:
       - caddy
 
 volumes:
-  nexora-pgdata:
+  nexora-db:
   caddy-data:
   caddy-config:
