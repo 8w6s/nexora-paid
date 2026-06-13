@@ -48,6 +48,9 @@ CONTEXT.md
 .claude/
 .loop/
 
+# External Libraries
+**/fontawesome/**
+
 # License signing keys + issued licenses — maintainer-only artifacts.
 # If the private key leaks, anyone can forge Paid licenses for free.
 .keys/

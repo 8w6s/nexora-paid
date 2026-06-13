@@ -45,7 +45,7 @@ When Nexora v0.3 ships with breaking plugin changes:
 ### Step 1: Generate New Keypair
 
 ```bash
-cd nexora-paid
+cd nexora
 bun scripts/gen-keypair.ts
 ```
 
@@ -68,7 +68,7 @@ Replace the old 64-character hex string.
 
 ```bash
 # Rebuild Docker image with new public key
-docker build -t nexora-paid:v0.2.1-rotated .
+docker build -t nexora:v0.2.1-rotated .
 
 # Or: rebuild standalone binary
 bun build --compile src/index.ts
@@ -81,7 +81,7 @@ Use **new private key** to sign:
 ```bash
 bun scripts/sign-license.ts 
   --email customer@example.com 
-  --productId nexora-paid 
+  --productId nexora 
   --output customer-license.json
 ```
 

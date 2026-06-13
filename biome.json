@@ -1,22 +1,13 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
-  "linter": {
+  "vcs": {
     "enabled": true,
-    "rules": {
-      "preset": "recommended",
-      "correctness": {
-        "noUnusedVariables": "error"
-      },
-      "suspicious": {
-        "noExplicitAny": "warn",
-        "noConsole": "error",
-        "noShadowRestrictedNames": "error"
-      },
-      "style": {
-        "useConst": "error"
-      }
-    }
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "maxSize": 20971520
   },
   "formatter": {
     "enabled": true,
@@ -24,6 +15,37 @@
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        "recommended": false
+      },
+      "correctness": {
+        "noUnusedVariables": "warn",
+        "useExhaustiveDependencies": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noConsole": "error",
+        "noShadowRestrictedNames": "warn",
+        "noControlCharactersInRegex": "off",
+        "noAssignInExpressions": "off",
+        "noArrayIndexKey": "off",
+        "noImplicitAnyLet": "off",
+        "noDoubleEquals": "off"
+      },
+      "complexity": {
+        "noBannedTypes": "off",
+        "noCommaOperator": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useConst": "error"
+      }
+    }
   },
   "javascript": {
     "formatter": {

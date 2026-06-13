@@ -8,7 +8,7 @@ How to safely deploy Nexora Paid with licensing, plugin system, and real Litecoi
 
 - [ ] Obtain `.license` file (JSON with ed25519 signature)
   - Place at `./nexora.license` (or set `LICENSE_FILE` env var)
-  - Format: `{"payload": {"email": "...", "productId": "nexora-paid", ...}, "signature": "..."}`
+  - Format: `{"payload": {"email": "...", "productId": "nexora", ...}, "signature": "..."}`
 - [ ] Verify on boot: `[plugin] license valid (your@email.com)`
 - [ ] If missing: plugins won't load (app runs as Free version)
 

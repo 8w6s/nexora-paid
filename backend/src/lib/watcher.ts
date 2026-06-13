@@ -44,7 +44,7 @@ async function expireStaleOrders(): Promise<void> {
     .from(orders)
     .where(and(PAYABLE, lte(orders.expiresAt, now)));
   if (stale.length === 0) return;
-  let expired = 0;
+  let _expired = 0;
   for (const o of stale) {
     await db.transaction(async (tx) => {
       const res = await tx
@@ -57,7 +57,7 @@ async function expireStaleOrders(): Promise<void> {
         .update(productKeys)
         .set({ status: "available", orderId: null, reservedAt: null })
         .where(and(eq(productKeys.orderId, o.id), eq(productKeys.status, "reserved")));
-      expired++;
+      _expired++;
     });
   }
 }

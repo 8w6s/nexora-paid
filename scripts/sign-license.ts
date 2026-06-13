@@ -15,7 +15,7 @@ import { dirname, resolve } from "node:path";
  *   bun run scripts/sign-license.ts --email=foo@bar.com --out=./issued/foo.license
  *
  * Defaults:
- *   --product   nexora-paid
+ *   --product   nexora
  *   --out       ./issued/<sanitized-email>.license
  *   --note      (empty)
  */
@@ -28,7 +28,7 @@ ed.hashes.sha512 = (m: Uint8Array) => sha512(m);
 const args = parseArgs(process.argv.slice(2));
 if (!args.email) {
   console.error(
-    "Usage: bun run scripts/sign-license.ts --email=customer@example.com [--product=nexora-paid] [--note=v1] [--out=./issued/x.license]",
+    "Usage: bun run scripts/sign-license.ts --email=customer@example.com [--product=nexora] [--note=v1] [--out=./issued/x.license]",
   );
   process.exit(1);
 }
@@ -44,7 +44,7 @@ const privBytes = hexToBytes(privHex);
 
 const payload = {
   email: args.email.trim().toLowerCase(),
-  productId: args.product ?? "nexora-paid",
+  productId: args.product ?? "nexora",
   issuedAt: new Date().toISOString(),
   ...(args.note ? { note: args.note } : {}),
 };
