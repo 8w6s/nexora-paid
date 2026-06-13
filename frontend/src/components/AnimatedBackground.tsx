@@ -1,8 +1,8 @@
-import React from "react";
+import type React from "react";
 
 /**
  * AnimatedBackground — Direct port of the Windows logon OOBE setup background animation.
- * Optimized to use GPU-accelerated transforms (translate + scale) for buttery-smooth 
+ * Optimized to use GPU-accelerated transforms (translate + scale) for buttery-smooth
  * 60fps performance and guaranteed compatibility across all modern browsers.
  */
 export const AnimatedBackground: React.FC = () => (

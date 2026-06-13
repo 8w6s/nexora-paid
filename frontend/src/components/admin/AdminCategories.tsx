@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import type React from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
-import { Icon } from "../Icon";
-import { Sk, SkeletonStyles } from "../Skeleton";
-import { Modal } from "../Modal";
-import { useToast } from "../Toast";
 import { Dropdown } from "../Dropdown";
+import { Icon } from "../Icon";
+import { Modal } from "../Modal";
+import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 
 interface Cat {
   id: string;
@@ -29,7 +30,9 @@ const blank: FormState = { name: "", slug: "", parentId: "", description: "", im
 
 // Build a nested view-model from the flat list. Each row carries its depth so
 // the table can indent rendered names.
-interface RowVM extends Cat { depth: number; }
+interface RowVM extends Cat {
+  depth: number;
+}
 function buildTree(rows: Cat[]): RowVM[] {
   const byParent: Record<string, Cat[]> = {};
   for (const r of rows) {
@@ -55,8 +58,15 @@ export const AdminCategories: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const toast = useToast();
 
-  const load = () => { api.get<Cat[]>("/api/admin/categories").then(setList).catch(() => setList([])); };
-  useEffect(() => { load(); }, []);
+  const load = () => {
+    api
+      .get<Cat[]>("/api/admin/categories")
+      .then(setList)
+      .catch(() => setList([]));
+  };
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const rows = useMemo(() => (list ? buildTree(list) : []), [list]);
 
@@ -70,16 +80,19 @@ export const AdminCategories: React.FC = () => {
     while (added) {
       added = false;
       for (const c of list) {
-        if (c.parentId && blocked.has(c.parentId) && !blocked.has(c.id)) { blocked.add(c.id); added = true; }
+        if (c.parentId && blocked.has(c.parentId) && !blocked.has(c.id)) {
+          blocked.add(c.id);
+          added = true;
+        }
       }
     }
     return list.filter((c) => !blocked.has(c.id));
   }, [list, editing]);
 
-
   const save = async () => {
     if (!editing) return;
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setErr(null);
     try {
       const body: Record<string, unknown> = {
         name: editing.name,
@@ -90,15 +103,30 @@ export const AdminCategories: React.FC = () => {
       if (editing.slug.trim()) body.slug = editing.slug.trim();
       if (editing.id) await api.patch(`/api/admin/categories/${editing.id}`, body);
       else await api.post("/api/admin/categories", body);
-      setEditing(null); toast.success(editing.id ? "Category updated." : "Category created."); load();
-    } catch (e) { setErr(e instanceof Error ? e.message : "Save failed"); }
-    finally { setBusy(false); }
+      setEditing(null);
+      toast.success(editing.id ? "Category updated." : "Category created.");
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const remove = async (c: Cat) => {
-    if (!confirm(`Delete category "${c.name}"? This only works if it has no subcategories or products.`)) return;
-    try { await api.del(`/api/admin/categories/${c.id}`); load(); toast.success("Category deleted."); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Delete failed"); }
+    if (
+      !confirm(
+        `Delete category "${c.name}"? This only works if it has no subcategories or products.`,
+      )
+    )
+      return;
+    try {
+      await api.del(`/api/admin/categories/${c.id}`);
+      load();
+      toast.success("Category deleted.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
   };
 
   return (
@@ -106,32 +134,85 @@ export const AdminCategories: React.FC = () => {
       <SkeletonStyles />
       <div className="cats-bar">
         <p className="intro">Organize products into a browsable hierarchy, up to 4 levels deep.</p>
-        <button className="btn" onClick={() => setEditing({ ...blank })}><Icon name="plus" size={15} /> New category</button>
+        <button className="btn" onClick={() => setEditing({ ...blank })}>
+          <Icon name="plus" size={15} /> New category
+        </button>
       </div>
 
       <div className="card table-card">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Slug</th><th className="num">Products</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Slug</th>
+                <th className="num">Products</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
-              {!list ? Array.from({ length: 4 }).map((_, i) => (
-                <tr key={i}><td><Sk w={160} h={13} /></td><td><Sk w={120} h={13} /></td><td className="num"><Sk w={24} h={13} style={{ marginLeft: "auto" }} /></td><td><Sk w={60} h={13} /></td></tr>
-              )) : rows.length === 0 ? (
-                <tr><td colSpan={4} className="empty">No categories yet. Create one to start.</td></tr>
-              ) : rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="name-cell" style={{ paddingLeft: 14 + r.depth * 24 }}>
-                    {r.depth > 0 && <span className="branch">└</span>}
-                    <span className="name">{r.name}</span>
-                  </td>
-                  <td className="muted slug">/{r.slug}</td>
-                  <td className="num">{r.productCount}</td>
-                  <td className="actions">
-                    <button className="icon-btn" title="Edit" aria-label={`Edit ${r.name}`} onClick={() => setEditing({ id: r.id, name: r.name, slug: r.slug, parentId: r.parentId ?? "", description: r.description, image: r.image })}><Icon name="pencil" size={14} variant="duotone-regular" /></button>
-                    <button className="icon-btn del" title="Delete" aria-label={`Delete ${r.name}`} onClick={() => remove(r)}><Icon name="trash" size={14} variant="duotone-regular" /></button>
+              {!list ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i}>
+                    <td>
+                      <Sk w={160} h={13} />
+                    </td>
+                    <td>
+                      <Sk w={120} h={13} />
+                    </td>
+                    <td className="num">
+                      <Sk w={24} h={13} style={{ marginLeft: "auto" }} />
+                    </td>
+                    <td>
+                      <Sk w={60} h={13} />
+                    </td>
+                  </tr>
+                ))
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="empty">
+                    No categories yet. Create one to start.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id}>
+                    <td className="name-cell" style={{ paddingLeft: 14 + r.depth * 24 }}>
+                      {r.depth > 0 && <span className="branch">└</span>}
+                      <span className="name">{r.name}</span>
+                    </td>
+                    <td className="muted slug">/{r.slug}</td>
+                    <td className="num">{r.productCount}</td>
+                    <td className="actions">
+                      <button
+                        className="icon-btn"
+                        title="Edit"
+                        aria-label={`Edit ${r.name}`}
+                        onClick={() =>
+                          setEditing({
+                            id: r.id,
+                            name: r.name,
+                            slug: r.slug,
+                            parentId: r.parentId ?? "",
+                            description: r.description,
+                            image: r.image,
+                          })
+                        }
+                      >
+                        <Icon name="pencil" size={14} variant="duotone-regular" />
+                      </button>
+                      <button
+                        className="icon-btn del"
+                        title="Delete"
+                        aria-label={`Delete ${r.name}`}
+                        onClick={() => remove(r)}
+                      >
+                        <Icon name="trash" size={14} variant="duotone-regular" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -143,33 +224,89 @@ export const AdminCategories: React.FC = () => {
         title={editing?.id ? "Edit category" : "Create category"}
         footer={
           <>
-            <button className="btn btn-ghost" onClick={() => setEditing(null)} type="button">Cancel</button>
+            <button className="btn btn-ghost" onClick={() => setEditing(null)} type="button">
+              Cancel
+            </button>
             <button className="btn" onClick={save} disabled={busy || !editing?.name.trim()}>
-              {busy ? <><Icon name="spinner" size={15} className="is-spinning" /> Saving…</> : (editing?.id ? "Save changes" : "Create")}
+              {busy ? (
+                <>
+                  <Icon name="spinner" size={15} className="is-spinning" /> Saving…
+                </>
+              ) : editing?.id ? (
+                "Save changes"
+              ) : (
+                "Create"
+              )}
             </button>
           </>
         }
       >
-        {editing && (<>
-          <div className="grid-2">
-            <label><span>Name</span><input className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} autoFocus required /></label>
-            <label><span>URL path <em>(optional)</em></span><input className="input" value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} placeholder={editing.name ? editing.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "category-url-path"} /></label>
-          </div>
-          <label><span>Parent category</span>
-            <Dropdown<string>
-              value={editing.parentId}
-              onChange={(v) => setEditing({ ...editing, parentId: v })}
-              options={[
-                { value: "", label: "— Top level —", icon: "home" },
-                ...parentOptions.map((c) => ({ value: c.id, label: c.name, icon: "box" as const })),
-              ]}
-              width="100%"
-            />
-          </label>
-          <label><span>Description</span><textarea value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} rows={3} /></label>
-          <label><span>Image URL <em>(optional)</em></span><input className="input" value={editing.image} onChange={(e) => setEditing({ ...editing, image: e.target.value })} placeholder="https://…" /></label>
-          {err && <div className="err">{err}</div>}
-        </>)}
+        {editing && (
+          <>
+            <div className="grid-2">
+              <label>
+                <span>Name</span>
+                <input
+                  className="input"
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                <span>
+                  URL path <em>(optional)</em>
+                </span>
+                <input
+                  className="input"
+                  value={editing.slug}
+                  onChange={(e) => setEditing({ ...editing, slug: e.target.value })}
+                  placeholder={
+                    editing.name
+                      ? editing.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+                      : "category-url-path"
+                  }
+                />
+              </label>
+            </div>
+            <label>
+              <span>Parent category</span>
+              <Dropdown<string>
+                value={editing.parentId}
+                onChange={(v) => setEditing({ ...editing, parentId: v })}
+                options={[
+                  { value: "", label: "— Top level —", icon: "home" },
+                  ...parentOptions.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    icon: "box" as const,
+                  })),
+                ]}
+                width="100%"
+              />
+            </label>
+            <label>
+              <span>Description</span>
+              <textarea
+                value={editing.description}
+                onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                rows={3}
+              />
+            </label>
+            <label>
+              <span>
+                Image URL <em>(optional)</em>
+              </span>
+              <input
+                className="input"
+                value={editing.image}
+                onChange={(e) => setEditing({ ...editing, image: e.target.value })}
+                placeholder="https://…"
+              />
+            </label>
+            {err && <div className="err">{err}</div>}
+          </>
+        )}
       </Modal>
 
       <style>{`

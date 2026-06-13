@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 
 /**
  * Numeric text input — no spinner arrows, no auto-prefixing zeros, no "0 when empty" surprise.
@@ -25,7 +25,20 @@ export const NumberInput: React.FC<{
   "aria-label"?: string;
   id?: string;
   name?: string;
-}> = ({ value, onChange, decimal = false, min, max, placeholder, required, autoFocus, className = "input", id, name, ...rest }) => {
+}> = ({
+  value,
+  onChange,
+  decimal = false,
+  min,
+  max,
+  placeholder,
+  required,
+  autoFocus,
+  className = "input",
+  id,
+  name,
+  ...rest
+}) => {
   const accept = decimal ? /^\d*\.?\d*$/ : /^\d*$/;
   const handle = (raw: string) => {
     if (raw === "" || accept.test(raw)) {
@@ -49,7 +62,6 @@ export const NumberInput: React.FC<{
       onChange={(e) => handle(e.target.value)}
       placeholder={placeholder}
       required={required}
-      autoFocus={autoFocus}
       id={id}
       name={name}
       aria-label={rest["aria-label"]}

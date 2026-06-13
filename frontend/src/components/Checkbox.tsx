@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 
 /**
  * Animated checkbox — the box outline morphs into a checkmark via SVG stroke-dasharray.

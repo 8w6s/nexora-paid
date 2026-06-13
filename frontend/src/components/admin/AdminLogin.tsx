@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { useAuth } from "../AuthContext";
 import { Icon } from "../Icon";
 import { PasswordInput } from "../PasswordInput";
@@ -28,11 +29,35 @@ export const AdminLogin: React.FC = () => {
       <form className="card" onSubmit={submit}>
         <h1>Admin sign in</h1>
         <p className="sub">Restricted area — staff only.</p>
-        <label><span>Email</span><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-        <label><span>Password</span><PasswordInput value={password} onChange={setPassword} required placeholder="Password" autoComplete="current-password" /></label>
+        <label>
+          <span>Email</span>
+          <input
+            className="input"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          <span>Password</span>
+          <PasswordInput
+            value={password}
+            onChange={setPassword}
+            required
+            placeholder="Password"
+            autoComplete="current-password"
+          />
+        </label>
         {error && <div className="err">{error}</div>}
         <button className="btn" disabled={busy} style={{ width: "100%", justifyContent: "center" }}>
-          {busy ? <><Icon name="spinner" size={16} className="is-spinning" /> Signing in…</> : "Sign in"}
+          {busy ? (
+            <>
+              <Icon name="spinner" size={16} className="is-spinning" /> Signing in…
+            </>
+          ) : (
+            "Sign in"
+          )}
         </button>
       </form>
       <style>{`

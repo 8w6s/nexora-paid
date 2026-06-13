@@ -48,7 +48,7 @@ export async function getUsdPerLtc(): Promise<Quote> {
   } catch {
     try {
       cache = { usdPerLtc: await fromCoinbase(), source: "coinbase", fetchedAt: now };
-    } catch (e) {
+    } catch (_e) {
       if (cache) return cache; // last-good if both upstreams fail
       throw new Error("no LTC rate available");
     }
@@ -58,7 +58,10 @@ export async function getUsdPerLtc(): Promise<Quote> {
 
 // LTC has 8 decimals (1 LTC = 1e8 litoshi). Round the amount OWED *up* so the buyer never
 // underpays due to truncation. Returns both the integer litoshi target and an 8dp display string.
-export function usdToLitoshi(usd: number, usdPerLtc: number): { litoshi: number; ltcAmount: string } {
+export function usdToLitoshi(
+  usd: number,
+  usdPerLtc: number,
+): { litoshi: number; ltcAmount: string } {
   const litoshi = Math.ceil((usd / usdPerLtc) * 1e8);
   return { litoshi, ltcAmount: (litoshi / 1e8).toFixed(8) };
 }

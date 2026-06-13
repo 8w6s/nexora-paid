@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import { useConfig } from "./ConfigContext";
 
 /** Storefront footer — shop name + copyright + policy links. */

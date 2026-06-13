@@ -1,9 +1,18 @@
-import React, { useEffect, useState } from "react";
-import { api, ApiRequestError, fmtUsd, type OrderSummary } from "../lib/api";
-import { SkRows, SkeletonStyles } from "./Skeleton";
+import type React from "react";
+import { useEffect, useState } from "react";
+import { ApiRequestError, api, fmtUsd, type OrderSummary } from "../lib/api";
 import { Icon } from "./Icon";
+import { SkeletonStyles, SkRows } from "./Skeleton";
 
-const label: Record<string, string> = { pending: "Awaiting payment", awaiting_payment: "Awaiting payment", underpaid: "Underpaid", paid: "Paid", completed: "Completed", expired: "Expired", cancelled: "Cancelled" };
+const label: Record<string, string> = {
+  pending: "Awaiting payment",
+  awaiting_payment: "Awaiting payment",
+  underpaid: "Underpaid",
+  paid: "Paid",
+  completed: "Completed",
+  expired: "Expired",
+  cancelled: "Cancelled",
+};
 
 export const MyOrders: React.FC = () => {
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
@@ -11,25 +20,54 @@ export const MyOrders: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<OrderSummary[]>("/api/orders").then(setOrders).catch((e) => {
-      if (e instanceof ApiRequestError && e.status === 401) setNeedLogin(true);
-      else setErr(e.message);
-    });
+    api
+      .get<OrderSummary[]>("/api/orders")
+      .then(setOrders)
+      .catch((e) => {
+        if (e instanceof ApiRequestError && e.status === 401) setNeedLogin(true);
+        else setErr(e.message);
+      });
   }, []);
 
-  if (needLogin) return <main className="container ord-page"><div className="ord-state">Please <a href="/login?redirect=/orders">sign in</a> to view your orders.</div><Styles /></main>;
-  if (err) return <main className="container ord-page"><div className="ord-state">{err}</div><Styles /></main>;
-  if (!orders) return <main className="container ord-page"><h1>My Orders</h1><SkRows count={4} height={92} /><SkeletonStyles /><Styles /></main>;
+  if (needLogin)
+    return (
+      <main className="container ord-page">
+        <div className="ord-state">
+          Please <a href="/login?redirect=/orders">sign in</a> to view your orders.
+        </div>
+        <Styles />
+      </main>
+    );
+  if (err)
+    return (
+      <main className="container ord-page">
+        <div className="ord-state">{err}</div>
+        <Styles />
+      </main>
+    );
+  if (!orders)
+    return (
+      <main className="container ord-page">
+        <h1>My Orders</h1>
+        <SkRows count={4} height={92} />
+        <SkeletonStyles />
+        <Styles />
+      </main>
+    );
 
   return (
     <main className="container ord-page">
       <h1>My Orders</h1>
       {orders.length === 0 ? (
         <div className="ord-empty card">
-          <span className="ord-empty-icon"><Icon name="receipt" size={28} variant="badge" /></span>
+          <span className="ord-empty-icon">
+            <Icon name="receipt" size={28} variant="badge" />
+          </span>
           <h2>No orders yet</h2>
           <p>Once you complete a purchase, your keys and order history will live here forever.</p>
-          <a className="btn" href="/"><Icon name="cart" size={16} variant="duotone-regular" /> Start shopping</a>
+          <a className="btn" href="/">
+            <Icon name="cart" size={16} variant="duotone-regular" /> Start shopping
+          </a>
         </div>
       ) : (
         <div className="ord-list">
@@ -39,10 +77,18 @@ export const MyOrders: React.FC = () => {
                 <strong>{o.id}</strong>
                 <span className={`badge ${o.status}`}>{label[o.status] ?? o.status}</span>
               </div>
-              <div className="ord-items">{o.items.map((i, k) => <span key={k} className="pill">{i.name} ×{i.quantity}</span>)}</div>
+              <div className="ord-items">
+                {o.items.map((i, k) => (
+                  <span key={k} className="pill">
+                    {i.name} ×{i.quantity}
+                  </span>
+                ))}
+              </div>
               <div className="ord-bottom">
                 <span className="muted">{new Date(o.createdAt).toLocaleString()}</span>
-                <span className="price">{fmtUsd(o.totalUsd)} · {o.ltcAmount} LTC</span>
+                <span className="price">
+                  {fmtUsd(o.totalUsd)} · {o.ltcAmount} LTC
+                </span>
               </div>
             </a>
           ))}

@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 /**
  * Issue (sign) a `.license` file for a Nexora Paid customer.
  *
@@ -19,15 +21,15 @@
  */
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
 
 // @noble/ed25519 v3 requires a sync sha512 implementation to be registered.
 ed.hashes.sha512 = (m: Uint8Array) => sha512(m);
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.email) {
-  console.error("Usage: bun run scripts/sign-license.ts --email=customer@example.com [--product=nexora-paid] [--note=v1] [--out=./issued/x.license]");
+  console.error(
+    "Usage: bun run scripts/sign-license.ts --email=customer@example.com [--product=nexora-paid] [--note=v1] [--out=./issued/x.license]",
+  );
   process.exit(1);
 }
 
@@ -56,7 +58,10 @@ const signedLicense = {
   signature: bytesToHex(sig),
 };
 
-const outPath = resolve(process.cwd(), args.out ?? `./issued/${payload.email.replace(/[^a-z0-9]/g, "_")}.license`);
+const outPath = resolve(
+  process.cwd(),
+  args.out ?? `./issued/${payload.email.replace(/[^a-z0-9]/g, "_")}.license`,
+);
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, JSON.stringify(signedLicense, null, 2));
 

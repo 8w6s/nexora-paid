@@ -1,8 +1,8 @@
-import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Database } from "bun:sqlite";
-import { readdirSync, readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema.ts";
 
 const sqlite = new Database("sqlite.db");
@@ -39,7 +39,9 @@ function runMigrations(db: Database): void {
 
   let files: string[];
   try {
-    files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+    files = readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
   } catch {
     return; // Unreadable folder → no-op rather than crash boot.
   }
@@ -52,7 +54,10 @@ function runMigrations(db: Database): void {
   )`);
 
   const applied = new Set(
-    db.query("SELECT filename FROM _migrations").all().map((r: any) => r.filename as string),
+    db
+      .query("SELECT filename FROM _migrations")
+      .all()
+      .map((r: any) => r.filename as string),
   );
 
   for (const file of files) {
@@ -64,7 +69,6 @@ function runMigrations(db: Database): void {
       db.exec(sql);
       db.query("INSERT INTO _migrations (filename) VALUES (?)").run(file);
     })();
-    console.log(`[migrate] applied ${file}`);
   }
 }
 

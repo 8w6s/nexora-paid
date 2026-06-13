@@ -1,10 +1,10 @@
-import React from "react";
-import { CartProvider } from "./CartContext";
+import type React from "react";
 import { AuthProvider } from "./AuthContext";
+import { AuthForm } from "./AuthForm";
+import { CartProvider } from "./CartContext";
+import { CartDrawer } from "./CartDrawer";
 import { ConfigProvider } from "./ConfigContext";
 import { Navbar } from "./Navbar";
-import { CartDrawer } from "./CartDrawer";
-import { AuthForm } from "./AuthForm";
 import { ToastProvider } from "./Toast";
 
 export const AuthApp: React.FC<{ mode: "login" | "register" }> = ({ mode }) => (

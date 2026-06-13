@@ -11,8 +11,9 @@
  *
  * Audit: logs `customers.csv_export` with row count + role filter.
  */
-import { t } from "elysia";
+
 import { desc, eq } from "drizzle-orm";
+import { t } from "elysia";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
@@ -43,19 +44,29 @@ export const adminCustomersCsvPlugin: Plugin = {
         const q = query as Record<string, string>;
         const roleFilter = q.role && USER_ROLES.has(q.role) ? q.role : null;
         const rows = roleFilter
-          ? await db.select().from(users).where(eq(users.role, roleFilter as never)).orderBy(desc(users.createdAt))
+          ? await db
+              .select()
+              .from(users)
+              .where(eq(users.role, roleFilter as never))
+              .orderBy(desc(users.createdAt))
           : await db.select().from(users).orderBy(desc(users.createdAt));
 
         // Strip passwordHash defensively even though it's not in CSV_COLUMNS —
         // belt-and-braces in case the column list is extended carelessly later.
-        const safeRows = rows.map(({ passwordHash: _ph, ...rest }) => rest as Record<string, unknown>);
+        const safeRows = rows.map(
+          ({ passwordHash: _ph, ...rest }) => rest as Record<string, unknown>,
+        );
         const csv = csvBody(CSV_COLUMNS, safeRows);
 
         const stamp = todayStamp(new Date());
         set.headers["content-type"] = "text/csv; charset=utf-8";
         set.headers["content-disposition"] = `attachment; filename="nexora-customers-${stamp}.csv"`;
 
-        await logAdminAction(auth.user.email, "customers.csv_export", `${rows.length} row(s)${roleFilter ? ` (role=${roleFilter})` : ""}`);
+        await logAdminAction(
+          auth.user.email,
+          "customers.csv_export",
+          `${rows.length} row(s)${roleFilter ? ` (role=${roleFilter})` : ""}`,
+        );
         return csv;
       },
       {

@@ -1,10 +1,10 @@
-import React from "react";
-import { CartProvider } from "./CartContext";
+import type React from "react";
 import { AuthProvider } from "./AuthContext";
+import { CartProvider } from "./CartContext";
+import { CartDrawer } from "./CartDrawer";
+import { Checkout } from "./Checkout";
 import { ConfigProvider } from "./ConfigContext";
 import { Navbar } from "./Navbar";
-import { Checkout } from "./Checkout";
-import { CartDrawer } from "./CartDrawer";
 import { SiteFooter } from "./SiteFooter";
 import { ToastProvider } from "./Toast";
 

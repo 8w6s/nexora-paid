@@ -1,8 +1,18 @@
-import React from "react";
+import type React from "react";
 
 // Base shimmer block. Compose these into skeletons that mirror the real layout.
-export const Sk: React.FC<{ w?: string | number; h?: string | number; r?: number; style?: React.CSSProperties; className?: string }> = ({ w = "100%", h = 14, r = 6, style, className }) => (
-  <span className={`sk ${className ?? ""}`} style={{ width: w, height: h, borderRadius: r, ...style }} aria-hidden="true" />
+export const Sk: React.FC<{
+  w?: string | number;
+  h?: string | number;
+  r?: number;
+  style?: React.CSSProperties;
+  className?: string;
+}> = ({ w = "100%", h = 14, r = 6, style, className }) => (
+  <span
+    className={`sk ${className ?? ""}`}
+    style={{ width: w, height: h, borderRadius: r, ...style }}
+    aria-hidden="true"
+  />
 );
 
 // One product card placeholder, matching ProductCard's structure.
@@ -25,14 +35,21 @@ export const SkProductCard: React.FC = () => (
 // A grid of product card skeletons (matches ProductList grid).
 export const SkProductGrid: React.FC<{ count?: number }> = ({ count = 8 }) => (
   <div className="sk-grid" role="status" aria-label="Loading products">
-    {Array.from({ length: count }).map((_, i) => <SkProductCard key={i} />)}
+    {Array.from({ length: count }).map((_, i) => (
+      <SkProductCard key={i} />
+    ))}
   </div>
 );
 
 // Generic stacked rows (orders lists, etc.)
-export const SkRows: React.FC<{ count?: number; height?: number }> = ({ count = 4, height = 64 }) => (
+export const SkRows: React.FC<{ count?: number; height?: number }> = ({
+  count = 4,
+  height = 64,
+}) => (
   <div className="sk-rows" role="status" aria-label="Loading">
-    {Array.from({ length: count }).map((_, i) => <Sk key={i} h={height} r={12} />)}
+    {Array.from({ length: count }).map((_, i) => (
+      <Sk key={i} h={height} r={12} />
+    ))}
   </div>
 );
 

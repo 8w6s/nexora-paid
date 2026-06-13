@@ -1,20 +1,18 @@
-import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
+import { Elysia } from "elysia";
 import { primeOrderTokenSecret } from "./lib/auth.ts";
-import { adminRoutes } from "./routes/admin.ts";
-import { adminTicketRoutes } from "./routes/tickets.ts";
-import { checkoutRoutes } from "./routes/checkout.ts";
-import { setupRoutes } from "./routes/setup.ts";
-import { reviewRoutes } from "./routes/reviews.ts";
-import { ticketRoutes } from "./routes/tickets.ts";
-import { configRoutes } from "./routes/config.ts";
-import { productRoutes } from "./routes/products.ts";
-import { categoryRoutes } from "./routes/categories.ts";
-import { startWatcher, recoverStuckOrders, onOrderDelivered } from "./lib/watcher.ts";
 import { EmailService } from "./lib/email.ts";
 import { loadPlugins } from "./lib/plugin/loader.ts";
-import { logger } from "./lib/logger.ts";
+import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watcher.ts";
+import { adminRoutes } from "./routes/admin.ts";
+import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
+import { categoryRoutes } from "./routes/categories.ts";
+import { checkoutRoutes } from "./routes/checkout.ts";
+import { configRoutes } from "./routes/config.ts";
+import { productRoutes } from "./routes/products.ts";
+import { reviewRoutes } from "./routes/reviews.ts";
+import { setupRoutes } from "./routes/setup.ts";
+import { adminTicketRoutes, ticketRoutes } from "./routes/tickets.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 
@@ -22,15 +20,21 @@ const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 // but are catastrophic when exposed to the open internet.
 if (Bun.env.NODE_ENV === "production") {
   if (!Bun.env.PUBLIC_ORIGIN) {
-    console.error("[boot] FATAL: NODE_ENV=production but PUBLIC_ORIGIN is not set — refusing to start.");
+    console.error(
+      "[boot] FATAL: NODE_ENV=production but PUBLIC_ORIGIN is not set — refusing to start.",
+    );
     process.exit(1);
   }
   if (!PUBLIC_ORIGIN.startsWith("https://")) {
-    console.error(`[boot] FATAL: PUBLIC_ORIGIN must use HTTPS in production (got "${PUBLIC_ORIGIN}").`);
+    console.error(
+      `[boot] FATAL: PUBLIC_ORIGIN must use HTTPS in production (got "${PUBLIC_ORIGIN}").`,
+    );
     process.exit(1);
   }
   if (!Bun.env.ORDER_TOKEN_SECRET || Bun.env.ORDER_TOKEN_SECRET.length < 32) {
-    console.warn("[boot] WARNING: ORDER_TOKEN_SECRET unset or short — falling back to DB-stored random secret.");
+    console.warn(
+      "[boot] WARNING: ORDER_TOKEN_SECRET unset or short — falling back to DB-stored random secret.",
+    );
   }
 }
 
@@ -102,10 +106,12 @@ const baseApp = new Elysia()
     set.headers["x-content-type-options"] = "nosniff";
     set.headers["referrer-policy"] = "no-referrer";
     set.headers["x-frame-options"] = "DENY";
-    set.headers["permissions-policy"] = "geolocation=(), microphone=(), camera=(), usb=(), payment=(), midi=()";
+    set.headers["permissions-policy"] =
+      "geolocation=(), microphone=(), camera=(), usb=(), payment=(), midi=()";
     set.headers["cross-origin-resource-policy"] = "same-site";
     set.headers["cross-origin-opener-policy"] = "same-origin";
-    set.headers["content-security-policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
+    set.headers["content-security-policy"] =
+      "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
     if (Bun.env.NODE_ENV === "production") {
       set.headers["strict-transport-security"] = "max-age=31536000; includeSubDomains; preload";
     }

@@ -1,12 +1,17 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { AdminCustomerDetail } from "./AdminCustomerDetail";
 import { AdminOrderDetail } from "./AdminOrderDetail";
 
 interface Customer {
-  id: string; email: string; status: "active" | "banned";
-  createdAt: number; orderCount: number; totalSpentUsd: number;
+  id: string;
+  email: string;
+  status: "active" | "banned";
+  createdAt: number;
+  orderCount: number;
+  totalSpentUsd: number;
 }
 
 export const AdminCustomers: React.FC = () => {
@@ -14,17 +19,36 @@ export const AdminCustomers: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   // view tracks the open page; orderFromCustomer remembers the customer to
   // return to when closing an order opened from a customer detail.
-  const [view, setView] = useState<{ type: "customer"; id: string } | { type: "order"; id: string; fromCustomer?: string } | null>(null);
+  const [view, setView] = useState<
+    { type: "customer"; id: string } | { type: "order"; id: string; fromCustomer?: string } | null
+  >(null);
 
-  const load = () => api.get<Customer[]>("/api/admin/customers").then(setList).catch(() => {});
-  useEffect(() => { load(); }, []);
+  const load = () =>
+    api
+      .get<Customer[]>("/api/admin/customers")
+      .then(setList)
+      .catch(() => {});
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (view?.type === "order") {
-    const back = view.fromCustomer ? () => setView({ type: "customer", id: view.fromCustomer! }) : () => setView(null);
+    const back = view.fromCustomer
+      ? () => setView({ type: "customer", id: view.fromCustomer! })
+      : () => setView(null);
     return <AdminOrderDetail orderId={view.id} onBack={back} />;
   }
   if (view?.type === "customer") {
-    return <AdminCustomerDetail customerId={view.id} onBack={() => { setView(null); load(); }} onOpenOrder={(oid) => setView({ type: "order", id: oid, fromCustomer: view.id })} />;
+    return (
+      <AdminCustomerDetail
+        customerId={view.id}
+        onBack={() => {
+          setView(null);
+          load();
+        }}
+        onOpenOrder={(oid) => setView({ type: "order", id: oid, fromCustomer: view.id })}
+      />
+    );
   }
 
   const toggleBan = async (c: Customer) => {
@@ -33,32 +57,85 @@ export const AdminCustomers: React.FC = () => {
     try {
       await api.put(`/api/admin/customers/${c.id}/status`, { status: next });
       setList((prev) => prev?.map((x) => (x.id === c.id ? { ...x, status: next } : x)) ?? null);
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
     <div className="cust">
       <SkeletonStyles />
-      <p className="intro">Your registered customers. Ban to block login + revoke their sessions.</p>
+      <p className="intro">
+        Your registered customers. Ban to block login + revoke their sessions.
+      </p>
       <div className="card table-card">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Customer</th><th className="num">Orders</th><th className="num">Total spent</th><th>Joined</th><th>Status</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th className="num">Orders</th>
+                <th className="num">Total spent</th>
+                <th>Joined</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
-              {!list ? Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td><Sk w={180} h={13} /></td><td className="num"><Sk w={24} h={13} style={{ marginLeft: "auto" }} /></td><td className="num"><Sk w={56} h={13} style={{ marginLeft: "auto" }} /></td><td><Sk w={90} h={13} /></td><td><Sk w={56} h={20} r={100} /></td><td><Sk w={60} h={13} /></td></tr>
-              )) : list.length === 0 ? (
-                <tr><td colSpan={6} className="empty">No customers yet.</td></tr>
-              ) : list.map((c) => (
-                <tr key={c.id} className={`clickable ${c.status === "banned" ? "banned" : ""}`} onClick={() => setView({ type: "customer", id: c.id })} title="View customer">
-                  <td className="email">{c.email}</td>
-                  <td className="num">{c.orderCount}</td>
-                  <td className="num price">{fmtUsd(c.totalSpentUsd)}</td>
-                  <td className="muted sm">{new Date(c.createdAt).toLocaleDateString()}</td>
-                  <td><span className={`badge ${c.status}`}>{c.status === "active" ? "Active" : "Banned"}</span></td>
-                  <td onClick={(e) => e.stopPropagation()}><button className="lnk" disabled={busy === c.id} onClick={() => toggleBan(c)}>{c.status === "active" ? "Ban" : "Unban"}</button></td>
+              {!list ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    <td>
+                      <Sk w={180} h={13} />
+                    </td>
+                    <td className="num">
+                      <Sk w={24} h={13} style={{ marginLeft: "auto" }} />
+                    </td>
+                    <td className="num">
+                      <Sk w={56} h={13} style={{ marginLeft: "auto" }} />
+                    </td>
+                    <td>
+                      <Sk w={90} h={13} />
+                    </td>
+                    <td>
+                      <Sk w={56} h={20} r={100} />
+                    </td>
+                    <td>
+                      <Sk w={60} h={13} />
+                    </td>
+                  </tr>
+                ))
+              ) : list.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="empty">
+                    No customers yet.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                list.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`clickable ${c.status === "banned" ? "banned" : ""}`}
+                    onClick={() => setView({ type: "customer", id: c.id })}
+                    title="View customer"
+                  >
+                    <td className="email">{c.email}</td>
+                    <td className="num">{c.orderCount}</td>
+                    <td className="num price">{fmtUsd(c.totalSpentUsd)}</td>
+                    <td className="muted sm">{new Date(c.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <span className={`badge ${c.status}`}>
+                        {c.status === "active" ? "Active" : "Banned"}
+                      </span>
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button className="lnk" disabled={busy === c.id} onClick={() => toggleBan(c)}>
+                        {c.status === "active" ? "Ban" : "Unban"}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

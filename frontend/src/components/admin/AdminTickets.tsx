@@ -1,11 +1,27 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
 
-interface Ticket { id: string; subject: string; email: string; status: "open" | "closed"; createdAt: number; updatedAt: number; orderId: string | null; }
-interface Message { id: string; fromAdmin: boolean; body: string; createdAt: number; }
-interface TicketDetail extends Ticket { messages: Message[]; }
+interface Ticket {
+  id: string;
+  subject: string;
+  email: string;
+  status: "open" | "closed";
+  createdAt: number;
+  updatedAt: number;
+  orderId: string | null;
+}
+interface Message {
+  id: string;
+  fromAdmin: boolean;
+  body: string;
+  createdAt: number;
+}
+interface TicketDetail extends Ticket {
+  messages: Message[];
+}
 
 export const AdminTickets: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "open" | "closed">("open");
@@ -16,7 +32,10 @@ export const AdminTickets: React.FC = () => {
 
   const load = () => {
     const qs = filter === "all" ? "" : `?status=${filter}`;
-    api.get<Ticket[]>(`/api/admin/tickets${qs}`).then(setList).catch(() => {});
+    api
+      .get<Ticket[]>(`/api/admin/tickets${qs}`)
+      .then(setList)
+      .catch(() => {});
   };
   useEffect(load, [filter]);
 
@@ -33,7 +52,9 @@ export const AdminTickets: React.FC = () => {
       setReply("");
       await open(active.id);
       load();
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const setStatus = async (status: "open" | "closed") => {
@@ -43,7 +64,9 @@ export const AdminTickets: React.FC = () => {
       await api.put(`/api/admin/tickets/${active.id}/status`, { status });
       setActive({ ...active, status });
       load();
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -53,45 +76,105 @@ export const AdminTickets: React.FC = () => {
         <div className="atk-left">
           <div className="atk-filters">
             {(["open", "closed", "all"] as const).map((f) => (
-              <button key={f} className={`chip ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>{f[0].toUpperCase() + f.slice(1)}</button>
+              <button
+                key={f}
+                className={`chip ${filter === f ? "active" : ""}`}
+                onClick={() => setFilter(f)}
+              >
+                {f[0].toUpperCase() + f.slice(1)}
+              </button>
             ))}
           </div>
           <div className="atk-list">
-            {!list ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="atk-item"><Sk w={180} h={13} /><Sk w={120} h={11} /></div>)
-              : list.length === 0 ? <div className="empty">No tickets.</div>
-              : list.map((t) => (
-                <button key={t.id} className={`atk-item ${active?.id === t.id ? "sel" : ""}`} onClick={() => open(t.id)}>
-                  <div className="atk-item-top"><span className="subj">{t.subject}</span><span className={`badge ${t.status}`}>{t.status}</span></div>
-                  <span className="muted">{t.email} · {new Date(t.updatedAt).toLocaleDateString()}</span>
+            {!list ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="atk-item">
+                  <Sk w={180} h={13} />
+                  <Sk w={120} h={11} />
+                </div>
+              ))
+            ) : list.length === 0 ? (
+              <div className="empty">No tickets.</div>
+            ) : (
+              list.map((t) => (
+                <button
+                  key={t.id}
+                  className={`atk-item ${active?.id === t.id ? "sel" : ""}`}
+                  onClick={() => open(t.id)}
+                >
+                  <div className="atk-item-top">
+                    <span className="subj">{t.subject}</span>
+                    <span className={`badge ${t.status}`}>{t.status}</span>
+                  </div>
+                  <span className="muted">
+                    {t.email} · {new Date(t.updatedAt).toLocaleDateString()}
+                  </span>
                 </button>
-              ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="atk-right card">
           {!active ? (
-            <div className="atk-empty"><Icon name="ticket" size={28} variant="badge" /><p>Select a ticket to view the conversation.</p></div>
+            <div className="atk-empty">
+              <Icon name="ticket" size={28} variant="badge" />
+              <p>Select a ticket to view the conversation.</p>
+            </div>
           ) : (
             <>
               <div className="atk-head">
-                <button className="atk-back" onClick={() => setActive(null)} aria-label="Back to list"><Icon name="arrow-right" size={14} className="flip" /></button>
-                <div><h3>{active.subject}</h3><span className="muted">{active.email}{active.orderId ? ` · order ${active.orderId}` : ""}</span></div>
-                {active.status === "open"
-                  ? <button className="btn-sm" disabled={busy} onClick={() => setStatus("closed")}>Close</button>
-                  : <button className="btn-sm ghost" disabled={busy} onClick={() => setStatus("open")}>Reopen</button>}
+                <button
+                  className="atk-back"
+                  onClick={() => setActive(null)}
+                  aria-label="Back to list"
+                >
+                  <Icon name="arrow-right" size={14} className="flip" />
+                </button>
+                <div>
+                  <h3>{active.subject}</h3>
+                  <span className="muted">
+                    {active.email}
+                    {active.orderId ? ` · order ${active.orderId}` : ""}
+                  </span>
+                </div>
+                {active.status === "open" ? (
+                  <button className="btn-sm" disabled={busy} onClick={() => setStatus("closed")}>
+                    Close
+                  </button>
+                ) : (
+                  <button
+                    className="btn-sm ghost"
+                    disabled={busy}
+                    onClick={() => setStatus("open")}
+                  >
+                    Reopen
+                  </button>
+                )}
               </div>
               <div className="atk-msgs">
                 {active.messages.map((m) => (
                   <div key={m.id} className={`msg ${m.fromAdmin ? "admin" : "cust"}`}>
-                    <div className="msg-meta">{m.fromAdmin ? "You (support)" : active.email} · {new Date(m.createdAt).toLocaleString()}</div>
+                    <div className="msg-meta">
+                      {m.fromAdmin ? "You (support)" : active.email} ·{" "}
+                      {new Date(m.createdAt).toLocaleString()}
+                    </div>
                     <div className="msg-body">{m.body}</div>
                   </div>
                 ))}
               </div>
               {active.status === "open" && (
                 <form className="atk-reply" onSubmit={sendReply}>
-                  <textarea value={reply} onChange={(e) => setReply(e.target.value)} required rows={3} placeholder="Reply to the customer…" />
-                  <button className="btn" disabled={busy || !reply.trim()} type="submit">{busy ? "Sending…" : "Send reply"}</button>
+                  <textarea
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    required
+                    rows={3}
+                    placeholder="Reply to the customer…"
+                  />
+                  <button className="btn" disabled={busy || !reply.trim()} type="submit">
+                    {busy ? "Sending…" : "Send reply"}
+                  </button>
                 </form>
               )}
             </>

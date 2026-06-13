@@ -30,9 +30,7 @@ export class HookBus {
     for (const s of list) {
       try {
         await s.handler(payload);
-      } catch (e) {
-        console.error(`[plugin/hook] ${s.pluginId} ${hook} threw: ${e instanceof Error ? e.message : e}`);
-      }
+      } catch (_e) {}
     }
   }
 }

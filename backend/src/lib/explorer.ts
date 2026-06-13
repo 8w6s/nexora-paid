@@ -30,9 +30,15 @@ async function fetchJson(url: string): Promise<any> {
 // Optional token raises limits + gives accounting. Batch multiple addresses with ';' (NOT ',').
 async function fromBlockCypher(address: string, token?: string): Promise<AddrStatus> {
   const q = token ? `?token=${token}` : "";
-  const bal = await fetchJson(`https://api.blockcypher.com/v1/ltc/main/addrs/${address}/balance${q}`);
+  const bal = await fetchJson(
+    `https://api.blockcypher.com/v1/ltc/main/addrs/${address}/balance${q}`,
+  );
   if (!bal.total_received) {
-    return { receivedLitoshi: 0, pendingLitoshi: bal.unconfirmed_balance ?? 0, maxConfirmations: 0 };
+    return {
+      receivedLitoshi: 0,
+      pendingLitoshi: bal.unconfirmed_balance ?? 0,
+      maxConfirmations: 0,
+    };
   }
   // Only fetch tx detail (confirmations) once funds appear.
   const full = await fetchJson(`https://api.blockcypher.com/v1/ltc/main/addrs/${address}${q}`);
@@ -76,7 +82,10 @@ async function fromMempoolStyle(address: string): Promise<AddrStatus> {
   return { receivedLitoshi: received, pendingLitoshi: pending, maxConfirmations: maxConf, txid };
 }
 
-export async function getAddrStatus(address: string, blockcypherToken?: string): Promise<AddrStatus> {
+export async function getAddrStatus(
+  address: string,
+  blockcypherToken?: string,
+): Promise<AddrStatus> {
   try {
     return await fromBlockCypher(address, blockcypherToken);
   } catch {
@@ -89,7 +98,7 @@ export function paymentDecision(
   status: AddrStatus,
   expectedLitoshi: number,
   requiredConfirmations: number,
-  toleranceLitoshi: number
+  toleranceLitoshi: number,
 ): "paid" | "underpaid" | "waiting" {
   const enoughAmt = status.receivedLitoshi >= expectedLitoshi - toleranceLitoshi;
   const enoughConf = status.maxConfirmations >= requiredConfirmations;

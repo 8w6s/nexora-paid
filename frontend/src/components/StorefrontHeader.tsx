@@ -1,17 +1,27 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { SearchBox } from "./SearchBox";
 
-interface Stats { sales: number; buyers: number; rating: number; }
+interface Stats {
+  sales: number;
+  buyers: number;
+  rating: number;
+}
 
 // SellAuth-style shop header: big shop name on the left, 3 KPI stats on the right.
 // New shops (no data) show a friendly "New store" badge instead of three zeros.
 export const StorefrontHeader: React.FC = () => {
   const { config } = useConfig();
   const [s, setS] = useState<Stats | null>(null);
-  useEffect(() => { api.get<Stats>("/api/storefront/stats").then(setS).catch(() => setS({ sales: 0, buyers: 0, rating: 0 })); }, []);
+  useEffect(() => {
+    api
+      .get<Stats>("/api/storefront/stats")
+      .then(setS)
+      .catch(() => setS({ sales: 0, buyers: 0, rating: 0 }));
+  }, []);
 
   const empty = s && s.sales === 0 && s.buyers === 0 && s.rating === 0;
 
@@ -19,15 +29,28 @@ export const StorefrontHeader: React.FC = () => {
     <header className="sf-head card">
       <h1 className="sf-name">{config.storeName ?? "Nexora"}</h1>
       <SearchBox />
-      {s && (empty ? (
-        <span className="sf-new"><Icon name="zap" size={13} variant="duotone-regular" /> New store · stats appear after the first sale</span>
-      ) : (
-        <div className="sf-stats">
-          <div className="sf-stat"><strong>{s.sales}</strong><span>Sales</span></div>
-          <div className="sf-stat"><strong>{s.buyers}</strong><span>Buyers</span></div>
-          <div className="sf-stat"><strong>{s.rating.toFixed(2)}</strong><span>Rating</span></div>
-        </div>
-      ))}
+      {s &&
+        (empty ? (
+          <span className="sf-new">
+            <Icon name="zap" size={13} variant="duotone-regular" /> New store · stats appear after
+            the first sale
+          </span>
+        ) : (
+          <div className="sf-stats">
+            <div className="sf-stat">
+              <strong>{s.sales}</strong>
+              <span>Sales</span>
+            </div>
+            <div className="sf-stat">
+              <strong>{s.buyers}</strong>
+              <span>Buyers</span>
+            </div>
+            <div className="sf-stat">
+              <strong>{s.rating.toFixed(2)}</strong>
+              <span>Rating</span>
+            </div>
+          </div>
+        ))}
       <style>{`
         .sf-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 26px; margin-bottom: 18px; gap: 18px; flex-wrap: wrap; }
         .sf-name { font-size: 2rem; font-weight: 700; color: var(--ink); letter-spacing: -.02em; line-height: 1; }

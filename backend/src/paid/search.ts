@@ -14,8 +14,9 @@
  *  - Future-proof: this is where we'll layer fuzzy matching / FTS if we
  *    outgrow LIKE.
  */
-import type { Elysia } from "elysia";
+
 import { and, asc, eq, like, or } from "drizzle-orm";
+import type { Elysia } from "elysia";
 import { db } from "../db/connection.ts";
 import { products } from "../db/schema.ts";
 import type { Plugin } from "../lib/plugin/types.ts";
@@ -48,7 +49,11 @@ export const searchPlugin: Plugin = {
       if (!rl.allowed) {
         set.status = 429;
         set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
-        return { error: "Too many search requests", code: "RATE_LIMITED", retryAfterMs: rl.resetMs };
+        return {
+          error: "Too many search requests",
+          code: "RATE_LIMITED",
+          retryAfterMs: rl.resetMs,
+        };
       }
       const raw = (query as Record<string, string>)?.q ?? "";
       const q = raw.slice(0, MAX_SUGGEST_LEN).trim();
@@ -61,7 +66,7 @@ export const searchPlugin: Plugin = {
       // turn the user-controlled `q` into a wildcard pattern that scans
       // everything (e.g. q="%" used to match every product).
       const BS = String.fromCharCode(92);
-      const escaped = q.split(BS).join("").replace(/%/g, BS + "%").replace(/_/g, BS + "_");
+      const escaped = q.split(BS).join("").replace(/%/g, `${BS}%`).replace(/_/g, `${BS}_`);
       const term = `%${escaped}%`;
       const rows = await db
         .select({
@@ -72,7 +77,12 @@ export const searchPlugin: Plugin = {
           image: products.image,
         })
         .from(products)
-        .where(and(eq(products.active, true), or(like(products.name, term), like(products.description, term))!))
+        .where(
+          and(
+            eq(products.active, true),
+            or(like(products.name, term), like(products.description, term))!,
+          ),
+        )
         .orderBy(asc(products.name))
         .limit(MAX_SUGGESTIONS);
 

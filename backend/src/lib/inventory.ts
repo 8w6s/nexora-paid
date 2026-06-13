@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db/connection.ts";
-import { products, productKeys, orders } from "../db/schema.ts";
+import { orders, productKeys, products } from "../db/schema.ts";
 import { EmailService } from "./email.ts";
 
 /**
@@ -27,12 +27,19 @@ export async function reserveKeys(
   tx: typeof db,
   productId: string,
   orderId: string,
-  qty: number
+  qty: number,
+  variantId: string | null = null,
 ): Promise<boolean> {
   const avail = await tx
     .select({ id: productKeys.id })
     .from(productKeys)
-    .where(and(eq(productKeys.productId, productId), eq(productKeys.status, "available")))
+    .where(
+      and(
+        eq(productKeys.productId, productId),
+        variantId ? eq(productKeys.variantId, variantId) : sql`${productKeys.variantId} IS NULL`,
+        eq(productKeys.status, "available"),
+      ),
+    )
     .limit(qty);
   if (avail.length < qty) return false;
   const now = new Date();
@@ -47,17 +54,22 @@ export async function reserveKeys(
   const remaining = await tx
     .select({ c: sql<number>`count(*)` })
     .from(productKeys)
-    .where(and(eq(productKeys.productId, productId), eq(productKeys.status, "available")));
+    .where(
+      and(
+        eq(productKeys.productId, productId),
+        variantId ? eq(productKeys.variantId, variantId) : sql`${productKeys.variantId} IS NULL`,
+        eq(productKeys.status, "available"),
+      ),
+    );
   const remainingCount = Number(remaining[0]?.c ?? 0);
   if (remainingCount < 3) {
-    const prod = (await tx.select({ name: products.name }).from(products).where(eq(products.id, productId)))[0];
+    const prod = (
+      await tx.select({ name: products.name }).from(products).where(eq(products.id, productId))
+    )[0];
     const prodName = prod?.name ?? productId;
-    console.warn(`[warning] Low stock alert: Product "${prodName}" has only ${remainingCount} keys remaining.`);
     const adminEmail = Bun.env.ADMIN_EMAIL;
     if (adminEmail) {
-      EmailService.lowStockAlert(adminEmail, prodName, remainingCount).catch((e) => {
-        console.error(`[email] Failed to send low stock alert for ${prodName}:`, e);
-      });
+      EmailService.lowStockAlert(adminEmail, prodName, remainingCount).catch((_e) => {});
     }
   }
 
@@ -85,7 +97,7 @@ export async function markPaidAndDeliver(
   orderId: string,
   txId: string | null,
   receivedLitoshi: number,
-  confirmations: number
+  confirmations: number,
 ): Promise<{ name: string; code: string }[] | null> {
   return db.transaction(async (tx) => {
     // Idempotent guard: only flips a still-payable order.
@@ -98,7 +110,12 @@ export async function markPaidAndDeliver(
         confirmations,
         paidAt: new Date(),
       })
-      .where(and(eq(orders.id, orderId), sql`${orders.status} in ('pending','awaiting_payment','underpaid')`));
+      .where(
+        and(
+          eq(orders.id, orderId),
+          sql`${orders.status} in ('pending','awaiting_payment','underpaid')`,
+        ),
+      );
 
     // drizzle bun-sqlite: .run() result has `changes`. The update above returns a result we can inspect.
     const affected = (res as any)?.changes ?? (res as any)?.rowsAffected ?? 0;
@@ -111,8 +128,14 @@ export async function markPaidAndDeliver(
       .where(and(eq(productKeys.orderId, orderId), eq(productKeys.status, "reserved")));
     const now = new Date();
     for (const k of reserved) {
-      await tx.update(productKeys).set({ status: "delivered", deliveredAt: now }).where(eq(productKeys.id, k.id));
-      await tx.update(products).set({ sold: sql`${products.sold} + 1` }).where(eq(products.id, k.productId));
+      await tx
+        .update(productKeys)
+        .set({ status: "delivered", deliveredAt: now })
+        .where(eq(productKeys.id, k.id));
+      await tx
+        .update(products)
+        .set({ sold: sql`${products.sold} + 1` })
+        .where(eq(products.id, k.productId));
     }
 
     // Build delivered payload (name from product) for display/email.

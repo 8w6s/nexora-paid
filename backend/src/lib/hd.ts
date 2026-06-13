@@ -1,7 +1,7 @@
-import { HDKey } from "@scure/bip32";
-import { base58check, bech32 } from "@scure/base";
-import { sha256 } from "@noble/hashes/sha2.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { base58check, bech32 } from "@scure/base";
+import { HDKey } from "@scure/bip32";
 
 /**
  * Derive Litecoin receive addresses from an extended PUBLIC key (xpub), no private key.
@@ -23,14 +23,17 @@ export type Flavor = "p2pkh" | "p2sh-p2wpkh" | "p2wpkh";
 //  - zpub is the GENERIC BIP84 prefix (Bitcoin's), NOT a Litecoin-specific value; many LTC
 //    wallets reuse it for native segwit. Pin to the wallet's actual prefix in production.
 const PREFIX: Record<string, { v: { private: number; public: number }; type: Flavor }> = {
-  Ltub: { v: { public: 0x019da462, private: 0x019d9cfe }, type: "p2pkh" },        // BIP44 (LTC)
-  xpub: { v: { public: 0x0488b21e, private: 0x0488ade4 }, type: "p2pkh" },        // BIP44 (BTC-style)
-  Mtub: { v: { public: 0x01b26ef6, private: 0x01b26792 }, type: "p2sh-p2wpkh" },  // BIP49 (LTC)
-  ypub: { v: { public: 0x049d7cb2, private: 0x049d7878 }, type: "p2sh-p2wpkh" },  // BIP49 (BTC-style)
-  zpub: { v: { public: 0x04b24746, private: 0x04b2430c }, type: "p2wpkh" },       // BIP84 (generic)
+  Ltub: { v: { public: 0x019da462, private: 0x019d9cfe }, type: "p2pkh" }, // BIP44 (LTC)
+  xpub: { v: { public: 0x0488b21e, private: 0x0488ade4 }, type: "p2pkh" }, // BIP44 (BTC-style)
+  Mtub: { v: { public: 0x01b26ef6, private: 0x01b26792 }, type: "p2sh-p2wpkh" }, // BIP49 (LTC)
+  ypub: { v: { public: 0x049d7cb2, private: 0x049d7878 }, type: "p2sh-p2wpkh" }, // BIP49 (BTC-style)
+  zpub: { v: { public: 0x04b24746, private: 0x04b2430c }, type: "p2wpkh" }, // BIP84 (generic)
 };
 
-export function detectFlavor(xpub: string): { v: { private: number; public: number }; type: Flavor } {
+export function detectFlavor(xpub: string): {
+  v: { private: number; public: number };
+  type: Flavor;
+} {
   const cfg = PREFIX[xpub.slice(0, 4)];
   if (!cfg) throw new Error(`Unsupported extended key prefix: ${xpub.slice(0, 4)}`);
   return cfg;
@@ -58,7 +61,9 @@ export function deriveReceiveAddress(accountXpub: string, index: number): string
 }
 
 // Validate a pasted xpub: must parse and produce a valid index-0 address.
-export function validateXpub(xpub: string): { ok: true; type: Flavor; sample: string } | { ok: false; error: string } {
+export function validateXpub(
+  xpub: string,
+): { ok: true; type: Flavor; sample: string } | { ok: false; error: string } {
   try {
     const { type } = detectFlavor(xpub);
     const sample = deriveReceiveAddress(xpub, 0);

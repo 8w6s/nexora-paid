@@ -1,7 +1,7 @@
-import { randomBytes, createHash, createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../db/connection.ts";
-import { users, sessions, settings } from "../db/schema.ts";
+import { sessions, settings, users } from "../db/schema.ts";
 
 /* ───────────────────────── password (argon2id via Bun) ───────────────────────── */
 export const hashPassword = (pw: string) =>
@@ -11,7 +11,10 @@ export const verifyPassword = (pw: string, hash: string) => Bun.password.verify(
 
 // Dummy hash to equalize timing when an email doesn't exist (anti-enumeration).
 const DUMMY_HASH = await hashPassword("x".repeat(24));
-export async function verifyLogin(user: { passwordHash: string } | undefined, pw: string): Promise<boolean> {
+export async function verifyLogin(
+  user: { passwordHash: string } | undefined,
+  pw: string,
+): Promise<boolean> {
   if (!user) {
     await verifyPassword(pw, DUMMY_HASH); // spend the same time
     return false;
@@ -99,8 +102,10 @@ async function getOrderTokenSecret(): Promise<string> {
   }
   // Fall back to a DB-persisted, lazy-generated random secret. SQLite serializes
   // writes so a concurrent first-boot is safe (UNIQUE on settings.key).
-  const existing = (await db.select().from(settings).where(eq(settings.key, "order_token_secret")))[0];
-  if (existing && existing.value && existing.value.length >= 32) {
+  const existing = (
+    await db.select().from(settings).where(eq(settings.key, "order_token_secret"))
+  )[0];
+  if (existing?.value && existing.value.length >= 32) {
     ORDER_TOKEN_SECRET_CACHE = existing.value;
     return existing.value;
   }
@@ -137,14 +142,16 @@ export function generateOrderToken(orderId: string): string {
   if (!ORDER_TOKEN_SECRET_CACHE) {
     throw new Error("ORDER_TOKEN_SECRET not initialized — call primeOrderTokenSecret() at boot");
   }
-  return createHmac("sha256", ORDER_TOKEN_SECRET_CACHE).update("v1:order:" + orderId).digest("hex");
+  return createHmac("sha256", ORDER_TOKEN_SECRET_CACHE).update(`v1:order:${orderId}`).digest("hex");
 }
 
 export function generateOrderTokenForUser(orderId: string, userId: string): string {
   if (!ORDER_TOKEN_SECRET_CACHE) {
     throw new Error("ORDER_TOKEN_SECRET not initialized — call primeOrderTokenSecret() at boot");
   }
-  return createHmac("sha256", ORDER_TOKEN_SECRET_CACHE).update("v2:order:" + orderId + ":user:" + userId).digest("hex");
+  return createHmac("sha256", ORDER_TOKEN_SECRET_CACHE)
+    .update(`v2:order:${orderId}:user:${userId}`)
+    .digest("hex");
 }
 
 export async function primeOrderTokenSecret(): Promise<void> {
@@ -163,7 +170,11 @@ function ctEqHex(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 
-export function verifyOrderToken(orderId: string, token: string | undefined, userId?: string): boolean {
+export function verifyOrderToken(
+  orderId: string,
+  token: string | undefined,
+  userId?: string,
+): boolean {
   if (!token) return false;
   // Reject any token that isn't a 64-char hex string up front so an attacker
   // can't probe with arbitrary-length buffers.
@@ -180,4 +191,3 @@ export function verifyOrderToken(orderId: string, token: string | undefined, use
   }
   return false;
 }
-

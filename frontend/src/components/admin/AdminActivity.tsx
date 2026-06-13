@@ -1,8 +1,15 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
 
-interface Action { id: string; adminEmail: string; action: string; detail: string | null; createdAt: number; }
+interface Action {
+  id: string;
+  adminEmail: string;
+  action: string;
+  detail: string | null;
+  createdAt: number;
+}
 
 // Map action keys to a human label + tone.
 const META: Record<string, { label: string; tone: string }> = {
@@ -27,7 +34,12 @@ const META: Record<string, { label: string; tone: string }> = {
 export const AdminActivity: React.FC = () => {
   const [list, setList] = useState<Action[] | null>(null);
 
-  useEffect(() => { api.get<Action[]>("/api/admin/activity").then(setList).catch(() => setList([])); }, []);
+  useEffect(() => {
+    api
+      .get<Action[]>("/api/admin/activity")
+      .then(setList)
+      .catch(() => setList([]));
+  }, []);
 
   return (
     <div className="act">
@@ -36,23 +48,53 @@ export const AdminActivity: React.FC = () => {
       <div className="card table-card">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr></thead>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Admin</th>
+                <th>Action</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
             <tbody>
-              {!list ? Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i}><td><Sk w={140} h={13} /></td><td><Sk w={150} h={13} /></td><td><Sk w={120} h={20} r={100} /></td><td><Sk w={180} h={13} /></td></tr>
-              )) : list.length === 0 ? (
-                <tr><td colSpan={4} className="empty">No admin activity recorded yet.</td></tr>
-              ) : list.map((a) => {
-                const m = META[a.action] ?? { label: a.action, tone: "neutral" };
-                return (
-                  <tr key={a.id}>
-                    <td className="muted sm">{new Date(a.createdAt).toLocaleString()}</td>
-                    <td className="email">{a.adminEmail}</td>
-                    <td><span className={`tag ${m.tone}`}>{m.label}</span></td>
-                    <td className="detail">{a.detail ?? "—"}</td>
+              {!list ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    <td>
+                      <Sk w={140} h={13} />
+                    </td>
+                    <td>
+                      <Sk w={150} h={13} />
+                    </td>
+                    <td>
+                      <Sk w={120} h={20} r={100} />
+                    </td>
+                    <td>
+                      <Sk w={180} h={13} />
+                    </td>
                   </tr>
-                );
-              })}
+                ))
+              ) : list.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="empty">
+                    No admin activity recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                list.map((a) => {
+                  const m = META[a.action] ?? { label: a.action, tone: "neutral" };
+                  return (
+                    <tr key={a.id}>
+                      <td className="muted sm">{new Date(a.createdAt).toLocaleString()}</td>
+                      <td className="email">{a.adminEmail}</td>
+                      <td>
+                        <span className={`tag ${m.tone}`}>{m.label}</span>
+                      </td>
+                      <td className="detail">{a.detail ?? "—"}</td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import type React from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 export interface AuthUser {
@@ -50,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await api.post("/api/auth/login", { email, password });
       await refresh();
     },
-    [refresh]
+    [refresh],
   );
 
   const register = useCallback(
@@ -58,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await api.post("/api/auth/register", { email, password });
       await refresh();
     },
-    [refresh]
+    [refresh],
   );
 
   const logout = useCallback(async () => {

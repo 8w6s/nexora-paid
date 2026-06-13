@@ -32,7 +32,12 @@
   },
   "overrides": [
     {
-      "includes": ["**/backend/src/db/seed.ts", "**/backend/src/index.ts"],
+      "includes": [
+        "**/backend/src/db/seed.ts",
+        "**/backend/src/index.ts",
+        "**/backend/gen-xpub.mjs",
+        "**/scripts/*.ts"
+      ],
       "linter": {
         "rules": {
           "suspicious": {

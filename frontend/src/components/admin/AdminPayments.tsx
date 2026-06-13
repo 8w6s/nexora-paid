@@ -1,29 +1,51 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { Sk, SkeletonStyles } from "../Skeleton";
-import { ToggleSwitch } from "../ToggleSwitch";
-import { useToast } from "../Toast";
 import { Dropdown } from "../Dropdown";
+import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
+import { ToggleSwitch } from "../ToggleSwitch";
 
-interface Field { key: string; label: string; secret?: boolean; optional?: boolean; hint?: string; placeholder?: string; }
+interface Field {
+  key: string;
+  label: string;
+  secret?: boolean;
+  optional?: boolean;
+  hint?: string;
+  placeholder?: string;
+}
 interface Provider {
-  id: string; label: string; kind: string; countries: string[] | "*"; note?: string;
-  fields: Field[]; enabled: boolean; config: Record<string, string | boolean>;
+  id: string;
+  label: string;
+  kind: string;
+  countries: string[] | "*";
+  note?: string;
+  fields: Field[];
+  enabled: boolean;
+  config: Record<string, string | boolean>;
 }
 
 const COUNTRIES = [
   { code: "*", name: "Worldwide (no restriction)" },
-  { code: "US", name: "United States" }, { code: "GB", name: "United Kingdom" },
-  { code: "CA", name: "Canada" }, { code: "AU", name: "Australia" },
-  { code: "JP", name: "Japan" }, { code: "SG", name: "Singapore" },
-  { code: "DE", name: "Germany" }, { code: "FR", name: "France" },
-  { code: "NL", name: "Netherlands" }, { code: "IE", name: "Ireland" },
+  { code: "US", name: "United States" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "CA", name: "Canada" },
+  { code: "AU", name: "Australia" },
+  { code: "JP", name: "Japan" },
+  { code: "SG", name: "Singapore" },
+  { code: "DE", name: "Germany" },
+  { code: "FR", name: "France" },
+  { code: "NL", name: "Netherlands" },
+  { code: "IE", name: "Ireland" },
   { code: "VN", name: "Vietnam" },
 ];
 
 const KIND_LABEL: Record<string, string> = {
-  "crypto-native": "Crypto (self-hosted)", "crypto-gateway": "Crypto gateway",
-  card: "Cards", wallet: "Wallet", manual: "Manual",
+  "crypto-native": "Crypto (self-hosted)",
+  "crypto-gateway": "Crypto gateway",
+  card: "Cards",
+  wallet: "Wallet",
+  manual: "Manual",
 };
 
 export const AdminPayments: React.FC = () => {
@@ -33,20 +55,31 @@ export const AdminPayments: React.FC = () => {
   const toast = useToast();
 
   const load = () =>
-    api.get<{ shopCountry: string; providers: Provider[] }>("/api/admin/payments").then((d) => {
-      setList(d.providers);
-      setCountry(d.shopCountry);
-    }).catch(() => {});
-  useEffect(() => { load(); }, []);
+    api
+      .get<{ shopCountry: string; providers: Provider[] }>("/api/admin/payments")
+      .then((d) => {
+        setList(d.providers);
+        setCountry(d.shopCountry);
+      })
+      .catch(() => {});
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const saveCountry = async (c: string) => {
     setCountry(c);
-    try { await api.put("/api/admin/payments/country", { country: c }); toast.success("Country saved."); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Save failed"); }
+    try {
+      await api.put("/api/admin/payments/country", { country: c });
+      toast.success("Country saved.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    }
   };
   const toggle = async (p: Provider) => {
     await api.put(`/api/admin/payments/${p.id}/enabled`, { enabled: !p.enabled });
-    setList((prev) => prev?.map((x) => (x.id === p.id ? { ...x, enabled: !x.enabled } : x)) ?? null);
+    setList(
+      (prev) => prev?.map((x) => (x.id === p.id ? { ...x, enabled: !x.enabled } : x)) ?? null,
+    );
   };
   const saveConfig = async (p: Provider) => {
     const config = draft[p.id] ?? {};
@@ -55,7 +88,9 @@ export const AdminPayments: React.FC = () => {
       setDraft((d) => ({ ...d, [p.id]: {} }));
       toast.success(`${p.label} settings saved.`);
       load();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Save failed"); }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    }
   };
   const setField = (pid: string, key: string, val: string) =>
     setDraft((d) => ({ ...d, [pid]: { ...(d[pid] ?? {}), [key]: val } }));
@@ -67,7 +102,9 @@ export const AdminPayments: React.FC = () => {
       <div className="card pa-country">
         <div>
           <strong>Shop country</strong>
-          <p className="muted">Only payment methods available in this country are shown to buyers.</p>
+          <p className="muted">
+            Only payment methods available in this country are shown to buyers.
+          </p>
         </div>
         <Dropdown<string>
           value={country}
@@ -78,11 +115,16 @@ export const AdminPayments: React.FC = () => {
       </div>
 
       {!list ? (
-        <div className="pa-grid">{Array.from({ length: 4 }).map((_, i) => <Sk key={i} h={120} r={12} />)}</div>
+        <div className="pa-grid">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Sk key={i} h={120} r={12} />
+          ))}
+        </div>
       ) : (
         <div className="pa-grid">
           {list.map((p) => {
-            const served = p.countries === "*" || country === "*" || (p.countries as string[]).includes(country);
+            const served =
+              p.countries === "*" || country === "*" || (p.countries as string[]).includes(country);
             return (
               <div key={p.id} className={`card pa-card ${p.enabled ? "on" : ""}`}>
                 <div className="pa-head">
@@ -91,25 +133,42 @@ export const AdminPayments: React.FC = () => {
                     <span className="pa-kind">{KIND_LABEL[p.kind] ?? p.kind}</span>
                     {!served && <span className="pa-warn">Not available in {country}</span>}
                   </div>
-                  <ToggleSwitch checked={p.enabled} onChange={() => toggle(p)} label={`Toggle ${p.label}`} />
+                  <ToggleSwitch
+                    checked={p.enabled}
+                    onChange={() => toggle(p)}
+                    label={`Toggle ${p.label}`}
+                  />
                 </div>
                 {p.note && <p className="muted pa-note">{p.note}</p>}
                 {p.enabled && (
                   <div className="pa-fields">
                     {p.fields.map((f) => (
                       <label key={f.key}>
-                        <span>{f.label}{f.optional ? " (optional)" : ""}{f.secret && p.config[f.key] === true ? " — saved" : ""}</span>
+                        <span>
+                          {f.label}
+                          {f.optional ? " (optional)" : ""}
+                          {f.secret && p.config[f.key] === true ? " — saved" : ""}
+                        </span>
                         <input
                           className="input"
                           type={f.secret ? "password" : "text"}
-                          placeholder={f.secret && p.config[f.key] === true ? "•••••• (leave blank to keep)" : (f.placeholder ?? "")}
-                          value={(draft[p.id]?.[f.key]) ?? (f.secret ? "" : (p.config[f.key] as string) || "")}
+                          placeholder={
+                            f.secret && p.config[f.key] === true
+                              ? "•••••• (leave blank to keep)"
+                              : (f.placeholder ?? "")
+                          }
+                          value={
+                            draft[p.id]?.[f.key] ??
+                            (f.secret ? "" : (p.config[f.key] as string) || "")
+                          }
                           onChange={(e) => setField(p.id, f.key, e.target.value)}
                         />
                         {f.hint && <small className="pa-hint">{f.hint}</small>}
                       </label>
                     ))}
-                    <button className="btn" onClick={() => saveConfig(p)}>Save {p.label}</button>
+                    <button className="btn" onClick={() => saveConfig(p)}>
+                      Save {p.label}
+                    </button>
                   </div>
                 )}
               </div>

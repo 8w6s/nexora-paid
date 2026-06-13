@@ -1,14 +1,26 @@
-import React, { useEffect, useState } from "react";
-import { useCart } from "./CartContext";
-import { Icon } from "./Icon";
-import { api, ApiRequestError, fmtUsd, isAccessDenied, goTo404, type OrderDetail, type OrderStatus, type CheckoutResult } from "../lib/api";
-import { Sk, SkeletonStyles } from "./Skeleton";
+import type React from "react";
+import { useEffect, useState } from "react";
+import {
+  api,
+  type CheckoutResult,
+  fmtUsd,
+  goTo404,
+  isAccessDenied,
+  type OrderDetail,
+  type OrderStatus,
+} from "../lib/api";
 import { useAuth } from "./AuthContext";
+import { useCart } from "./CartContext";
 import { Dropdown } from "./Dropdown";
+import { Icon } from "./Icon";
+import { Sk, SkeletonStyles } from "./Skeleton";
 
 function useLdrs() {
   useEffect(() => {
-    import("ldrs").then(({ chaoticOrbit, cardio }) => { chaoticOrbit.register(); cardio.register(); });
+    import("ldrs").then(({ chaoticOrbit, cardio }) => {
+      chaoticOrbit.register();
+      cardio.register();
+    });
   }, []);
 }
 
@@ -21,7 +33,8 @@ function useOrderQuery(): { id: string | null; token: string | null } {
   return query;
 }
 
-const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+const mmss = (s: number) =>
+  `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 // Litecoin block time averages ~2.5 min; used to translate "remaining confirmations" into a human ETA.
 const LTC_BLOCK_MIN = 2.5;
@@ -46,12 +59,29 @@ function activeStep(st: OrderStatus | null, status: string): StepKey {
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  const label: Record<string, string> = { pending: "Awaiting payment", awaiting_payment: "Awaiting payment", underpaid: "Underpaid", paid: "Paid", completed: "Completed", expired: "Expired", cancelled: "Cancelled" };
+  const label: Record<string, string> = {
+    pending: "Awaiting payment",
+    awaiting_payment: "Awaiting payment",
+    underpaid: "Underpaid",
+    paid: "Paid",
+    completed: "Completed",
+    expired: "Expired",
+    cancelled: "Cancelled",
+  };
   const waiting = status === "pending" || status === "awaiting_payment" || status === "underpaid";
-  return <span className={`badge ${status}`}>{waiting && <l-cardio size="14" stroke="2" speed="2" color="currentColor"></l-cardio>}{label[status] ?? status}</span>;
+  return (
+    <span className={`badge ${status}`}>
+      {waiting && <l-cardio size="14" stroke="2" speed="2" color="currentColor"></l-cardio>}
+      {label[status] ?? status}
+    </span>
+  );
 };
 
-const CopyBtn: React.FC<{ value: string; label?: string; small?: boolean }> = ({ value, label, small }) => {
+const CopyBtn: React.FC<{ value: string; label?: string; small?: boolean }> = ({
+  value,
+  label,
+  small,
+}) => {
   const [flash, setFlash] = useState(false);
   const onClick = () => {
     if (!navigator.clipboard) return;
@@ -88,11 +118,15 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
   useEffect(() => {
     let alive = true;
     const queryStr = token ? `?token=${token}` : "";
-    api.get<OrderDetail>(`/api/orders/${orderId}${queryStr}`)
+    api
+      .get<OrderDetail>(`/api/orders/${orderId}${queryStr}`)
       .then((d) => alive && setDetail(d))
       .catch((e) => {
         if (!alive) return;
-        if (isAccessDenied(e)) { goTo404(); return; }
+        if (isAccessDenied(e)) {
+          goTo404();
+          return;
+        }
         setErr(e.message);
       });
     const poll = async () => {
@@ -112,23 +146,41 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
     // Poll every 5s while the tab is visible — pause when backgrounded so an
     // abandoned checkout tab doesn't burn requests for the full payment window.
     // On visibility return, fire one immediate poll so the badge catches up.
-    const t = setInterval(() => { if (!document.hidden) poll(); }, 5000);
-    const onVis = () => { if (!document.hidden) poll(); };
+    const t = setInterval(() => {
+      if (!document.hidden) poll();
+    }, 5000);
+    const onVis = () => {
+      if (!document.hidden) poll();
+    };
     document.addEventListener("visibilitychange", onVis);
-    return () => { alive = false; clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+    return () => {
+      alive = false;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [orderId, token]);
 
   if (err) return <div className="co-state">{err}</div>;
-  if (!detail) return (
-    <div className="pay card">
-      <div className="pay-head"><div><Sk w={50} h={11} /><Sk w={130} h={22} style={{ marginTop: 6 }} /></div><Sk w={80} h={22} r={100} /></div>
-      <Sk h={14} style={{ margin: "16px 0" }} /><Sk h={14} w="70%" style={{ marginBottom: 16 }} />
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}><Sk w={220} h={220} r={8} /></div>
-      <Sk h={42} r={8} style={{ marginBottom: 18 }} />
-      <SkeletonStyles />
-      <CheckoutStyles />
-    </div>
-  );
+  if (!detail)
+    return (
+      <div className="pay card">
+        <div className="pay-head">
+          <div>
+            <Sk w={50} h={11} />
+            <Sk w={130} h={22} style={{ marginTop: 6 }} />
+          </div>
+          <Sk w={80} h={22} r={100} />
+        </div>
+        <Sk h={14} style={{ margin: "16px 0" }} />
+        <Sk h={14} w="70%" style={{ marginBottom: 16 }} />
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <Sk w={220} h={220} r={8} />
+        </div>
+        <Sk h={42} r={8} style={{ marginBottom: 18 }} />
+        <SkeletonStyles />
+        <CheckoutStyles />
+      </div>
+    );
 
   const status = st?.status ?? detail.status;
   const done = status === "paid" || status === "completed";
@@ -137,17 +189,25 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
   return (
     <div className="pay card">
       <div className="pay-head">
-        <div><span className="muted">Order</span><h1>{detail.id}</h1></div>
+        <div>
+          <span className="muted">Order</span>
+          <h1>{detail.id}</h1>
+        </div>
         <StatusBadge status={status} />
       </div>
 
       {done ? (
         <div className="delivered">
           <div className="ok-banner">
-            <span className="ok-ico"><Icon name="check" size={20} /></span>
+            <span className="ok-ico">
+              <Icon name="check" size={20} />
+            </span>
             <div>
               <strong>Payment confirmed</strong>
-              <span>Your {detail.deliveredKeys.length > 1 ? "keys are" : "key is"} ready. Copy and store {detail.deliveredKeys.length > 1 ? "them" : "it"} somewhere safe.</span>
+              <span>
+                Your {detail.deliveredKeys.length > 1 ? "keys are" : "key is"} ready. Copy and store{" "}
+                {detail.deliveredKeys.length > 1 ? "them" : "it"} somewhere safe.
+              </span>
             </div>
           </div>
           <ul className="keys">
@@ -165,23 +225,43 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
                 <Icon name="shield" size={16} />
                 <div>
                   <strong>Bookmark this page</strong>
-                  <span>You ordered as a guest — there is no account to log back into. Save this URL or copy your key{detail.deliveredKeys.length > 1 ? "s" : ""} now; once you close this tab the page can only be reached via this exact link.</span>
+                  <span>
+                    You ordered as a guest — there is no account to log back into. Save this URL or
+                    copy your key{detail.deliveredKeys.length > 1 ? "s" : ""} now; once you close
+                    this tab the page can only be reached via this exact link.
+                  </span>
                 </div>
               </div>
-              <p className="hint"><Icon name="key" size={14} /> Want one-click access next time? <a href="/register">Create an account</a> with the same email to attach this order to your history.</p>
+              <p className="hint">
+                <Icon name="key" size={14} /> Want one-click access next time?{" "}
+                <a href="/register">Create an account</a> with the same email to attach this order
+                to your history.
+              </p>
             </>
           ) : (
-            <p className="hint"><Icon name="shield" size={14} /> Keep these private — anyone with the code can redeem it. You can always find them in <a href="/orders">My Orders</a>.</p>
+            <p className="hint">
+              <Icon name="shield" size={14} /> Keep these private — anyone with the code can redeem
+              it. You can always find them in <a href="/orders">My Orders</a>.
+            </p>
           )}
         </div>
       ) : expired ? (
-        <div className="co-state">This order has {status}. <a href="/">Back to shop</a></div>
+        <div className="co-state">
+          This order has {status}. <a href="/">Back to shop</a>
+        </div>
       ) : (
         <>
-          <p className="instructions">Send exactly <strong>{detail.ltcAmount} LTC</strong> to the address below. Your keys are delivered automatically after {st?.requiredConfirmations ?? 2} confirmations.</p>
+          <p className="instructions">
+            Send exactly <strong>{detail.ltcAmount} LTC</strong> to the address below. Your keys are
+            delivered automatically after {st?.requiredConfirmations ?? 2} confirmations.
+          </p>
           <div className="qr-wrap">
-            <div className="qr"><img src={detail.qrCodeUrl} alt="Litecoin payment QR" width={220} height={220} /></div>
-            <span className="qr-chip"><Icon name="bolt" size={12} /> Scan to pay</span>
+            <div className="qr">
+              <img src={detail.qrCodeUrl} alt="Litecoin payment QR" width={220} height={220} />
+            </div>
+            <span className="qr-chip">
+              <Icon name="bolt" size={12} /> Scan to pay
+            </span>
           </div>
           <div className="field">
             <label>Address</label>
@@ -203,18 +283,38 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
             const required = st?.requiredConfirmations ?? 2;
             const current = Math.min(Math.max(0, st?.confirmations ?? 0), required);
             const remaining = Math.max(0, required - current);
-            const etaText = remaining === 0 ? "any moment" : `~${Math.ceil(remaining * LTC_BLOCK_MIN)} min`;
+            const etaText =
+              remaining === 0 ? "any moment" : `~${Math.ceil(remaining * LTC_BLOCK_MIN)} min`;
             return (
-              <div className="conf-stepper" role="progressbar" aria-valuenow={stepIdx + 1} aria-valuemin={1} aria-valuemax={STEPS.length}>
+              <div
+                className="conf-stepper"
+                role="progressbar"
+                aria-valuenow={stepIdx + 1}
+                aria-valuemin={1}
+                aria-valuemax={STEPS.length}
+              >
                 {STEPS.map((s, idx) => {
                   const isActive = idx === stepIdx;
                   const isDone = idx < stepIdx;
                   return (
-                    <div key={s.key} className={`cs-step${isActive ? " on" : ""}${isDone ? " done" : ""}`}>
-                      <span className="cs-dot">{isDone ? <Icon name="check" size={12} /> : <span className="cs-num">{idx + 1}</span>}</span>
+                    <div
+                      key={s.key}
+                      className={`cs-step${isActive ? " on" : ""}${isDone ? " done" : ""}`}
+                    >
+                      <span className="cs-dot">
+                        {isDone ? (
+                          <Icon name="check" size={12} />
+                        ) : (
+                          <span className="cs-num">{idx + 1}</span>
+                        )}
+                      </span>
                       <span className="cs-label">
                         {s.label}
-                        {isActive && s.key === "confirming" && <em className="cs-meta">{current}/{required} · {etaText}</em>}
+                        {isActive && s.key === "confirming" && (
+                          <em className="cs-meta">
+                            {current}/{required} · {etaText}
+                          </em>
+                        )}
                         {isActive && s.key === "seen" && <em className="cs-meta">on chain</em>}
                       </span>
                     </div>
@@ -224,11 +324,24 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
             );
           })()}
           <div className="pay-meta">
-            <div><span>Total</span><strong>{fmtUsd(detail.totalUsd)}</strong></div>
-            <div><span>Expires in</span><strong className="mono">{st ? mmss(st.expiresInSec) : "—"}</strong></div>
+            <div>
+              <span>Total</span>
+              <strong>{fmtUsd(detail.totalUsd)}</strong>
+            </div>
+            <div>
+              <span>Expires in</span>
+              <strong className="mono">{st ? mmss(st.expiresInSec) : "—"}</strong>
+            </div>
           </div>
-          {status === "underpaid" && <div className="warn">Amount received is short. Send the remainder to the same address.</div>}
-          <p className="hint"><l-chaotic-orbit size="16" speed="1.5" color="currentColor"></l-chaotic-orbit> Waiting for payment on the Litecoin network… this page updates automatically.</p>
+          {status === "underpaid" && (
+            <div className="warn">
+              Amount received is short. Send the remainder to the same address.
+            </div>
+          )}
+          <p className="hint">
+            <l-chaotic-orbit size="16" speed="1.5" color="currentColor"></l-chaotic-orbit> Waiting
+            for payment on the Litecoin network… this page updates automatically.
+          </p>
         </>
       )}
       <CheckoutStyles />
@@ -236,9 +349,17 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
   );
 };
 
-interface PayMethod { id: string; label: string; kind: string; }
+interface PayMethod {
+  id: string;
+  label: string;
+  kind: string;
+}
 const KIND_ICON: Record<string, string> = {
-  "crypto-native": "key", "crypto-gateway": "key", card: "receipt", wallet: "box", manual: "box",
+  "crypto-native": "key",
+  "crypto-gateway": "key",
+  card: "receipt",
+  wallet: "box",
+  manual: "box",
 };
 
 const COUNTRIES = [
@@ -269,7 +390,8 @@ const ReviewView: React.FC = () => {
 
   useEffect(() => {
     setMethods(null);
-    api.get<{ methods: PayMethod[] }>(`/api/payments?country=${selectedCountry}`)
+    api
+      .get<{ methods: PayMethod[] }>(`/api/payments?country=${selectedCountry}`)
       .then((d) => {
         setMethods(d.methods);
         if (d.methods.length > 0) {
@@ -284,10 +406,11 @@ const ReviewView: React.FC = () => {
         setMethods([]);
         setMethod("");
       });
-  }, [selectedCountry]);
+  }, [selectedCountry, method]);
 
   const pay = async () => {
-    setErr(null); setBusy(true);
+    setErr(null);
+    setBusy(true);
     try {
       if (!user && !email.trim()) {
         setErr("Please enter your email to receive items");
@@ -295,7 +418,11 @@ const ReviewView: React.FC = () => {
         return;
       }
       const res = await api.post<CheckoutResult & { orderToken?: string }>("/api/checkout", {
-        items: cart.map((c) => ({ productId: c.product.id, qty: c.quantity })),
+        items: cart.map((c) => ({
+          productId: c.product.id,
+          variantId: c.variant?.id ?? undefined,
+          qty: c.quantity,
+        })),
         method,
         coupon: coupon.trim() || undefined,
         email: !user ? email.trim() : undefined,
@@ -309,21 +436,36 @@ const ReviewView: React.FC = () => {
     }
   };
 
-  if (cart.length === 0) return <div className="co-state">Your cart is empty. <a href="/">Browse products</a></div>;
+  if (cart.length === 0)
+    return (
+      <div className="co-state">
+        Your cart is empty. <a href="/">Browse products</a>
+      </div>
+    );
 
   return (
     <div className="review card">
       <h1>Checkout</h1>
       <div className="lines">
         {cart.map((c) => (
-          <div key={c.product.id} className="line">
+          <div key={`${c.product.id}_${c.variant?.id ?? ""}`} className="line">
             <img src={c.product.image} alt={c.product.name} />
-            <div className="ln-name"><strong>{c.product.name}</strong><span>{fmtUsd(c.product.priceUsd)} × {c.quantity}</span></div>
-            <span className="ln-total price">{fmtUsd(c.product.priceUsd * c.quantity)}</span>
+            <div className="ln-name">
+              <strong>
+                {c.product.name}
+                {c.variant ? ` (${c.variant.name})` : ""}
+              </strong>
+              <span>
+                {fmtUsd(c.variant ? c.variant.priceUsd : c.product.priceUsd)} × {c.quantity}
+              </span>
+            </div>
+            <span className="ln-total price">
+              {fmtUsd((c.variant ? c.variant.priceUsd : c.product.priceUsd) * c.quantity)}
+            </span>
           </div>
         ))}
       </div>
-      
+
       <div className="field" style={{ margin: "20px 0" }}>
         <label>Your Country (for payment routing)</label>
         <Dropdown<string>
@@ -343,7 +485,15 @@ const ReviewView: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
-              style={{ flex: 1, border: "none", background: "none", outline: "none", padding: "11px 13px", fontSize: "0.9rem", color: "var(--ink)" }}
+              style={{
+                flex: 1,
+                border: "none",
+                background: "none",
+                outline: "none",
+                padding: "11px 13px",
+                fontSize: "0.9rem",
+                color: "var(--ink)",
+              }}
               required
             />
           </div>
@@ -352,20 +502,37 @@ const ReviewView: React.FC = () => {
 
       <div className="coupon-row">
         <Icon name="zap" size={15} />
-        <input value={coupon} onChange={(e) => setCoupon(e.target.value.toUpperCase())} placeholder="Coupon code (optional)" aria-label="Coupon code" />
+        <input
+          value={coupon}
+          onChange={(e) => setCoupon(e.target.value.toUpperCase())}
+          placeholder="Coupon code (optional)"
+          aria-label="Coupon code"
+        />
       </div>
-      <div className="grand"><span>Total</span><span className="price">{fmtUsd(getCartTotal())}</span></div>
+      <div className="grand">
+        <span>Total</span>
+        <span className="price">{fmtUsd(getCartTotal())}</span>
+      </div>
 
       <div className="pay-methods">
         <span className="pm-label">Payment method</span>
         {methods === null ? (
-          <div className="pm-loading"><Icon name="spinner" size={18} /> Loading methods…</div>
+          <div className="pm-loading">
+            <Icon name="spinner" size={18} /> Loading methods…
+          </div>
         ) : methods.length === 0 ? (
-          <div className="warn">No payment method available. The store owner hasn't enabled one yet.</div>
+          <div className="warn">
+            No payment method available. The store owner hasn't enabled one yet.
+          </div>
         ) : (
           <div className="pm-list">
             {methods.map((m) => (
-              <button key={m.id} className={`pm ${method === m.id ? "on" : ""}`} onClick={() => setMethod(m.id)} type="button">
+              <button
+                key={m.id}
+                className={`pm ${method === m.id ? "on" : ""}`}
+                onClick={() => setMethod(m.id)}
+                type="button"
+              >
                 <Icon name={(KIND_ICON[m.kind] ?? "key") as any} size={18} variant="badge" />
                 <span className="pm-name">{m.label}</span>
                 <span className={`pm-radio ${method === m.id ? "on" : ""}`} />
@@ -376,10 +543,28 @@ const ReviewView: React.FC = () => {
       </div>
 
       {err && <div className="warn">{err}</div>}
-      <button className="btn" onClick={pay} disabled={busy || !method} style={{ width: "100%", justifyContent: "center" }}>
-        {busy ? <><l-chaotic-orbit size="20" speed="1.5" color="currentColor"></l-chaotic-orbit><span>Creating order…</span></> : <><Icon name="key" size={16} /><span>Continue to payment</span></>}
+      <button
+        className="btn"
+        onClick={pay}
+        disabled={busy || !method}
+        style={{ width: "100%", justifyContent: "center" }}
+      >
+        {busy ? (
+          <>
+            <l-chaotic-orbit size="20" speed="1.5" color="currentColor"></l-chaotic-orbit>
+            <span>Creating order…</span>
+          </>
+        ) : (
+          <>
+            <Icon name="key" size={16} />
+            <span>Continue to payment</span>
+          </>
+        )}
       </button>
-      <p className="hint">You'll get payment details on the next step. Keys are delivered automatically after confirmation.</p>
+      <p className="hint">
+        You'll get payment details on the next step. Keys are delivered automatically after
+        confirmation.
+      </p>
       <CheckoutStyles />
     </div>
   );
@@ -387,7 +572,11 @@ const ReviewView: React.FC = () => {
 
 export const Checkout: React.FC = () => {
   const { id, token } = useOrderQuery();
-  return <main className="container co-page">{id ? <PayView orderId={id} token={token} /> : <ReviewView />}</main>;
+  return (
+    <main className="container co-page">
+      {id ? <PayView orderId={id} token={token} /> : <ReviewView />}
+    </main>
+  );
 };
 
 const CheckoutStyles: React.FC = () => (

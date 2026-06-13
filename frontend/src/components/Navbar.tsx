@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { useCart } from "./CartContext";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { useCart } from "./CartContext";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -25,7 +26,8 @@ export const Navbar: React.FC = () => {
     if (name.toLowerCase().endsWith("vn")) {
       return (
         <span>
-          {name.slice(0, -2)}<span className="accent">{name.slice(-2)}</span>
+          {name.slice(0, -2)}
+          <span className="accent">{name.slice(-2)}</span>
         </span>
       );
     }
@@ -36,30 +38,60 @@ export const Navbar: React.FC = () => {
     <header className="navbar">
       <div className="container nav-inner">
         <a href="/" className="logo">
-          <span className="logo-mark"><Icon name="key" size={17} /></span>
+          <span className="logo-mark">
+            <Icon name="key" size={17} />
+          </span>
           {renderLogoText()}
         </a>
 
         <nav className="nav-links">
-          <a href="/" className={path === "/" ? "active" : ""}>Shop</a>
-          {user && <a href="/orders" className={path.startsWith("/orders") ? "active" : ""}>My Orders</a>}
-          {user && isOn("tickets") && <a href="/tickets" className={path.startsWith("/tickets") ? "active" : ""}>Support</a>}
+          <a href="/" className={path === "/" ? "active" : ""}>
+            Shop
+          </a>
+          {user && (
+            <a href="/orders" className={path.startsWith("/orders") ? "active" : ""}>
+              My Orders
+            </a>
+          )}
+          {user && isOn("tickets") && (
+            <a href="/tickets" className={path.startsWith("/tickets") ? "active" : ""}>
+              Support
+            </a>
+          )}
         </nav>
 
         <div className="nav-right">
           <ThemeSwitch />
           {user ? (
             <div className="acct">
-              <span className="acct-email" title={user.email}>{user.email}</span>
-              <button className="btn-link" onClick={() => logout().then(() => window.location.assign("/"))}>Sign out</button>
+              <span className="acct-email" title={user.email}>
+                {user.email}
+              </span>
+              <button
+                className="btn-link"
+                onClick={() => logout().then(() => window.location.assign("/"))}
+              >
+                Sign out
+              </button>
             </div>
           ) : (
-            <a href="/login" className="btn-link">Sign in</a>
+            <a href="/login" className="btn-link">
+              Sign in
+            </a>
           )}
-          <button id="cart-trigger-btn" className="btn-cart" onClick={() => setIsCartOpen(true)} aria-label={totalItems > 0 ? `Open cart, ${totalItems} items` : "Open cart, empty"}>
+          <button
+            id="cart-trigger-btn"
+            className="btn-cart"
+            onClick={() => setIsCartOpen(true)}
+            aria-label={totalItems > 0 ? `Open cart, ${totalItems} items` : "Open cart, empty"}
+          >
             <Icon name="cart" size={19} variant="duotone-regular" />
             <span className="cart-label">Cart</span>
-            {totalItems > 0 && <span className="cart-badge" aria-hidden="true">{totalItems}</span>}
+            {totalItems > 0 && (
+              <span className="cart-badge" aria-hidden="true">
+                {totalItems}
+              </span>
+            )}
           </button>
         </div>
       </div>

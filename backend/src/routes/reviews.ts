@@ -1,16 +1,20 @@
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { Elysia, t } from "elysia";
-import { randomUUID } from "crypto";
-import { and, eq, desc, inArray } from "drizzle-orm";
 import { db } from "../db/connection.ts";
-import { reviews, orders, orderItems, products } from "../db/schema.ts";
-import { validateSession, SESSION_COOKIE, type SessionUser } from "../lib/auth.ts";
+import { orderItems, orders, products, reviews } from "../db/schema.ts";
+import { SESSION_COOKIE, type SessionUser, validateSession } from "../lib/auth.ts";
 import { isEnabled } from "../lib/features.ts";
 
 // The storefront route uses :idOrSlug, so reviews must resolve either to the real product id.
 async function resolveProductId(idOrSlug: string): Promise<string | null> {
-  const bySlug = (await db.select({ id: products.id }).from(products).where(eq(products.slug, idOrSlug)))[0];
+  const bySlug = (
+    await db.select({ id: products.id }).from(products).where(eq(products.slug, idOrSlug))
+  )[0];
   if (bySlug) return bySlug.id;
-  const byId = (await db.select({ id: products.id }).from(products).where(eq(products.id, idOrSlug)))[0];
+  const byId = (
+    await db.select({ id: products.id }).from(products).where(eq(products.id, idOrSlug))
+  )[0];
   return byId?.id ?? null;
 }
 
@@ -24,7 +28,9 @@ function maskEmail(email: string): string {
 // Has this user actually bought (paid/completed) the product?
 async function hasPurchased(userId: string, productId: string): Promise<boolean> {
   const userOrders = await db.select().from(orders).where(eq(orders.userId, userId));
-  const paidIds = userOrders.filter((o) => o.status === "paid" || o.status === "completed").map((o) => o.id);
+  const paidIds = userOrders
+    .filter((o) => o.status === "paid" || o.status === "completed")
+    .map((o) => o.id);
   if (paidIds.length === 0) return false;
   const items = await db
     .select({ id: orderItems.id })
@@ -45,10 +51,20 @@ export const reviewRoutes = new Elysia()
       .where(and(eq(reviews.productId, id), eq(reviews.hidden, false)))
       .orderBy(desc(reviews.createdAt));
     const count = rows.length;
-    const average = count ? Math.round((rows.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10 : 0;
+    const average = count
+      ? Math.round((rows.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10
+      : 0;
     return {
-      enabled: true, average, count,
-      reviews: rows.map((r) => ({ id: r.id, rating: r.rating, body: r.body, email: maskEmail(r.email), createdAt: r.createdAt })),
+      enabled: true,
+      average,
+      count,
+      reviews: rows.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        body: r.body,
+        email: maskEmail(r.email),
+        createdAt: r.createdAt,
+      })),
     };
   })
 
@@ -59,7 +75,12 @@ export const reviewRoutes = new Elysia()
     const id = await resolveProductId(idOrSlug);
     if (!id) return { canReview: false, reason: "not-found" };
     if (!(await hasPurchased(user.id, id))) return { canReview: false, reason: "not-purchased" };
-    const existing = (await db.select().from(reviews).where(and(eq(reviews.userId, user.id), eq(reviews.productId, id))))[0];
+    const existing = (
+      await db
+        .select()
+        .from(reviews)
+        .where(and(eq(reviews.userId, user.id), eq(reviews.productId, id)))
+    )[0];
     if (existing) return { canReview: false, reason: "already-reviewed" };
     return { canReview: true };
   })
@@ -68,18 +89,34 @@ export const reviewRoutes = new Elysia()
   .post(
     "/api/products/:idOrSlug/reviews",
     async ({ params: { idOrSlug }, body, cookie, status, set }) => {
-      if (!(await isEnabled("reviews"))) return status(403, { error: "Reviews are disabled", code: "DISABLED" });
+      if (!(await isEnabled("reviews")))
+        return status(403, { error: "Reviews are disabled", code: "DISABLED" });
       const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
       if (!user) return status(401, { error: "Sign in to review", code: "UNAUTHENTICATED" });
       const id = await resolveProductId(idOrSlug);
       if (!id) return status(404, { error: "Product not found", code: "NOT_FOUND" });
-      if (!(await hasPurchased(user.id, id))) return status(403, { error: "Only buyers can review", code: "NOT_PURCHASED" });
-      const existing = (await db.select().from(reviews).where(and(eq(reviews.userId, user.id), eq(reviews.productId, id))))[0];
-      if (existing) return status(409, { error: "You already reviewed this", code: "ALREADY_REVIEWED" });
+      if (!(await hasPurchased(user.id, id)))
+        return status(403, { error: "Only buyers can review", code: "NOT_PURCHASED" });
+      const existing = (
+        await db
+          .select()
+          .from(reviews)
+          .where(and(eq(reviews.userId, user.id), eq(reviews.productId, id)))
+      )[0];
+      if (existing)
+        return status(409, { error: "You already reviewed this", code: "ALREADY_REVIEWED" });
       // Strip C0 control chars (except newline + CR) so a review can't
       // smuggle ANSI escape sequences into terminal-rendered admin tooling.
       const clean = (body.body ?? "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
-      const row = { id: randomUUID(), productId: id, userId: user.id, email: user.email, rating: body.rating, body: clean, hidden: false };
+      const row = {
+        id: randomUUID(),
+        productId: id,
+        userId: user.id,
+        email: user.email,
+        rating: body.rating,
+        body: clean,
+        hidden: false,
+      };
       try {
         await db.insert(reviews).values(row);
       } catch {
@@ -89,7 +126,12 @@ export const reviewRoutes = new Elysia()
       set.status = 201;
       return { ok: true };
     },
-    { body: t.Object({ rating: t.Integer({ minimum: 1, maximum: 5 }), body: t.Optional(t.String({ maxLength: 1000 })) }) }
+    {
+      body: t.Object({
+        rating: t.Integer({ minimum: 1, maximum: 5 }),
+        body: t.Optional(t.String({ maxLength: 1000 })),
+      }),
+    },
   );
 
 export type { SessionUser };

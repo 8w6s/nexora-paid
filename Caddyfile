@@ -1,0 +1,50 @@
+# Nexora — Caddy reverse proxy with auto-HTTPS.
+#
+# Behavior:
+#   - When DOMAIN is set to a real hostname (e.g. shop.example.com), Caddy
+#     issues + renews a Let's Encrypt cert automatically. ADMIN_EMAIL is used
+#     for ACME account registration.
+#   - When DOMAIN=localhost (default), Caddy serves plain HTTP on :80 — no
+#     ACME, no cert prompts. Useful for first-run / dev.
+#   - All /api/* requests go to the Bun backend; everything else hits the
+#     Astro SSR frontend. Same-origin → no CORS, no PUBLIC_API_ORIGIN headache.
+
+{
+	# ACME contact (overridden by ADMIN_EMAIL env at compose level)
+	email {$ADMIN_EMAIL:admin@localhost}
+
+	# Disable admin API on the public listener
+	admin off
+}
+
+{$DOMAIN:localhost} {
+	# Security headers (defense-in-depth — backend already sets its own)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Backend API + everything Elysia owns
+	@api {
+		path /api/* /health /admin/api/*
+	}
+	handle @api {
+		reverse_proxy backend:3000
+	}
+
+	# Astro SSR frontend (catch-all)
+	handle {
+		reverse_proxy frontend:4321
+	}
+
+	# Compress responses
+	encode zstd gzip
+
+	# Access log to stdout (collected by `docker logs`)
+	log {
+		output stdout
+		format console
+	}
+}

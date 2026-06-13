@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { Icon } from "../Icon";
-import { NumberInput } from "../NumberInput";
 import { Checkbox } from "../Checkbox";
 import { Dropdown } from "../Dropdown";
+import { Icon } from "../Icon";
+import { NumberInput } from "../NumberInput";
 
 /**
  * SellAuth-style full-page product editor with a tab bar.
@@ -13,13 +14,28 @@ import { Dropdown } from "../Dropdown";
  * `onDone` is called after a successful save or cancel.
  */
 export interface ProductRow {
-  id: string; slug: string; name: string; description: string; priceUsd: number;
-  image: string; category: string; categoryId: string | null;
-  active: boolean; sold: number; available: number; delivered: number;
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  priceUsd: number;
+  compareAtPrice?: number | null;
+  image: string;
+  category: string;
+  categoryId: string | null;
+  active: boolean;
+  sold: number;
+  available: number;
+  delivered: number;
   deliverables: "serials" | "service" | "dynamic";
+  variants?: { id: string; name: string; priceUsd: number; compareAtPrice: number | null }[];
 }
 
-interface Category { id: string; name: string; parentId: string | null; }
+interface Category {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
 
 type Tab = "general" | "pricing" | "seo" | "visibility";
 
@@ -28,9 +44,10 @@ interface FormState {
   slug: string;
   description: string;
   image: string;
-  priceUsd: string;       // string for NumberInput
-  category: string;        // legacy free text
-  categoryId: string;      // FK (preferred); "" = none
+  priceUsd: string; // string for NumberInput
+  compareAtPrice: string; // string for NumberInput
+  category: string; // legacy free text
+  categoryId: string; // FK (preferred); "" = none
   deliverables: "serials" | "service" | "dynamic";
   active: boolean;
 }
@@ -41,6 +58,7 @@ const initialForm = (p?: ProductRow): FormState => ({
   description: p?.description ?? "",
   image: p?.image ?? "",
   priceUsd: p ? String(p.priceUsd) : "",
+  compareAtPrice: p?.compareAtPrice ? String(p.compareAtPrice) : "",
   category: p?.category ?? "",
   categoryId: p?.categoryId ?? "",
   deliverables: p?.deliverables ?? "serials",
@@ -53,18 +71,33 @@ export const AdminProductEditor: React.FC<{
 }> = ({ product, onDone }) => {
   const [tab, setTab] = useState<Tab>("general");
   const [form, setForm] = useState<FormState>(initialForm(product ?? undefined));
+  const [variants, setVariants] = useState<
+    { id?: string; name: string; priceUsd: string; compareAtPrice: string }[]
+  >(
+    product?.variants?.map((v) => ({
+      id: v.id,
+      name: v.name,
+      priceUsd: String(v.priceUsd),
+      compareAtPrice: v.compareAtPrice ? String(v.compareAtPrice) : "",
+    })) ?? [],
+  );
   const [cats, setCats] = useState<Category[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<Category[]>("/api/admin/categories").then(setCats).catch(() => setCats([]));
+    api
+      .get<Category[]>("/api/admin/categories")
+      .then(setCats)
+      .catch(() => setCats([]));
   }, []);
 
-  const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
 
   const save = async (closeAfter: boolean) => {
-    setErr(null); setBusy(true);
+    setErr(null);
+    setBusy(true);
     try {
       // If categoryId is chosen, mirror its name into the legacy `category` field for back-compat.
       const cat = cats.find((c) => c.id === form.categoryId);
@@ -73,17 +106,27 @@ export const AdminProductEditor: React.FC<{
         description: form.description,
         image: form.image,
         priceUsd: Number(form.priceUsd) || 0,
+        compareAtPrice: form.compareAtPrice ? Number(form.compareAtPrice) : null,
         category: cat?.name || form.category || "Uncategorized",
         categoryId: form.categoryId || null,
         deliverables: form.deliverables,
         active: form.active,
+        variants: variants.map((v) => ({
+          id: v.id,
+          name: v.name,
+          priceUsd: Number(v.priceUsd) || 0,
+          compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : null,
+        })),
       };
       if (form.slug.trim()) payload.slug = form.slug.trim();
       if (product) await api.patch(`/api/admin/products/${product.id}`, payload);
       else await api.post("/api/admin/products", payload);
       onDone(closeAfter ? (product ? "Product saved." : "Product created.") : undefined);
-    } catch (e) { setErr(e instanceof Error ? e.message : "Save failed"); }
-    finally { setBusy(false); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
@@ -98,20 +141,52 @@ export const AdminProductEditor: React.FC<{
       <header className="pe-head">
         <div>
           <h1>{product ? "Edit product" : "Create product"}</h1>
-          <p className="muted">{product ? `Editing "${product.name}". Changes save instantly.` : "Fill in the details below to create a new product."}</p>
+          <p className="muted">
+            {product
+              ? `Editing "${product.name}". Changes save instantly.`
+              : "Fill in the details below to create a new product."}
+          </p>
         </div>
         <div className="pe-actions">
-          <button className="btn btn-ghost" onClick={() => onDone()} type="button"><Icon name="close" size={15} /> Cancel</button>
-          <button className="btn btn-ghost" onClick={() => save(false)} disabled={busy} type="button"><Icon name="check" size={15} /> Save</button>
-          <button className="btn" onClick={() => save(true)} disabled={busy || !form.name.trim()} type="button">
-            {busy ? <><Icon name="spinner" size={15} className="is-spinning" /> Saving…</> : <><Icon name="check" size={15} /> Save & Exit</>}
+          <button className="btn btn-ghost" onClick={() => onDone()} type="button">
+            <Icon name="close" size={15} /> Cancel
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => save(false)}
+            disabled={busy}
+            type="button"
+          >
+            <Icon name="check" size={15} /> Save
+          </button>
+          <button
+            className="btn"
+            onClick={() => save(true)}
+            disabled={busy || !form.name.trim()}
+            type="button"
+          >
+            {busy ? (
+              <>
+                <Icon name="spinner" size={15} className="is-spinning" /> Saving…
+              </>
+            ) : (
+              <>
+                <Icon name="check" size={15} /> Save & Exit
+              </>
+            )}
           </button>
         </div>
       </header>
 
-      <nav className="pe-tabs" role="tablist">
+      <nav className="pe-tabs">
         {tabs.map((t) => (
-          <button key={t.key} role="tab" aria-selected={tab === t.key} className={`pe-tab ${tab === t.key ? "on" : ""}`} onClick={() => setTab(t.key)}>
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`pe-tab ${tab === t.key ? "on" : ""}`}
+            onClick={() => setTab(t.key)}
+          >
             <Icon name={t.icon} size={14} /> {t.label}
           </button>
         ))}
@@ -121,12 +196,36 @@ export const AdminProductEditor: React.FC<{
 
       {tab === "general" && (
         <section className="pe-pane card">
-          <h3><Icon name="box" size={16} variant="badge" /> General</h3>
+          <h3>
+            <Icon name="box" size={16} variant="badge" /> General
+          </h3>
           <div className="grid-2">
-            <label><span>Name</span><input className="input" value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus /></label>
-            <label><span>URL path <em>(optional)</em></span><input className="input" value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder={form.name ? form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "product-url-path"} /></label>
+            <label>
+              <span>Name</span>
+              <input
+                className="input"
+                value={form.name}
+                onChange={(e) => set("name", e.target.value)}
+              />
+            </label>
+            <label>
+              <span>
+                URL path <em>(optional)</em>
+              </span>
+              <input
+                className="input"
+                value={form.slug}
+                onChange={(e) => set("slug", e.target.value)}
+                placeholder={
+                  form.name
+                    ? form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+                    : "product-url-path"
+                }
+              />
+            </label>
           </div>
-          <label><span>Category</span>
+          <label>
+            <span>Category</span>
             <Dropdown<string>
               value={form.categoryId}
               onChange={(v) => set("categoryId", v)}
@@ -137,25 +236,80 @@ export const AdminProductEditor: React.FC<{
               width="100%"
             />
           </label>
-          <label><span>Image URL</span><input className="input" value={form.image} onChange={(e) => set("image", e.target.value)} placeholder="https://…" /></label>
-          <label><span>Description</span><textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={4} placeholder="Describe what the customer is buying…" /></label>
+          <label>
+            <span>Image URL</span>
+            <input
+              className="input"
+              value={form.image}
+              onChange={(e) => set("image", e.target.value)}
+              placeholder="https://…"
+            />
+          </label>
+          <label>
+            <span>Description</span>
+            <textarea
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={4}
+              placeholder="Describe what the customer is buying…"
+            />
+          </label>
 
-          <h3 className="sub"><Icon name="key" size={16} variant="badge" /> Delivery method</h3>
+          <h3 className="sub">
+            <Icon name="key" size={16} variant="badge" /> Delivery method
+          </h3>
           <p className="hint">How does this product get delivered to the customer after payment?</p>
           <div className="pe-deliv">
-            {([
-              { key: "serials", title: "Serials",  desc: "Auto-deliver from a list of keys you upload. Stock equals the number of unused keys.", icon: "key" as const,    soon: false },
-              { key: "service", title: "Service",  desc: "Only sends the instructions you wrote above. You fulfill the order manually. Stock is unlimited.", icon: "ticket" as const, soon: false },
-              { key: "dynamic", title: "Dynamic",  desc: "Fetch a fresh code from a webhook URL per order. Stock is unlimited.", icon: "bolt" as const,   soon: true  },
-            ] as const).map((d) => (
-              <label key={d.key} className={`pe-deliv-row ${form.deliverables === d.key ? "on" : ""} ${d.soon ? "soon" : ""}`}>
-                <input type="radio" name="deliv" checked={form.deliverables === d.key} disabled={d.soon} onChange={() => !d.soon && set("deliverables", d.key)} />
-                <span className="pe-deliv-icon"><Icon name={d.icon} size={18} variant="duotone-regular" /></span>
+            {(
+              [
+                {
+                  key: "serials",
+                  title: "Serials",
+                  desc: "Auto-deliver from a list of keys you upload. Stock equals the number of unused keys.",
+                  icon: "key" as const,
+                  soon: false,
+                },
+                {
+                  key: "service",
+                  title: "Service",
+                  desc: "Only sends the instructions you wrote above. You fulfill the order manually. Stock is unlimited.",
+                  icon: "ticket" as const,
+                  soon: false,
+                },
+                {
+                  key: "dynamic",
+                  title: "Dynamic",
+                  desc: "Fetch a fresh code from a webhook URL per order. Stock is unlimited.",
+                  icon: "bolt" as const,
+                  soon: true,
+                },
+              ] as const
+            ).map((d) => (
+              <label
+                key={d.key}
+                className={`pe-deliv-row ${form.deliverables === d.key ? "on" : ""} ${d.soon ? "soon" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="deliv"
+                  checked={form.deliverables === d.key}
+                  disabled={d.soon}
+                  onChange={() => !d.soon && set("deliverables", d.key)}
+                />
+                <span className="pe-deliv-icon">
+                  <Icon name={d.icon} size={18} variant="duotone-regular" />
+                </span>
                 <div className="pe-deliv-info">
-                  <strong>{d.title}{d.soon && <span className="pe-beta">SOON</span>}</strong>
+                  <strong>
+                    {d.title}
+                    {d.soon && <span className="pe-beta">SOON</span>}
+                  </strong>
                   <span>{d.desc}</span>
                 </div>
-                <span className={`pe-radio ${form.deliverables === d.key ? "on" : ""}`} aria-hidden="true" />
+                <span
+                  className={`pe-radio ${form.deliverables === d.key ? "on" : ""}`}
+                  aria-hidden="true"
+                />
               </label>
             ))}
           </div>
@@ -164,42 +318,182 @@ export const AdminProductEditor: React.FC<{
 
       {tab === "pricing" && (
         <section className="pe-pane card">
-          <h3><Icon name="receipt" size={16} variant="badge" /> Pricing & Stock</h3>
+          <h3>
+            <Icon name="receipt" size={16} variant="badge" /> Pricing & Stock
+          </h3>
           <div className="grid-2">
-            <label><span>Price (USD)</span><NumberInput decimal min={0} value={form.priceUsd} onChange={(v) => set("priceUsd", v)} /></label>
-            <div className="kv">
-              <span className="kv-label">Available stock</span>
-              <span className="kv-val">{product ? `${product.available} keys` : "Add keys after creating"}</span>
-            </div>
+            <label>
+              <span>Price (USD)</span>
+              <NumberInput
+                decimal
+                min={0}
+                value={form.priceUsd}
+                onChange={(v) => set("priceUsd", v)}
+              />
+            </label>
+            <label>
+              <span>
+                Compare-at Price (USD) <em>(optional)</em>
+              </span>
+              <NumberInput
+                decimal
+                min={0}
+                value={form.compareAtPrice}
+                onChange={(v) => set("compareAtPrice", v)}
+              />
+            </label>
           </div>
           <div className="kv-row">
-            <div className="kv"><span className="kv-label">Sold</span><span className="kv-val">{product?.sold ?? 0}</span></div>
-            <div className="kv"><span className="kv-label">Delivered</span><span className="kv-val">{product?.delivered ?? 0}</span></div>
+            <div className="kv">
+              <span className="kv-label">Available stock</span>
+              <span className="kv-val">
+                {product ? `${product.available} keys` : "Add keys after creating"}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="kv-label">Sold</span>
+              <span className="kv-val">{product?.sold ?? 0}</span>
+            </div>
           </div>
-          {product && <p className="hint">Manage the key inventory from the product list (Keys button on the row).</p>}
+
+          <h3
+            className="sub"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignValues: "center",
+              paddingTop: "14px",
+              borderTop: "1px solid var(--line)",
+              marginTop: "6px",
+            }}
+          >
+            <span>
+              <Icon name="receipt" size={16} variant="badge" /> Product Variants
+            </span>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() =>
+                setVariants([...variants, { name: "", priceUsd: "", compareAtPrice: "" }])
+              }
+              type="button"
+            >
+              + Add Variant
+            </button>
+          </h3>
+          <p className="hint">
+            If variants are configured, customers will choose a variant at checkout. Each variant
+            will have its own keys pool.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {variants.map((v, i) => (
+              <div key={i} className="pe-variant-row">
+                <label>
+                  <span>Variant Name</span>
+                  <input
+                    className="input"
+                    value={v.name}
+                    onChange={(e) => {
+                      const next = [...variants];
+                      next[i].name = e.target.value;
+                      setVariants(next);
+                    }}
+                    placeholder="e.g. 1 Month"
+                  />
+                </label>
+                <label>
+                  <span>Price (USD)</span>
+                  <NumberInput
+                    decimal
+                    min={0}
+                    value={v.priceUsd}
+                    onChange={(val) => {
+                      const next = [...variants];
+                      next[i].priceUsd = val;
+                      setVariants(next);
+                    }}
+                  />
+                </label>
+                <label>
+                  <span>Compare-at Price</span>
+                  <NumberInput
+                    decimal
+                    min={0}
+                    value={v.compareAtPrice}
+                    onChange={(val) => {
+                      const next = [...variants];
+                      next[i].compareAtPrice = val;
+                      setVariants(next);
+                    }}
+                  />
+                </label>
+                <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: "4px" }}>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ padding: "8px", color: "var(--price)" }}
+                    onClick={() => setVariants(variants.filter((_, idx) => idx !== i))}
+                    type="button"
+                  >
+                    <Icon name="close" size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {product && (
+            <p className="hint" style={{ marginTop: "10px" }}>
+              Manage the key inventory from the product list (Keys button on the row).
+            </p>
+          )}
         </section>
       )}
 
       {tab === "seo" && (
         <section className="pe-pane card">
-          <h3><Icon name="zap" size={16} variant="badge" /> SEO</h3>
+          <h3>
+            <Icon name="zap" size={16} variant="badge" /> SEO
+          </h3>
           <p className="hint">URL slug feeds search engines and shapes the product page URL.</p>
           <label>
             <span>URL path (slug)</span>
-            <input className="input" value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder={form.name ? form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "product-url-path"} />
+            <input
+              className="input"
+              value={form.slug}
+              onChange={(e) => set("slug", e.target.value)}
+              placeholder={
+                form.name ? form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "product-url-path"
+              }
+            />
           </label>
           <div className="kv-row">
-            <div className="kv"><span className="kv-label">Public URL</span><span className="kv-val mono">/product/{form.slug || (form.name ? form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "—")}</span></div>
+            <div className="kv">
+              <span className="kv-label">Public URL</span>
+              <span className="kv-val mono">
+                /product/
+                {form.slug ||
+                  (form.name ? form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "—")}
+              </span>
+            </div>
           </div>
         </section>
       )}
 
       {tab === "visibility" && (
         <section className="pe-pane card">
-          <h3><Icon name="key" size={16} variant="badge" /> Visibility</h3>
+          <h3>
+            <Icon name="key" size={16} variant="badge" /> Visibility
+          </h3>
           <div className="row-toggle">
             <Checkbox checked={form.active} onChange={(v) => set("active", v)} size={22} />
-            <div><strong>Active</strong><span>{form.active ? "Visible on the storefront." : "Hidden from the storefront. Existing orders are unaffected."}</span></div>
+            <div>
+              <strong>Active</strong>
+              <span>
+                {form.active
+                  ? "Visible on the storefront."
+                  : "Hidden from the storefront. Existing orders are unaffected."}
+              </span>
+            </div>
           </div>
         </section>
       )}
@@ -250,9 +544,11 @@ export const AdminProductEditor: React.FC<{
         .row-toggle strong { display: block; font-size: .92rem; color: var(--ink); }
         .row-toggle span { display: block; font-size: .78rem; color: var(--ink-faint); margin-top: 2px; }
 
+        .pe-variant-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 10px; align-items: flex-end; border: 1px solid var(--line); padding: 12px; border-radius: var(--radius-sm); }
         @media (max-width: 720px) {
           .grid-2, .kv-row { grid-template-columns: 1fr; }
           .pe-head { flex-direction: column; align-items: stretch; }
+          .pe-variant-row { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>

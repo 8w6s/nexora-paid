@@ -92,7 +92,11 @@ export function lockoutBump(key: string, windowMs: number): { count: number } {
   return { count: existing.count };
 }
 
-export function lockoutCheck(key: string, threshold: number, windowMs: number): { locked: boolean; resetMs: number } {
+export function lockoutCheck(
+  key: string,
+  threshold: number,
+  windowMs: number,
+): { locked: boolean; resetMs: number } {
   const existing = buckets.get(key);
   if (!existing) return { locked: false, resetMs: 0 };
   const elapsed = Date.now() - existing.windowStart;

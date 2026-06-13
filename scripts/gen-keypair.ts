@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 /**
  * Generate a fresh ed25519 keypair for license signing.
  *
@@ -20,8 +22,6 @@
  */
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
-import { resolve, join } from "node:path";
 
 // @noble/ed25519 v3 requires a sync sha512 implementation to be registered.
 ed.hashes.sha512 = (m: Uint8Array) => sha512(m);
@@ -45,8 +45,8 @@ const pubKey = await ed.getPublicKey(privKey);
 const privHex = bytesToHex(privKey);
 const pubHex = bytesToHex(pubKey);
 
-writeFileSync(PRIV_PATH, privHex + "\n", { mode: 0o600 });
-writeFileSync(PUB_PATH, pubHex + "\n");
+writeFileSync(PRIV_PATH, `${privHex}\n`, { mode: 0o600 });
+writeFileSync(PUB_PATH, `${pubHex}\n`);
 
 console.log("\n=== Nexora license keypair (ed25519) ===\n");
 console.log(`Private key (32 bytes hex) → ${PRIV_PATH}`);

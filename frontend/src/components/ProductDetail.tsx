@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { api, fmtUsd, type Product } from "../lib/api";
+import { fadeRise, staggerIn } from "../lib/motion";
 import { useCart } from "./CartContext";
 import { Icon } from "./Icon";
-import { api, fmtUsd, type Product } from "../lib/api";
 import { ProductCard } from "./ProductCard";
 import { ProductReviews } from "./ProductReviews";
-import { fadeRise, staggerIn } from "../lib/motion";
 
 // Product is fetched server-side and passed in as a prop (SSR -> good SEO + no client flash).
 export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
@@ -14,69 +15,213 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
   const relRef = useRef<HTMLDivElement>(null);
   const [related, setRelated] = useState<Product[]>([]);
   const [qty, setQty] = useState(1);
-  const out = !product.inStock;
+
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    product.variants && product.variants.length > 0 ? product.variants[0].id : null,
+  );
+
+  const selectedVariant = product.variants?.find((v) => v.id === selectedVariantId);
+  const activePrice = selectedVariant ? selectedVariant.priceUsd : product.priceUsd;
+  const activeComparePrice = selectedVariant
+    ? selectedVariant.compareAtPrice
+    : product.compareAtPrice;
+  const activeStock = selectedVariant ? selectedVariant.stock : product.stock;
+  const activeOut = selectedVariant ? !selectedVariant.inStock : !product.inStock;
 
   const handleAdd = () => {
     if (!addBtnRef.current) return;
-    for (let i = 0; i < qty; i++) addToCart(product, i === 0 ? addBtnRef.current : undefined);
+    for (let i = 0; i < qty; i++)
+      addToCart(product, selectedVariant, i === 0 ? addBtnRef.current : undefined);
   };
+
+  useEffect(() => {
+    setQty(1);
+  }, []);
 
   // Related products (same category, excluding this one).
   useEffect(() => {
-    api.get<Product[]>(`/api/products?category=${encodeURIComponent(product.category)}`)
+    api
+      .get<Product[]>(`/api/products?category=${encodeURIComponent(product.category)}`)
       .then((list) => setRelated(list.filter((p) => p.id !== product.id).slice(0, 4)))
       .catch(() => {});
   }, [product.id, product.category]);
 
-  useEffect(() => { fadeRise(infoRef.current, { duration: 480 }); }, [product.id]);
-  useEffect(() => { if (relRef.current && related.length) staggerIn(relRef.current.querySelectorAll(".product-card")); }, [related]);
+  useEffect(() => {
+    fadeRise(infoRef.current, { duration: 480 });
+  }, []);
+  useEffect(() => {
+    if (relRef.current && related.length)
+      staggerIn(relRef.current.querySelectorAll(".product-card"));
+  }, [related]);
 
   return (
     <div className="pd container">
       <nav className="crumbs" aria-label="Breadcrumb">
-        <a href="/">Home</a><span>/</span>
-        <a href={`/?category=${encodeURIComponent(product.category)}`}>{product.category}</a><span>/</span>
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href={`/?category=${encodeURIComponent(product.category)}`}>{product.category}</a>
+        <span>/</span>
         <span aria-current="page">{product.name}</span>
       </nav>
 
       <div className="pd-grid">
         <div className="pd-media">
           <img src={product.image} alt={product.name} />
-          {out && <span className="pd-soldout">Out of stock</span>}
-          <span className="pd-tag"><Icon name="zap" size={13} /> Instant delivery</span>
+          {activeOut && <span className="pd-soldout">Out of stock</span>}
+          <span className="pd-tag">
+            <Icon name="zap" size={13} /> Instant delivery
+          </span>
         </div>
 
         <div className="pd-info" ref={infoRef}>
           <span className="pill cat-pill">{product.category}</span>
           <h1 className="pd-name">{product.name}</h1>
           <div className="pd-meta">
-            <span className={out ? "muted" : "stock-ok"}><Icon name="box" size={13} /> {product.inStock ? `${product.stock} in stock` : "Out of stock"}</span>
-            {product.sold > 0 && <><span className="dot">·</span><span className="muted">{product.sold} sold</span></>}
+            <span className={activeOut ? "muted" : "stock-ok"}>
+              <Icon name="box" size={13} />{" "}
+              {!activeOut ? `${activeStock} in stock` : "Out of stock"}
+            </span>
+            {product.sold > 0 && (
+              <>
+                <span className="dot">·</span>
+                <span className="muted">{product.sold} sold</span>
+              </>
+            )}
           </div>
           <p className="pd-desc">{product.description}</p>
 
-          <div className="pd-price-row">
-            <span className="price pd-price">{fmtUsd(product.priceUsd)}</span>
+          <div
+            className="pd-price-row"
+            style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}
+          >
+            <span className="price pd-price">{fmtUsd(activePrice)}</span>
+            {activeComparePrice && activeComparePrice > activePrice && (
+              <>
+                <span
+                  style={{
+                    textDecoration: "line-through",
+                    color: "var(--ink-faint)",
+                    fontSize: "1.3rem",
+                  }}
+                >
+                  {fmtUsd(activeComparePrice)}
+                </span>
+                <span
+                  className="pill"
+                  style={{
+                    background: "var(--price-soft)",
+                    color: "var(--price)",
+                    fontWeight: "700",
+                    fontSize: "0.82rem",
+                  }}
+                >
+                  -{Math.round(((activeComparePrice - activePrice) / activeComparePrice) * 100)}%
+                </span>
+              </>
+            )}
           </div>
 
+          {product.variants && product.variants.length > 0 && (
+            <div className="pd-variants" style={{ margin: "14px 0 6px" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: ".82rem",
+                  fontWeight: "700",
+                  color: "var(--ink-soft)",
+                  textTransform: "uppercase",
+                  letterSpacing: ".06em",
+                  marginBottom: "8px",
+                }}
+              >
+                Choose Package
+              </span>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {product.variants.map((v) => {
+                  const isSelected = selectedVariantId === v.id;
+                  const vStock = v.stock;
+                  const vOut = vStock <= 0;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => !vOut && setSelectedVariantId(v.id)}
+                      disabled={vOut}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: "100px",
+                        border: isSelected
+                          ? "2px solid var(--brand)"
+                          : "1px solid var(--line-strong)",
+                        background: isSelected ? "var(--brand-soft)" : "var(--surface)",
+                        color: isSelected
+                          ? "var(--brand)"
+                          : vOut
+                            ? "var(--ink-faint)"
+                            : "var(--ink)",
+                        fontWeight: "600",
+                        fontSize: "0.88rem",
+                        cursor: vOut ? "not-allowed" : "pointer",
+                        opacity: vOut ? 0.55 : 1,
+                        transition: "all 0.15s ease",
+                      }}
+                      type="button"
+                    >
+                      {v.name} - {fmtUsd(v.priceUsd)} {vOut && "(Out of Stock)"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="pd-buy">
-            {!out && (
+            {!activeOut && (
               <div className="qty">
-                <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} aria-label="Decrease quantity"><Icon name="minus" size={14} /></button>
+                <button
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  disabled={qty <= 1}
+                  aria-label="Decrease quantity"
+                >
+                  <Icon name="minus" size={14} />
+                </button>
                 <span>{qty}</span>
-                <button onClick={() => setQty((q) => Math.min(product.stock, q + 1))} disabled={qty >= product.stock} aria-label="Increase quantity"><Icon name="plus" size={14} /></button>
+                <button
+                  onClick={() => setQty((q) => Math.min(activeStock, q + 1))}
+                  disabled={qty >= activeStock}
+                  aria-label="Increase quantity"
+                >
+                  <Icon name="plus" size={14} />
+                </button>
               </div>
             )}
-            <button ref={addBtnRef} className="btn pd-add" onClick={handleAdd} disabled={out}>
-              {!out && <Icon name="cart" size={17} />}
-              <span>{out ? "Sold out" : "Add to cart"}</span>
+            <button ref={addBtnRef} className="btn pd-add" onClick={handleAdd} disabled={activeOut}>
+              {!activeOut && <Icon name="cart" size={17} />}
+              <span>{activeOut ? "Sold out" : "Add to cart"}</span>
             </button>
           </div>
 
           <div className="pd-trust">
-            <div><Icon name="zap" size={16} variant="badge" /><div><strong>Instant delivery</strong><span>Keys sent automatically after payment</span></div></div>
-            <div><Icon name="shield" size={16} variant="badge" /><div><strong>Secure payment</strong><span>Pay in Litecoin, settled on-chain</span></div></div>
-            <div><Icon name="key" size={16} variant="badge" /><div><strong>Always available</strong><span>Re-view your keys anytime in My Orders</span></div></div>
+            <div>
+              <Icon name="zap" size={16} variant="badge" />
+              <div>
+                <strong>Instant delivery</strong>
+                <span>Keys sent automatically after payment</span>
+              </div>
+            </div>
+            <div>
+              <Icon name="shield" size={16} variant="badge" />
+              <div>
+                <strong>Secure payment</strong>
+                <span>Pay in Litecoin, settled on-chain</span>
+              </div>
+            </div>
+            <div>
+              <Icon name="key" size={16} variant="badge" />
+              <div>
+                <strong>Always available</strong>
+                <span>Re-view your keys anytime in My Orders</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -85,7 +230,9 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
         <section className="pd-related">
           <h2>Related products</h2>
           <div className="rel-grid" ref={relRef}>
-            {related.map((p) => <ProductCard key={p.id} product={p} />)}
+            {related.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
           </div>
         </section>
       )}

@@ -3,13 +3,15 @@ import { db } from "../db/connection.ts";
 import { products } from "../db/schema.ts";
 
 export function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")   // strip diacritics
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80) || "product";
+  return (
+    input
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "") // strip diacritics
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "product"
+  );
 }
 
 // Ensure slug uniqueness by appending -2, -3, ... when taken (ignoring an optional self id).

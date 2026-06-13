@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import { Icon } from "./Icon";
 
 /**
@@ -13,7 +13,9 @@ export const EmptyState: React.FC<{
   compact?: boolean;
 }> = ({ icon = "box", title, desc, cta, compact }) => (
   <div className={`empty-state ${compact ? "compact" : ""}`}>
-    <span className="es-icon"><Icon name={icon} size={compact ? 20 : 26} variant="badge" /></span>
+    <span className="es-icon">
+      <Icon name={icon} size={compact ? 20 : 26} variant="badge" />
+    </span>
     <h3>{title}</h3>
     {desc && <p>{desc}</p>}
     {cta && <div className="es-cta">{cta}</div>}

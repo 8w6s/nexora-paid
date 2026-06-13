@@ -9,16 +9,16 @@
   --line: #e8eaed;
   --line-strong: #dadde1;
 
-  --brand: #2f6df6;        /* xanh dương cho nav/link */
+  --brand: #2f6df6; /* xanh dương cho nav/link */
   --brand-soft: #eaf1fe;
-  --price: #f5222d;        /* giá đỏ nổi bật */
+  --price: #f5222d; /* giá đỏ nổi bật */
   --price-soft: #fff1f0;
-  --auto: #16a34a;         /* tag giao tự động */
+  --auto: #16a34a; /* tag giao tự động */
   --auto-soft: #e7f6ec;
   --warn: #d97706;
   --warn-soft: #fdf3e7;
 
-  --tag: #7c3aed;          /* category pill tím nhạt như gemkey */
+  --tag: #7c3aed; /* category pill tím nhạt như gemkey */
   --tag-soft: #f1ebfe;
 
   --font-sans: "Fredoka", "Kosugi Maru", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -44,17 +44,17 @@
   --line: #24262d;
   --line-strong: #2e313a;
   --brand: #6366f1;
-  --brand-soft: rgba(99,102,241,.14);
+  --brand-soft: rgba(99, 102, 241, 0.14);
   --price: #f87171;
-  --price-soft: rgba(248,113,113,.12);
+  --price-soft: rgba(248, 113, 113, 0.12);
   --auto: #34d399;
-  --auto-soft: rgba(52,211,153,.12);
+  --auto-soft: rgba(52, 211, 153, 0.12);
   --warn: #fbbf24;
-  --warn-soft: rgba(251,191,36,.12);
+  --warn-soft: rgba(251, 191, 36, 0.12);
   --tag: #a78bfa;
-  --tag-soft: rgba(167,139,250,.16);
-  --shadow: 0 2px 8px rgba(0,0,0,.45);
-  --shadow-hover: 0 8px 24px rgba(0,0,0,.55);
+  --tag-soft: rgba(167, 139, 250, 0.16);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.55);
   color-scheme: dark;
 }
 
@@ -82,8 +82,14 @@ body {
   display: flex;
   flex-direction: column;
 }
-body > main, astro-island > main { flex: 1 0 auto; }
-body > footer, astro-island > footer { flex-shrink: 0; }
+body > main,
+astro-island > main {
+  flex: 1 0 auto;
+}
+body > footer,
+astro-island > footer {
+  flex-shrink: 0;
+}
 
 ::selection {
   background: var(--brand);
@@ -103,7 +109,10 @@ body > footer, astro-island > footer { flex-shrink: 0; }
   border-radius: 10px;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-weight: 700;
   line-height: 1.25;
   letter-spacing: -0.01em;
@@ -161,8 +170,11 @@ img {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: filter 0.18s var(--ease), transform 0.12s var(--ease),
-    background 0.18s var(--ease), color 0.18s var(--ease);
+  transition:
+    filter 0.18s var(--ease),
+    transform 0.12s var(--ease),
+    background 0.18s var(--ease),
+    color 0.18s var(--ease);
 }
 .btn:hover:not(:disabled) {
   filter: brightness(1.07);
@@ -196,7 +208,9 @@ img {
   font-family: var(--font-sans);
   font-size: 0.92rem;
   outline: none;
-  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  transition:
+    border-color 0.18s var(--ease),
+    box-shadow 0.18s var(--ease);
 }
 .input::placeholder {
   color: var(--ink-faint);

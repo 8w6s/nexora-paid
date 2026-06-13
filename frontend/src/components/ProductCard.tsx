@@ -1,7 +1,8 @@
-import React, { useRef } from "react";
+import type React from "react";
+import { useRef } from "react";
+import { fmtUsd, type Product } from "../lib/api";
 import { useCart } from "./CartContext";
 import { Icon } from "./Icon";
-import { fmtUsd, type Product } from "../lib/api";
 
 export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
   const { addToCart } = useCart();
@@ -36,7 +37,9 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         <div className="footer">
           <span className="price">{fmtUsd(product.priceUsd)}</span>
           <div className="card-actions">
-            <a href={`/product/${product.slug}`} className="btn btn-ghost detail-btn">Details</a>
+            <a href={`/product/${product.slug}`} className="btn btn-ghost detail-btn">
+              Details
+            </a>
             <button
               ref={btnRef}
               className="btn add-btn"

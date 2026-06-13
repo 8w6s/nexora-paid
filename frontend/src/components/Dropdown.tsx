@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import type React from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "./Icon";
 
 export interface DropdownOption<T extends string> {
@@ -15,7 +16,13 @@ export interface DropdownOption<T extends string> {
  * and a smooth pop-in animation. Falls back gracefully on focus loss.
  */
 export function Dropdown<T extends string>({
-  value, onChange, options, placeholder, width, size = "md", className,
+  value,
+  onChange,
+  options,
+  placeholder,
+  width,
+  size = "md",
+  className,
 }: {
   value: T;
   onChange: (v: T) => void;
@@ -27,7 +34,12 @@ export function Dropdown<T extends string>({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState<number>(() => Math.max(0, options.findIndex((o) => o.value === value)));
+  const [active, setActive] = useState<number>(() =>
+    Math.max(
+      0,
+      options.findIndex((o) => o.value === value),
+    ),
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -35,7 +47,12 @@ export function Dropdown<T extends string>({
 
   useEffect(() => {
     if (!open) return;
-    setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+    setActive(
+      Math.max(
+        0,
+        options.findIndex((o) => o.value === value),
+      ),
+    );
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
@@ -69,21 +86,46 @@ export function Dropdown<T extends string>({
   };
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen(true); return; }
+    if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      setOpen(true);
+      return;
+    }
     if (!open) return;
-    if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
-    else if (e.key === "Home") { e.preventDefault(); setActive(0); }
-    else if (e.key === "End") { e.preventDefault(); setActive(options.length - 1); }
-    else if (e.key === "Enter") { e.preventDefault(); choose(active); }
-    else if (e.key === "Tab") { setOpen(false); }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      move(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      move(-1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActive(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActive(options.length - 1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      choose(active);
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
   };
 
-  const styleW: React.CSSProperties = width ? { width: typeof width === "number" ? `${width}px` : width } : {};
+  const styleW: React.CSSProperties = width
+    ? { width: typeof width === "number" ? `${width}px` : width }
+    : {};
 
   return (
-    <div ref={rootRef} className={`dd ${size} ${open ? "open" : ""} ${className ?? ""}`} style={styleW} onKeyDown={onKey}>
+    <div
+      ref={rootRef}
+      className={`dd ${size} ${open ? "open" : ""} ${className ?? ""}`}
+      style={styleW}
+      onKeyDown={onKey}
+    >
       <button
         type="button"
         className="dd-trigger"
@@ -100,14 +142,21 @@ export function Dropdown<T extends string>({
       </button>
 
       {open && (
-        <ul ref={listRef} id={`${id}-list`} role="listbox" className="dd-list" tabIndex={-1}>
+        <ul ref={listRef} id={`${id}-list`} className="dd-list" tabIndex={-1}>
           {options.map((o, i) => (
-            <li key={String(o.value)} role="option" aria-selected={value === o.value} aria-disabled={o.disabled || undefined}
+            <li
+              key={String(o.value)}
+              aria-selected={value === o.value}
+              aria-disabled={o.disabled || undefined}
               className={`dd-opt ${i === active ? "active" : ""} ${value === o.value ? "selected" : ""} ${o.disabled ? "disabled" : ""}`}
               onMouseEnter={() => !o.disabled && setActive(i)}
               onClick={() => choose(i)}
             >
-              {o.icon && <span className="dd-opt-icon"><Icon name={o.icon} size={14} variant="duotone-regular" /></span>}
+              {o.icon && (
+                <span className="dd-opt-icon">
+                  <Icon name={o.icon} size={14} variant="duotone-regular" />
+                </span>
+              )}
               <span className="dd-opt-text">
                 <span className="dd-opt-label">{o.label}</span>
                 {o.desc && <span className="dd-opt-desc">{o.desc}</span>}

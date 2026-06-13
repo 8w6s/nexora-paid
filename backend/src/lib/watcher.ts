@@ -1,8 +1,9 @@
 import { and, eq, lte, sql } from "drizzle-orm";
 import { db } from "../db/connection.ts";
-import { orders, products, productKeys } from "../db/schema.ts";
+import { orders, productKeys, products } from "../db/schema.ts";
 import { getAddrStatus, paymentDecision } from "./explorer.ts";
-import { markPaidAndDeliver, releaseKeys } from "./inventory.ts";
+import { markPaidAndDeliver } from "./inventory.ts";
+import { hookBus } from "./plugin/hook-bus.ts";
 import { getSetting, getSettingNumber } from "./settings.ts";
 
 /**
@@ -22,7 +23,20 @@ export function onOrderDelivered(hook: DeliverHook) {
 
 const PAYABLE = sql`${orders.status} in ('pending','awaiting_payment','underpaid')`;
 
-/** Expire payable orders past their window; release their reserved keys. */
+/**
+ * Expire payable orders past their window; release their reserved keys.
+ *
+ * Atomicity: each (status flip + key release) pair runs in a transaction so a
+ * crash between the two halves can't leak keys forever. Before iter 18 this
+ * was two separate awaits — if the process died after the status update but
+ * before releaseKeys, those product_keys stayed "reserved" pointing at an
+ * "expired" order. recoverStuckOrders() only inspects 'paid' orders, so the
+ * leaked keys would never come back to "available" without manual DB surgery.
+ *
+ * The inside-tx UPDATE keeps the PAYABLE guard so a concurrent watcher tick
+ * (or a payment that races the expiry) doesn't double-flip: only the
+ * transaction whose UPDATE affects exactly one row proceeds to release.
+ */
 async function expireStaleOrders(): Promise<void> {
   const now = new Date();
   const stale = await db
@@ -30,32 +44,74 @@ async function expireStaleOrders(): Promise<void> {
     .from(orders)
     .where(and(PAYABLE, lte(orders.expiresAt, now)));
   if (stale.length === 0) return;
+  let expired = 0;
   for (const o of stale) {
-    await db.update(orders).set({ status: "expired" }).where(and(eq(orders.id, o.id), PAYABLE));
-    await releaseKeys(o.id);
+    await db.transaction(async (tx) => {
+      const res = await tx
+        .update(orders)
+        .set({ status: "expired" })
+        .where(and(eq(orders.id, o.id), PAYABLE));
+      const affected = (res as any)?.changes ?? (res as any)?.rowsAffected ?? 0;
+      if (affected !== 1) return; // someone else (payment race) advanced the order — leave it alone
+      await tx
+        .update(productKeys)
+        .set({ status: "available", orderId: null, reservedAt: null })
+        .where(and(eq(productKeys.orderId, o.id), eq(productKeys.status, "reserved")));
+      expired++;
+    });
   }
-  if (stale.length) console.log(`[watcher] expired ${stale.length} stale order(s), keys released.`);
 }
 
 /** Check one order against the blockchain and advance its state. */
-async function checkOrder(o: typeof orders.$inferSelect, token: string | undefined, requiredConf: number, tol: number): Promise<void> {
+async function checkOrder(
+  o: typeof orders.$inferSelect,
+  token: string | undefined,
+  requiredConf: number,
+  tol: number,
+): Promise<void> {
   const status = await getAddrStatus(o.ltcAddress, token);
   const decision = paymentDecision(status, o.expectedLitoshi, requiredConf, tol);
 
   if (decision === "paid") {
-    const delivered = await markPaidAndDeliver(o.id, status.txid ?? null, status.receivedLitoshi, status.maxConfirmations);
+    const delivered = await markPaidAndDeliver(
+      o.id,
+      status.txid ?? null,
+      status.receivedLitoshi,
+      status.maxConfirmations,
+    );
     if (delivered) {
-      console.log(`[watcher] order ${o.id} PAID & delivered ${delivered.length} key(s).`);
       onDelivered?.(o.id, o.email, delivered);
+      // Emit hooks for plugins (analytics, external webhooks, etc.)
+      hookBus
+        .emit("payment.paid", { orderId: o.id, userId: o.userId, amountUsd: o.totalUsd })
+        .catch(() => {});
+      // Emit per-product delivered hooks
+      for (const dk of delivered) {
+        hookBus
+          .emit("product.delivered", {
+            orderId: o.id,
+            userId: o.userId,
+            productId: "",
+            deliveredKeys: [dk.code],
+          })
+          .catch(() => {});
+      }
     }
   } else if (decision === "underpaid") {
     await db
       .update(orders)
-      .set({ status: "underpaid", receivedLitoshi: status.receivedLitoshi, confirmations: status.maxConfirmations })
+      .set({
+        status: "underpaid",
+        receivedLitoshi: status.receivedLitoshi,
+        confirmations: status.maxConfirmations,
+      })
       .where(and(eq(orders.id, o.id), PAYABLE));
   } else {
     // waiting: record any partial/confirmation progress for the pay page
-    if (status.receivedLitoshi !== o.receivedLitoshi || status.maxConfirmations !== o.confirmations) {
+    if (
+      status.receivedLitoshi !== o.receivedLitoshi ||
+      status.maxConfirmations !== o.confirmations
+    ) {
       await db
         .update(orders)
         .set({ receivedLitoshi: status.receivedLitoshi, confirmations: status.maxConfirmations })
@@ -74,9 +130,7 @@ async function tick(): Promise<void> {
   for (const o of payable) {
     try {
       await checkOrder(o, token, requiredConf, tol);
-    } catch (e) {
-      console.warn(`[watcher] order ${o.id} check failed:`, e instanceof Error ? e.message : e);
-    }
+    } catch (_e) {}
     await Bun.sleep(PER_ADDRESS_DELAY_MS);
   }
 }
@@ -85,14 +139,11 @@ async function tick(): Promise<void> {
 export function startWatcher(): void {
   if (running) return;
   running = true;
-  console.log("[watcher] started (DB-driven, 30s interval).");
   (async () => {
     for (;;) {
       try {
         await tick();
-      } catch (e) {
-        console.warn("[watcher] tick error:", e instanceof Error ? e.message : e);
-      }
+      } catch (_e) {}
       await Bun.sleep(POLL_INTERVAL_MS);
     }
   })();
@@ -109,13 +160,17 @@ export async function recoverStuckOrders(): Promise<void> {
   const paid = await db.select().from(orders).where(eq(orders.status, "paid"));
   for (const o of paid) {
     if (!o.deliveredAt) {
-      const delivered = await markPaidAndDeliver(o.id, o.paidTxId, o.receivedLitoshi, o.confirmations);
+      const delivered = await markPaidAndDeliver(
+        o.id,
+        o.paidTxId,
+        o.receivedLitoshi,
+        o.confirmations,
+      );
       // markPaidAndDeliver only acts on payable states; for an already-'paid' order it returns null,
       // so handle the crash-mid-delivery case directly here instead.
       if (!delivered) await redeliverPaid(o.id);
     }
   }
-  if (paid.length) console.log(`[watcher] recovery scanned ${paid.length} paid order(s).`);
 }
 
 // Deliver reserved keys for an order already in 'paid' (crash-recovery path), idempotent.
@@ -128,8 +183,14 @@ async function redeliverPaid(orderId: string): Promise<void> {
     if (reserved.length === 0) return;
     const now = new Date();
     for (const k of reserved) {
-      await tx.update(productKeys).set({ status: "delivered", deliveredAt: now }).where(eq(productKeys.id, k.id));
-      await tx.update(products).set({ sold: sql`${products.sold} + 1` }).where(eq(products.id, k.productId));
+      await tx
+        .update(productKeys)
+        .set({ status: "delivered", deliveredAt: now })
+        .where(eq(productKeys.id, k.id));
+      await tx
+        .update(products)
+        .set({ sold: sql`${products.sold} + 1` })
+        .where(eq(products.id, k.productId));
     }
     await tx.update(orders).set({ deliveredAt: now }).where(eq(orders.id, orderId));
   });

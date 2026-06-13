@@ -1,11 +1,17 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { db } from "../db/connection.ts";
 import { adminActions } from "../db/schema.ts";
 
 // Best-effort admin audit log. A logging failure must never break the action it records.
-export async function logAdminAction(adminEmail: string, action: string, detail?: string): Promise<void> {
+export async function logAdminAction(
+  adminEmail: string,
+  action: string,
+  detail?: string,
+): Promise<void> {
   try {
-    await db.insert(adminActions).values({ id: randomUUID(), adminEmail, action, detail: detail ?? null });
+    await db
+      .insert(adminActions)
+      .values({ id: randomUUID(), adminEmail, action, detail: detail ?? null });
   } catch {
     // swallow — audit logging is non-critical
   }
@@ -18,7 +24,19 @@ export async function logAdminAction(adminEmail: string, action: string, detail?
  * an operator notice credential stuffing patterns even when the per-account
  * lockout silently absorbed the brute force.
  */
-export async function logAuthEvent(email: string, action: "login.ok" | "login.fail" | "login.locked" | "register" | "logout" | "register.dup" | "login.banned", ip: string, detail?: string): Promise<void> {
+export async function logAuthEvent(
+  email: string,
+  action:
+    | "login.ok"
+    | "login.fail"
+    | "login.locked"
+    | "register"
+    | "logout"
+    | "register.dup"
+    | "login.banned",
+  ip: string,
+  detail?: string,
+): Promise<void> {
   try {
     await db.insert(adminActions).values({
       id: randomUUID(),

@@ -1,50 +1,71 @@
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { useAuth } from "./AuthContext";
+import { AdminActivity } from "./admin/AdminActivity";
+import { AdminCategories } from "./admin/AdminCategories";
+import { AdminCoupons } from "./admin/AdminCoupons";
+import { AdminCustomers } from "./admin/AdminCustomers";
+import { AdminFeatures } from "./admin/AdminFeatures";
+import { AdminLogin } from "./admin/AdminLogin";
+import { AdminOrders } from "./admin/AdminOrders";
+import { AdminOverview } from "./admin/AdminOverview";
+import { AdminPayments } from "./admin/AdminPayments";
+import { AdminProducts } from "./admin/AdminProducts";
+import { AdminReviews } from "./admin/AdminReviews";
+import { AdminSettings } from "./admin/AdminSettings";
+import { AdminTickets } from "./admin/AdminTickets";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { AdminLogin } from "./admin/AdminLogin";
-import { AdminOverview } from "./admin/AdminOverview";
-import { AdminProducts } from "./admin/AdminProducts";
-import { AdminOrders } from "./admin/AdminOrders";
-import { AdminSettings } from "./admin/AdminSettings";
-import { AdminFeatures } from "./admin/AdminFeatures";
-import { AdminPayments } from "./admin/AdminPayments";
-import { AdminCustomers } from "./admin/AdminCustomers";
-import { AdminCoupons } from "./admin/AdminCoupons";
-import { AdminReviews } from "./admin/AdminReviews";
-import { AdminTickets } from "./admin/AdminTickets";
-import { AdminActivity } from "./admin/AdminActivity";
-import { AdminCategories } from "./admin/AdminCategories";
 
 type Tab =
-  | "overview" | "products" | "categories" | "orders" | "customers" | "coupons"
-  | "reviews" | "tickets" | "payments" | "features" | "activity" | "settings";
+  | "overview"
+  | "products"
+  | "categories"
+  | "orders"
+  | "customers"
+  | "coupons"
+  | "reviews"
+  | "tickets"
+  | "payments"
+  | "features"
+  | "activity"
+  | "settings";
 
 // SellAuth-style grouped sidebar nav. Order matters — Overview standalone at top, then themed groups.
 const NAV_GROUPS: { title?: string; items: { key: Tab; label: string; icon: any }[] }[] = [
   { items: [{ key: "overview", label: "Dashboard", icon: "home" }] },
-  { title: "Catalog", items: [
-    { key: "products", label: "Products", icon: "box" },
-    { key: "categories", label: "Categories", icon: "folder" },
-    { key: "coupons", label: "Coupons", icon: "tag" },
-  ]},
-  { title: "Sales", items: [
-    { key: "orders", label: "Orders", icon: "receipt" },
-    { key: "customers", label: "Customers", icon: "users" },
-    { key: "reviews", label: "Reviews", icon: "star" },
-  ]},
-  { title: "Support", items: [
-    { key: "tickets", label: "Tickets", icon: "ticket" },
-  ]},
-  { title: "Storefront", items: [
-    { key: "payments", label: "Payments", icon: "credit-card" },
-    { key: "features", label: "Features", icon: "bolt" },
-  ]},
-  { title: "System", items: [
-    { key: "activity", label: "Activity", icon: "activity" },
-    { key: "settings", label: "Settings", icon: "settings" },
-  ]},
+  {
+    title: "Catalog",
+    items: [
+      { key: "products", label: "Products", icon: "box" },
+      { key: "categories", label: "Categories", icon: "folder" },
+      { key: "coupons", label: "Coupons", icon: "tag" },
+    ],
+  },
+  {
+    title: "Sales",
+    items: [
+      { key: "orders", label: "Orders", icon: "receipt" },
+      { key: "customers", label: "Customers", icon: "users" },
+      { key: "reviews", label: "Reviews", icon: "star" },
+    ],
+  },
+  { title: "Support", items: [{ key: "tickets", label: "Tickets", icon: "ticket" }] },
+  {
+    title: "Storefront",
+    items: [
+      { key: "payments", label: "Payments", icon: "credit-card" },
+      { key: "features", label: "Features", icon: "bolt" },
+    ],
+  },
+  {
+    title: "System",
+    items: [
+      { key: "activity", label: "Activity", icon: "activity" },
+      { key: "settings", label: "Settings", icon: "settings" },
+    ],
+  },
 ];
 
 export const AdminDashboard: React.FC = () => {
@@ -53,28 +74,40 @@ export const AdminDashboard: React.FC = () => {
   const [tab, setTab] = useState<Tab>("overview");
   const [navOpen, setNavOpen] = useState(false); // mobile drawer
 
-  if (loading) return <div className="adm-loading"><Icon name="spinner" size={28} className="is-spinning" /></div>;
-  if (!user || user.role !== "admin")
+  if (loading)
+    return (
+      <div className="adm-loading">
+        <Icon name="spinner" size={28} className="is-spinning" />
+      </div>
+    );
+  if (user?.role !== "admin")
     return (
       <>
         <AdminLogin />
-        {user && user.role !== "admin" && <p className="adm-denied">Signed in as {user.email} — not an admin account.</p>}
+        {user && user.role !== "admin" && (
+          <p className="adm-denied">Signed in as {user.email} — not an admin account.</p>
+        )}
       </>
     );
 
-  const activeLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === tab)?.label ?? "Admin";
+  const activeLabel =
+    NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === tab)?.label ?? "Admin";
 
   return (
     <div className="adm-shell">
       {/* Mobile topbar — only visible <900px */}
       <div className="adm-topbar">
-        <button className="adm-burger" onClick={() => setNavOpen((o) => !o)} aria-label="Open menu"><Icon name={navOpen ? "close" : "bell"} size={18} /></button>
+        <button className="adm-burger" onClick={() => setNavOpen((o) => !o)} aria-label="Open menu">
+          <Icon name={navOpen ? "close" : "bell"} size={18} />
+        </button>
         <span className="adm-topbar-title">{activeLabel}</span>
       </div>
 
       <aside className={`adm-side ${navOpen ? "open" : ""}`}>
         <div className="adm-brand">
-          <span className="adm-logo-mark"><Icon name="key" size={16} /></span>
+          <span className="adm-logo-mark">
+            <Icon name="key" size={16} />
+          </span>
           <span className="adm-logo-text">
             <span className="adm-logo-name">Nexora</span>
             <span className="adm-tag">Admin</span>
@@ -83,9 +116,13 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <a href="/" className="adm-store" title="Open storefront">
-          <span className="adm-store-icon"><Icon name="box" size={14} /></span>
+          <span className="adm-store-icon">
+            <Icon name="box" size={14} />
+          </span>
           <span className="adm-store-name">{config.storeName ?? "Store"}</span>
-          <span className="adm-store-link"><Icon name="arrow-right" size={12} /></span>
+          <span className="adm-store-link">
+            <Icon name="arrow-right" size={12} />
+          </span>
         </a>
 
         <nav className="adm-nav">
@@ -96,7 +133,10 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   key={item.key}
                   className={`adm-link ${tab === item.key ? "active" : ""}`}
-                  onClick={() => { setTab(item.key); setNavOpen(false); }}
+                  onClick={() => {
+                    setTab(item.key);
+                    setNavOpen(false);
+                  }}
                 >
                   <Icon name={item.icon} size={15} />
                   <span>{item.label}</span>
@@ -107,11 +147,23 @@ export const AdminDashboard: React.FC = () => {
         </nav>
 
         <div className="adm-side-foot">
-          <div className="adm-theme"><ThemeSwitch /><span>{theme === "dark" ? "Dark mode" : "Light mode"}</span></div>
+          <div className="adm-theme">
+            <ThemeSwitch />
+            <span>{theme === "dark" ? "Dark mode" : "Light mode"}</span>
+          </div>
           <div className="adm-account">
             <span className="adm-avatar">{user.email[0]?.toUpperCase() ?? "A"}</span>
-            <span className="adm-email" title={user.email}>{user.email}</span>
-            <button className="adm-signout" onClick={() => logout().then(() => window.location.reload())} aria-label="Sign out" title="Sign out"><Icon name="close" size={14} /></button>
+            <span className="adm-email" title={user.email}>
+              {user.email}
+            </span>
+            <button
+              className="adm-signout"
+              onClick={() => logout().then(() => window.location.reload())}
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <Icon name="close" size={14} />
+            </button>
           </div>
         </div>
       </aside>

@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+import type React from "react";
+import { useEffect } from "react";
 import { Icon } from "./Icon";
 
 /**
@@ -17,7 +18,9 @@ export const Modal: React.FC<{
 }> = ({ open, onClose, title, size = "md", footer, children }) => {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     // Lock body scroll while open
     const prev = document.body.style.overflow;
@@ -35,7 +38,9 @@ export const Modal: React.FC<{
   return (
     <div className="m-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div className="m-box card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: maxW }}>
-        <button className="m-x" onClick={onClose} aria-label="Close"><Icon name="close" size={16} /></button>
+        <button className="m-x" onClick={onClose} aria-label="Close">
+          <Icon name="close" size={16} />
+        </button>
         {title && <h3 className="m-title">{title}</h3>}
         <div className="m-body">{children}</div>
         {footer && <div className="m-footer">{footer}</div>}

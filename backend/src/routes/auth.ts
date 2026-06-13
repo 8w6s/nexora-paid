@@ -1,21 +1,27 @@
-import { Elysia, t } from "elysia";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
-import {
-  hashPassword,
-  verifyLogin,
-  normalizeEmail,
-  createSession,
-  validateSession,
-  destroySession,
-  sessionCookieOptions,
-  SESSION_COOKIE,
-} from "../lib/auth.ts";
-import { rateLimitCheck, lockoutCheck, lockoutBump, lockoutReset, clientIp as resolveClientIp } from "../lib/rate-limit.ts";
-import { hookBus } from "../lib/plugin/hook-bus.ts";
 import { logAuthEvent } from "../lib/audit.ts";
+import {
+  createSession,
+  destroySession,
+  hashPassword,
+  normalizeEmail,
+  SESSION_COOKIE,
+  sessionCookieOptions,
+  validateSession,
+  verifyLogin,
+} from "../lib/auth.ts";
+import { hookBus } from "../lib/plugin/hook-bus.ts";
+import {
+  lockoutBump,
+  lockoutCheck,
+  lockoutReset,
+  rateLimitCheck,
+  clientIp as resolveClientIp,
+} from "../lib/rate-limit.ts";
 
 /* ───────── auth macros: requireAuth / requireAdmin (Elysia 1.4 macro v2 + resolve) ───────── */
 // `resolve` runs after validation, injects a typed `user` into context, and short-circuits
@@ -105,7 +111,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         email: t.String({ format: "email", maxLength: 254 }),
         password: t.String({ minLength: 8, maxLength: 200 }),
       }),
-    }
+    },
   )
   .post(
     "/login",
@@ -122,7 +128,11 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         set.status = 429;
         set.headers["Retry-After"] = String(Math.ceil(lock.resetMs / 1000));
         void logAuthEvent(email, "login.locked", ip);
-        return { error: "Account temporarily locked — try again later", code: "ACCOUNT_LOCKED", retryAfterMs: lock.resetMs };
+        return {
+          error: "Account temporarily locked — try again later",
+          code: "ACCOUNT_LOCKED",
+          retryAfterMs: lock.resetMs,
+        };
       }
       const user = (await db.select().from(users).where(eq(users.email, email)))[0];
       const ok = await verifyLogin(user, body.password);
@@ -145,14 +155,23 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       void logAuthEvent(email, "login.ok", ip, user.role === "admin" ? "(admin)" : undefined);
       return { id: user.id, email: user.email, role: user.role };
     },
-    { body: t.Object({ email: t.String({ maxLength: 254 }), password: t.String({ maxLength: 200 }) }) }
+    {
+      body: t.Object({
+        email: t.String({ maxLength: 254 }),
+        password: t.String({ maxLength: 200 }),
+      }),
+    },
   )
   .post("/logout", async ({ cookie, request }) => {
     const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
     // We don't know the email at this point unless we re-read the session;
     // do a non-blocking read so the audit trail still has the actor.
     if (tok) {
-      validateSession(tok).then((u) => { if (u) void logAuthEvent(u.email, "logout", clientIp(request)); }).catch(() => {});
+      validateSession(tok)
+        .then((u) => {
+          if (u) void logAuthEvent(u.email, "logout", clientIp(request));
+        })
+        .catch(() => {});
     }
     await destroySession(tok);
     cookie[SESSION_COOKIE]?.remove();
@@ -173,7 +192,6 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
 export async function bootstrapAdmin() {
   const email = Bun.env.ADMIN_EMAIL ? normalizeEmail(Bun.env.ADMIN_EMAIL) : null;
   if (!email) {
-    console.warn("[admin] ADMIN_EMAIL not set — no admin account bootstrapped.");
     return;
   }
   let passwordHash = Bun.env.ADMIN_PASSWORD_HASH ?? null;
@@ -181,7 +199,6 @@ export async function bootstrapAdmin() {
     passwordHash = await hashPassword(Bun.env.ADMIN_PASSWORD);
   }
   if (!passwordHash) {
-    console.warn("[admin] No ADMIN_PASSWORD_HASH / ADMIN_PASSWORD — admin login disabled.");
     return;
   }
   const existing = (await db.select().from(users).where(eq(users.email, email)))[0];
@@ -190,5 +207,4 @@ export async function bootstrapAdmin() {
   } else {
     await db.insert(users).values({ id: randomUUID(), email, passwordHash, role: "admin" });
   }
-  console.log(`[admin] Admin account ready: ${email}`);
 }

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import type React from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { runThemeCurtain } from "../lib/themeTransition";
 
@@ -9,7 +10,12 @@ export interface StoreConfig {
   features: Record<string, boolean>;
 }
 
-const DEFAULT: StoreConfig = { storeName: "Nexora", needsSetup: false, faKitUrl: null, features: {} };
+const DEFAULT: StoreConfig = {
+  storeName: "Nexora",
+  needsSetup: false,
+  faKitUrl: null,
+  features: {},
+};
 
 export type Theme = "light" | "dark";
 
@@ -41,7 +47,12 @@ const initialTheme = (): Theme => {
     if (s !== "dark" && s !== "light") {
       for (const k of LEGACY_THEME_KEYS) {
         const v = localStorage.getItem(k);
-        if (v === "dark" || v === "light") { s = v; localStorage.setItem(THEME_KEY, v); localStorage.removeItem(k); break; }
+        if (v === "dark" || v === "light") {
+          s = v;
+          localStorage.setItem(THEME_KEY, v);
+          localStorage.removeItem(k);
+          break;
+        }
       }
     }
     if (s === "dark" || s === "light") return s;
@@ -58,7 +69,9 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const applyTheme = (t: Theme) => {
     setThemeState(t);
     if (typeof document !== "undefined") document.documentElement.dataset.theme = t;
-    try { localStorage.setItem(THEME_KEY, t); } catch {}
+    try {
+      localStorage.setItem(THEME_KEY, t);
+    } catch {}
   };
   const setTheme = (t: Theme) => {
     if (t === theme) return;
@@ -80,8 +93,10 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await refresh();
       if (active) setLoading(false);
     })();
-    return () => { active = false; };
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [refresh]);
 
   // Inject the Font Awesome Pro Kit once we know the URL (client-side).
   useEffect(() => {
@@ -97,7 +112,11 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const isOn = (feature: string) => config.features[feature] !== false; // default-on if unknown
 
-  return <Ctx.Provider value={{ config, loading, isOn, refresh, theme, setTheme, toggleTheme }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ config, loading, isOn, refresh, theme, setTheme, toggleTheme }}>
+      {children}
+    </Ctx.Provider>
+  );
 };
 
 export const useConfig = () => {

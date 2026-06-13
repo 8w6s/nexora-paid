@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { useAuth } from "./AuthContext";
 import { Icon } from "./Icon";
 import { PasswordInput } from "./PasswordInput";
@@ -34,21 +35,60 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
     <main className="container auth-page">
       <div className="auth-card card">
         <h1>{isLogin ? "Sign in" : "Create your account"}</h1>
-        <p className="sub">{isLogin ? "Welcome back to Nexora." : "Sign up to buy digital goods with Litecoin."}</p>
+        <p className="sub">
+          {isLogin ? "Welcome back to Nexora." : "Sign up to buy digital goods with Litecoin."}
+        </p>
         <form onSubmit={submit}>
-          <label><span>Email</span>
-            <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" autoComplete="email" />
+          <label>
+            <span>Email</span>
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
           </label>
-          <label><span>Password</span>
-            <PasswordInput value={password} onChange={setPassword} required minLength={isLogin ? undefined : 8} placeholder={isLogin ? "Your password" : "At least 8 characters"} autoComplete={isLogin ? "current-password" : "new-password"} />
+          <label>
+            <span>Password</span>
+            <PasswordInput
+              value={password}
+              onChange={setPassword}
+              required
+              minLength={isLogin ? undefined : 8}
+              placeholder={isLogin ? "Your password" : "At least 8 characters"}
+              autoComplete={isLogin ? "current-password" : "new-password"}
+            />
           </label>
           {error && <div className="auth-error">{error}</div>}
-          <button className="btn" type="submit" disabled={busy} style={{ width: "100%", justifyContent: "center" }}>
-            {busy ? <><Icon name="spinner" size={17} className="is-spinning" /><span>Please wait…</span></> : <span>{isLogin ? "Sign in" : "Create account"}</span>}
+          <button
+            className="btn"
+            type="submit"
+            disabled={busy}
+            style={{ width: "100%", justifyContent: "center" }}
+          >
+            {busy ? (
+              <>
+                <Icon name="spinner" size={17} className="is-spinning" />
+                <span>Please wait…</span>
+              </>
+            ) : (
+              <span>{isLogin ? "Sign in" : "Create account"}</span>
+            )}
           </button>
         </form>
         <p className="switch">
-          {isLogin ? (<>No account? <a href="/register">Create one</a></>) : (<>Already have an account? <a href="/login">Sign in</a></>)}
+          {isLogin ? (
+            <>
+              No account? <a href="/register">Create one</a>
+            </>
+          ) : (
+            <>
+              Already have an account? <a href="/login">Sign in</a>
+            </>
+          )}
         </p>
       </div>
       <style>{`

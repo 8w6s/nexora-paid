@@ -19,11 +19,11 @@ import { getAllSettings, setSetting } from "./settings.ts";
 export type ProviderKind = "crypto-native" | "crypto-gateway" | "card" | "wallet" | "manual";
 
 export interface ProviderField {
-  key: string;        // stored as pay_<id>_<key>
+  key: string; // stored as pay_<id>_<key>
   label: string;
-  secret?: boolean;   // never sent to client; masked as boolean in admin GET
+  secret?: boolean; // never sent to client; masked as boolean in admin GET
   optional?: boolean;
-  hint?: string;      // optional helper text shown under the input
+  hint?: string; // optional helper text shown under the input
   placeholder?: string;
 }
 
@@ -41,26 +41,62 @@ export interface ProviderDef {
 // "*" = worldwide. Country lists are indicative; admin can still force-enable any provider.
 export const PROVIDERS: ProviderDef[] = [
   {
-    id: "crypto_ltc", label: "Litecoin (self-hosted)", kind: "crypto-native", countries: "*", defaultOn: true,
-    fields: [{ key: "xpub", label: "Litecoin extended public key", placeholder: "Ltub… / Mtub… / zpub… / vpub…", hint: "An xpub/zpub — NOT a single address (ltc1q… won't work). It lets us derive a fresh address per order." }],
+    id: "crypto_ltc",
+    label: "Litecoin (self-hosted)",
+    kind: "crypto-native",
+    countries: "*",
+    defaultOn: true,
+    fields: [
+      {
+        key: "xpub",
+        label: "Litecoin extended public key",
+        placeholder: "Ltub… / Mtub… / zpub… / vpub…",
+        hint: "An xpub/zpub — NOT a single address (ltc1q… won't work). It lets us derive a fresh address per order.",
+      },
+    ],
     note: "Self-custody HD wallet — no third party, no fees.",
   },
   {
-    id: "crypto_btc", label: "Bitcoin (self-hosted)", kind: "crypto-native", countries: "*", defaultOn: false,
-    fields: [{ key: "xpub", label: "Bitcoin extended public key", placeholder: "xpub… / ypub… / zpub…", hint: "An xpub/ypub/zpub — not a single bc1… address." }],
+    id: "crypto_btc",
+    label: "Bitcoin (self-hosted)",
+    kind: "crypto-native",
+    countries: "*",
+    defaultOn: false,
+    fields: [
+      {
+        key: "xpub",
+        label: "Bitcoin extended public key",
+        placeholder: "xpub… / ypub… / zpub…",
+        hint: "An xpub/ypub/zpub — not a single bc1… address.",
+      },
+    ],
   },
   {
-    id: "crypto_eth", label: "Ethereum (self-hosted)", kind: "crypto-native", countries: "*", defaultOn: false,
-    fields: [{ key: "xpub", label: "Ethereum xpub" }, { key: "etherscan_key", label: "Etherscan API key", secret: true }],
+    id: "crypto_eth",
+    label: "Ethereum (self-hosted)",
+    kind: "crypto-native",
+    countries: "*",
+    defaultOn: false,
+    fields: [
+      { key: "xpub", label: "Ethereum xpub" },
+      { key: "etherscan_key", label: "Etherscan API key", secret: true },
+    ],
   },
   {
-    id: "oxapay", label: "OxaPay (crypto gateway)", kind: "crypto-gateway", countries: "*", defaultOn: false,
+    id: "oxapay",
+    label: "OxaPay (crypto gateway)",
+    kind: "crypto-gateway",
+    countries: "*",
+    defaultOn: false,
     fields: [{ key: "merchant_key", label: "OxaPay merchant API key", secret: true }],
     note: "Hosted crypto processor — supports many coins, they handle the blockchain.",
   },
   {
-    id: "stripe", label: "Stripe (cards)", kind: "card",
-    countries: ["US", "GB", "CA", "AU", "SG", "JP", "DE", "FR", "NL", "IE", "VN"], defaultOn: false,
+    id: "stripe",
+    label: "Stripe (cards)",
+    kind: "card",
+    countries: ["US", "GB", "CA", "AU", "SG", "JP", "DE", "FR", "NL", "IE", "VN"],
+    defaultOn: false,
     fields: [
       { key: "publishable_key", label: "Stripe publishable key" },
       { key: "secret_key", label: "Stripe secret key", secret: true },
@@ -69,15 +105,22 @@ export const PROVIDERS: ProviderDef[] = [
     note: "Cards via Stripe Elements embedded in your own styled checkout (PCI-safe).",
   },
   {
-    id: "paypal", label: "PayPal", kind: "wallet",
-    countries: ["US", "GB", "CA", "AU", "DE", "FR", "NL", "IE", "SG", "JP"], defaultOn: false,
+    id: "paypal",
+    label: "PayPal",
+    kind: "wallet",
+    countries: ["US", "GB", "CA", "AU", "DE", "FR", "NL", "IE", "SG", "JP"],
+    defaultOn: false,
     fields: [
       { key: "client_id", label: "PayPal client ID" },
       { key: "client_secret", label: "PayPal client secret", secret: true },
     ],
   },
   {
-    id: "paypay", label: "PayPay (Japan)", kind: "wallet", countries: ["JP"], defaultOn: false,
+    id: "paypay",
+    label: "PayPay (Japan)",
+    kind: "wallet",
+    countries: ["JP"],
+    defaultOn: false,
     fields: [
       { key: "api_key", label: "PayPay API key" },
       { key: "api_secret", label: "PayPay API secret", secret: true },
@@ -85,7 +128,11 @@ export const PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    id: "bank_manual", label: "Bank transfer (manual)", kind: "manual", countries: "*", defaultOn: false,
+    id: "bank_manual",
+    label: "Bank transfer (manual)",
+    kind: "manual",
+    countries: "*",
+    defaultOn: false,
     fields: [
       { key: "instructions", label: "Payment instructions (shown to buyer)" },
       { key: "qr_image_url", label: "QR image URL", optional: true },
@@ -145,15 +192,21 @@ export async function adminProviderList() {
       config[f.key] = f.secret ? !!raw : raw; // secret -> boolean "is set"
     }
     return {
-      id: def.id, label: def.label, kind: def.kind, countries: def.countries, note: def.note,
-      fields: def.fields, enabled: (s[enabledKey(def.id)] ?? String(def.defaultOn)) === "true", config,
+      id: def.id,
+      label: def.label,
+      kind: def.kind,
+      countries: def.countries,
+      note: def.note,
+      fields: def.fields,
+      enabled: (s[enabledKey(def.id)] ?? String(def.defaultOn)) === "true",
+      config,
     };
   });
 }
 
 // Public storefront view: enabled providers serving the shop country (or overrides), no secrets, no config values.
 export async function publicProviderList(countryOverride?: string) {
-  const country = countryOverride || await getShopCountry();
+  const country = countryOverride || (await getShopCountry());
   const out: { id: string; label: string; kind: ProviderKind }[] = [];
   for (const def of PROVIDERS) {
     if (!(await isProviderEnabled(def.id))) continue;

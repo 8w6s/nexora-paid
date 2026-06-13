@@ -45,7 +45,13 @@ function configured(c: EmailConfig): boolean {
   return false;
 }
 
-type SendInput = { to: string; subject: string; html: string; text: string; idempotencyKey?: string };
+type SendInput = {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  idempotencyKey?: string;
+};
 type SendResult = { skipped: true } | { id: string } | { error: string };
 
 async function send(input: SendInput): Promise<SendResult> {
@@ -53,23 +59,31 @@ async function send(input: SendInput): Promise<SendResult> {
   if (!configured(c)) return { skipped: true }; // ← true no-op, no provider import
   try {
     if (c.provider === "resend") {
-      // @ts-ignore optional dependency, installed only if you use Resend
+      // @ts-expect-error optional dependency, installed only if you use Resend
       const { Resend } = await import("resend"); // lazy/optional
       const resend = new Resend(c.resendApiKey!);
       const { data, error } = await resend.emails.send(
         { from: c.from, to: input.to, subject: input.subject, html: input.html, text: input.text },
-        input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined
+        input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
       );
       if (error) return { error: error.message ?? String(error) };
       return { id: data?.id ?? "sent" };
     } else {
-      // @ts-ignore optional dependency, installed only if you use SMTP
+      // @ts-expect-error optional dependency, installed only if you use SMTP
       const nodemailer = await import("nodemailer"); // lazy/optional
       const t = nodemailer.createTransport({
-        host: c.smtp!.host, port: c.smtp!.port, secure: c.smtp!.secure,
-        auth: { user: c.smtp!.user, pass: c.smtp!.pass },
+        host: c.smtp?.host,
+        port: c.smtp?.port,
+        secure: c.smtp?.secure,
+        auth: { user: c.smtp?.user, pass: c.smtp?.pass },
       });
-      const info = await t.sendMail({ from: c.from, to: input.to, subject: input.subject, html: input.html, text: input.text });
+      const info = await t.sendMail({
+        from: c.from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      });
       return { id: info.messageId };
     }
   } catch (e) {
@@ -77,10 +91,16 @@ async function send(input: SendInput): Promise<SendResult> {
   }
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+const esc = (s: string) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 function renderDeliveredKeys(orderId: string, keys: { name: string; code: string }[]) {
-  const rows = keys.map((k) => `<tr><td style="font-family:monospace;font-size:15px;padding:10px 14px;background:#0f172a;color:#a5f3fc;border-radius:6px">${esc(k.code)}</td></tr>`).join('<tr><td style="height:8px"></td></tr>');
+  const rows = keys
+    .map(
+      (k) =>
+        `<tr><td style="font-family:monospace;font-size:15px;padding:10px 14px;background:#0f172a;color:#a5f3fc;border-radius:6px">${esc(k.code)}</td></tr>`,
+    )
+    .join('<tr><td style="height:8px"></td></tr>');
   const html = `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden"><tr><td style="background:#4f46e5;padding:22px 28px;color:#fff;font-size:20px;font-weight:bold">Nexora</td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 8px;font-size:21px">Your order is ready</h1><p style="margin:0 0 18px;color:#475569;font-size:14px">Order <strong>${esc(orderId)}</strong> — payment confirmed. Here ${keys.length > 1 ? "are your keys" : "is your key"}:</p><table width="100%" cellpadding="0" cellspacing="0">${rows}</table><p style="margin:18px 0 0;color:#94a3b8;font-size:12px">Keep these private — anyone with the code can redeem it.</p></td></tr></table></td></tr></table></body></html>`;
   const text = `Your order ${orderId} is ready.\n\n${keys.map((k) => `  ${k.name}: ${k.code}`).join("\n")}\n\nKeep these private.\n— Nexora`;
   return { html, text };
@@ -95,16 +115,23 @@ function renderTicketReply(subject: string, body: string) {
 // Strip CR/LF from an email-header source value to prevent SMTP header
 // injection (an attacker who can put a CRLF into the subject could append
 // `Bcc: ...` and silently fan out the email). Cap length defensively too.
-const SAFE_HEADER_RE = new RegExp("[\\r\
-]+", "g");
-const safeHeader = (s: string, max = 200) =>
-  s.replace(SAFE_HEADER_RE, " ").slice(0, max);
+const SAFE_HEADER_RE = /[\r]+/g;
+const safeHeader = (s: string, max = 200) => s.replace(SAFE_HEADER_RE, " ").slice(0, max);
 
 export const EmailService = {
   deliveredKeys: (orderId: string, to: string, keys: { name: string; code: string }[]) =>
-    send({ to, subject: safeHeader(`Your Nexora order ${orderId} — keys inside`), idempotencyKey: `delivered-keys/${orderId}`, ...renderDeliveredKeys(orderId, keys) }),
+    send({
+      to,
+      subject: safeHeader(`Your Nexora order ${orderId} — keys inside`),
+      idempotencyKey: `delivered-keys/${orderId}`,
+      ...renderDeliveredKeys(orderId, keys),
+    }),
   ticketReply: (to: string, subject: string, body: string) =>
-    send({ to, subject: safeHeader(`Re: ${subject} — Nexora Support`), ...renderTicketReply(subject, body) }),
+    send({
+      to,
+      subject: safeHeader(`Re: ${subject} — Nexora Support`),
+      ...renderTicketReply(subject, body),
+    }),
   lowStockAlert: (to: string, productName: string, remaining: number) => {
     // Sanitize the subject line so an attacker who can name a product can't
     // smuggle CRLF / quotes into the SMTP envelope (header injection).
@@ -113,7 +140,7 @@ export const EmailService = {
       to,
       subject: `[Low Stock Warning] Product "${safeName}" is running out!`,
       html: `<p>Warning: Product <strong>${esc(productName)}</strong> has only <strong>${remaining}</strong> keys remaining in stock.</p><p>Please replenish the keys as soon as possible.</p>`,
-      text: `Low Stock Warning: Product "${safeName}" has only ${remaining} keys remaining. Please replenish stock.`
+      text: `Low Stock Warning: Product "${safeName}" has only ${remaining} keys remaining. Please replenish stock.`,
     });
   },
 };
