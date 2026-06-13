@@ -9,9 +9,13 @@
     "dev:backend": "bun --cwd backend dev",
     "dev:frontend": "bun --cwd frontend dev",
     "dev": "concurrently -k -n backend,frontend -c blue,magenta \"bun --cwd backend dev\" \"bun --cwd frontend dev\"",
-    "seed": "bun --cwd backend src/db/seed.ts"
+    "seed": "bun --cwd backend src/db/seed.ts",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check --write ."
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
     "@noble/ed25519": "^3.1.0",
     "@noble/hashes": "^2.2.0",
     "concurrently": "^10.0.3"
