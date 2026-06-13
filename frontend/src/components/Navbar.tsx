@@ -5,6 +5,7 @@ import { useCart } from "./CartContext";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
+import { Dropdown } from "./Dropdown";
 
 export const Navbar: React.FC = () => {
   const { cart, setIsCartOpen } = useCart();
@@ -13,6 +14,22 @@ export const Navbar: React.FC = () => {
   const totalItems = cart.reduce((t, i) => t + i.quantity, 0);
   const [path, setPath] = useState("/");
   useEffect(() => setPath(window.location.pathname), []);
+
+  const accountOptions = [
+    { value: "orders", label: "My Orders", icon: "receipt" as const },
+    ...(isOn("tickets") ? [{ value: "support", label: "Support", icon: "ticket" as const }] : []),
+    { value: "logout", label: "Sign out", icon: "close" as const },
+  ];
+
+  const handleAccountChange = (val: string) => {
+    if (val === "orders") {
+      window.location.assign("/orders");
+    } else if (val === "support") {
+      window.location.assign("/tickets");
+    } else if (val === "logout") {
+      logout().then(() => window.location.assign("/"));
+    }
+  };
 
   const renderLogoText = () => {
     const name = config.storeName || "Nexora";
@@ -48,32 +65,20 @@ export const Navbar: React.FC = () => {
           <a href="/" className={path === "/" ? "active" : ""}>
             Shop
           </a>
-          {user && (
-            <a href="/orders" className={path.startsWith("/orders") ? "active" : ""}>
-              My Orders
-            </a>
-          )}
-          {user && isOn("tickets") && (
-            <a href="/tickets" className={path.startsWith("/tickets") ? "active" : ""}>
-              Support
-            </a>
-          )}
         </nav>
 
         <div className="nav-right">
           <ThemeSwitch />
           {user ? (
-            <div className="acct">
-              <span className="acct-email" title={user.email}>
-                {user.email}
-              </span>
-              <button
-                className="btn-link"
-                onClick={() => logout().then(() => window.location.assign("/"))}
-              >
-                Sign out
-              </button>
-            </div>
+            <Dropdown
+              value=""
+              onChange={handleAccountChange}
+              options={accountOptions}
+              placeholder={user.email}
+              size="sm"
+              className="nav-acct-dd"
+              width={180}
+            />
           ) : (
             <a href="/login" className="btn-link">
               Sign in
@@ -107,14 +112,12 @@ export const Navbar: React.FC = () => {
         .nav-links a:hover { color: var(--ink); }
         .nav-links a.active { color: var(--brand); border-bottom-color: var(--brand); }
         .nav-right { display: flex; align-items: center; gap: 14px; }
-        .acct { display: flex; align-items: center; gap: 10px; }
-        .acct-email { font-size: .82rem; color: var(--ink-soft); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .btn-link { background: none; border: none; color: var(--brand); font-family: var(--font-sans); font-weight: 600; font-size: .88rem; cursor: pointer; padding: 0; }
         .btn-link:hover { text-decoration: underline; }
         .btn-cart { position: relative; background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink); height: 40px; padding: 0 16px; border-radius: 100px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: var(--font-sans); font-weight: 600; font-size: .88rem; transition: border-color .18s var(--ease), color .18s var(--ease); }
         .btn-cart:hover { border-color: var(--brand); color: var(--brand); }
         .cart-badge { position: absolute; top: -7px; right: -7px; background: var(--price); color: #fff; font-size: .68rem; font-weight: 700; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 100px; display: flex; align-items: center; justify-content: center; }
-        @media (max-width: 600px) { .cart-label { display: none; } .btn-cart { width: 40px; padding: 0; justify-content: center; } .nav-links { gap: 14px; } .acct-email { display: none; } }
+        @media (max-width: 600px) { .cart-label { display: none; } .btn-cart { width: 40px; padding: 0; justify-content: center; } .nav-links { gap: 14px; } .nav-acct-dd { max-width: 110px; } }
       `}</style>
     </header>
   );
