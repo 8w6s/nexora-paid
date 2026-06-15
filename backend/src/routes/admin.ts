@@ -45,8 +45,11 @@ const ADMIN_MUTATE_WINDOW_MS = 60_000;
 const SECRET_KEYS = new Set([
   "resend_api_key",
   "smtp_pass",
+  "smtp_user",
   "blockcypher_token",
   "order_token_secret",
+  "discord_client_secret",
+  "discord_bot_token",
 ]);
 
 // Allowlist for ?status= filters on admin orders / keys endpoints. Same set
@@ -62,7 +65,6 @@ const ORDER_STATUSES = new Set([
   "cancelled",
 ]);
 const KEY_STATUSES = new Set(["available", "reserved", "delivered"]);
-const _CUSTOMER_STATUSES = new Set(["active", "banned"]);
 
 /* key counts (available + delivered) per product */
 async function keyCounts(productIds: string[]) {

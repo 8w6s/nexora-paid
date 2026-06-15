@@ -131,21 +131,21 @@ const baseApp = new Elysia()
           controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
         };
 
-        // Gửi trạng thái ban đầu
+        // Send initial connection state
         send({ type: "connected", orderId: id });
 
-        // Đăng ký lắng nghe từ watcher qua EventEmitter (hoặc HookBus)
+        // Subscribe to watcher delivery events via hook bus
         const cleanup = onOrderDelivered((deliveredId) => {
           if (deliveredId === id) {
             send({ type: "status_update", status: "paid" });
-            // controller.close(); // Tùy chọn: đóng stream khi xong
+            // controller.close(); // Optional: close stream when done
           }
         });
 
-        // Loop heartbeat để giữ connection
+        // Heartbeat loop to keep connection alive
         const heartbeat = setInterval(() => send({ type: "heartbeat" }), 30000);
 
-        // Cleanup khi client disconnect
+        // Cleanup on client disconnect
         // request.signal.addEventListener("abort", () => { ... });
       },
     });
