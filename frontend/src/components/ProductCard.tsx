@@ -8,9 +8,10 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
   const { addToCart } = useCart();
   const btnRef = useRef<HTMLButtonElement>(null);
   const handleAdd = () => {
-    if (btnRef.current) addToCart(product, btnRef.current);
+    if (btnRef.current) addToCart(product, undefined, btnRef.current);
   };
   const out = !product.inStock;
+  const hasImage = product.image && product.image.trim().length > 0;
 
   return (
     <article className="product-card">
@@ -21,7 +22,13 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         role="link"
         aria-label={`View ${product.name}`}
       >
-        <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+        {hasImage ? (
+          <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+        ) : (
+          <div className="banner-placeholder">
+            <Icon name="package" size={48} />
+          </div>
+        )}
         <span className="tag-auto banner-tag">
           <Icon name="zap" size={12} />
           Instant delivery
@@ -77,6 +84,8 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         .product-card:hover .banner img { transform: scale(1.05); }
         .banner-tag { position: absolute; left: 10px; bottom: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(4px); }
         .sold-out { position: absolute; inset: 0; background: rgba(31,35,41,.55); color: #fff; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; }
+        .banner-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); }
+        .banner-placeholder svg { opacity: 0.35; color: var(--ink-soft); }
         .info { padding: 14px 15px 16px; display: flex; flex-direction: column; flex-grow: 1; }
         .cat-pill { align-self: flex-start; background: var(--tag-soft); color: var(--tag); margin-bottom: 9px; }
         .name-link { color: inherit; display: block; }

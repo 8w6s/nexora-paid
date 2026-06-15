@@ -43,6 +43,9 @@ export const users = sqliteTable(
     passwordHash: text("password_hash").notNull(),
     role: text("role").$type<"customer" | "admin">().default("customer").notNull(),
     status: text("status").$type<"active" | "banned">().default("active").notNull(),
+    // TOTP 2FA
+    totpSecret: text("totp_secret"),
+    totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),

@@ -95,7 +95,13 @@ export const CartDrawer: React.FC = () => {
                 const stock = item.variant ? item.variant.stock : item.product.stock;
                 return (
                   <div key={key} className="cart-item">
-                    <img src={item.product.image} alt={item.product.name} />
+                    {item.product.image && item.product.image.trim() ? (
+                      <img src={item.product.image} alt={item.product.name} />
+                    ) : (
+                      <div style={{ background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 64, minHeight: 64 }}>
+                        <Icon name="package" size={24} style={{ opacity: 0.3 }} />
+                      </div>
+                    )}
                     <div className="item-details">
                       <h4>{item.product.name}</h4>
                       {item.variant && (

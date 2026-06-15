@@ -27,6 +27,7 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
     : product.compareAtPrice;
   const activeStock = selectedVariant ? selectedVariant.stock : product.stock;
   const activeOut = selectedVariant ? !selectedVariant.inStock : !product.inStock;
+  const hasImage = product.image && product.image.trim().length > 0;
 
   const handleAdd = () => {
     if (!addBtnRef.current) return;
@@ -66,7 +67,13 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
 
       <div className="pd-grid">
         <div className="pd-media">
-          <img src={product.image} alt={product.name} />
+          {hasImage ? (
+            <img src={product.image} alt={product.name} />
+          ) : (
+            <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)' }}>
+              <Icon name="package" size={64} style={{ opacity: 0.3, color: 'var(--ink-soft)' }} />
+            </div>
+          )}
           {activeOut && <span className="pd-soldout">Out of stock</span>}
           <span className="pd-tag">
             <Icon name="zap" size={13} /> Instant delivery

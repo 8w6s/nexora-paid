@@ -36,7 +36,7 @@ This project uses a local dual-graph MCP server for efficient context retrieval.
 
 ## Session State (compact, update after every turn)
 
-Maintain a short JSON block in your working memory. Update it after each turn:
+Save a short JSON block to `.claude/session-state.json` (do not print it directly in your response text to the user). Update it after each turn:
 
 ```json
 {
@@ -48,7 +48,7 @@ Maintain a short JSON block in your working memory. Update it after each turn:
 }
 ```
 
-Use this state  -  not prose summaries  -  to remember what's been done across turns.
+Use this state  -  not prose summaries  -  to remember what's been done across turns. Keep your response clean and free of raw JSON blocks.
 
 ## Token Usage
 

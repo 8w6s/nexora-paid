@@ -70,6 +70,7 @@ bun --cwd backend src/e2e.test.ts       # full backend e2e (17 checks)
 - **[LICENSE_ROTATION.md](docs/LICENSE_ROTATION.md)** — License security, key rotation, incident response
 - **[PRODUCTION.md](docs/PRODUCTION.md)** — Pre-launch checklist, scalability, monitoring, backups
 - **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** — Docker & standalone setup
+- **[MIGRATION_POSTGRES.md](docs/MIGRATION_POSTGRES.md)** — SQLite → PostgreSQL migration guide
 - **[ARCHITECTURE.md](../nexora/docs/ARCHITECTURE.md)** — Payment flow, HD wallet, state machine (shared with Free)
 
 See `../nexora/docs/UPGRADE_PLAN_V2.md` for full V2 roadmap architecture.
