@@ -969,25 +969,29 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
   /* ───────── Customers ───────── */
   .get("/customers", async () => {
-    const list = await db
-      .select()
+    const rows = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        status: users.status,
+        createdAt: users.createdAt,
+        orderCount: sql<number>`count(${orders.id})`,
+        totalSpentUsd: sql<number>`sum(case when ${orders.status} in ('paid','completed') then ${orders.totalUsd} else 0 end)`,
+      })
       .from(users)
+      .leftJoin(orders, eq(orders.userId, users.id))
       .where(eq(users.role, "customer"))
+      .groupBy(users.id)
       .orderBy(desc(users.createdAt));
-    return Promise.all(
-      list.map(async (u) => {
-        const os = await db.select().from(orders).where(eq(orders.userId, u.id));
-        const paid = os.filter((o) => o.status === "paid" || o.status === "completed");
-        return {
-          id: u.id,
-          email: u.email,
-          status: u.status,
-          createdAt: u.createdAt,
-          orderCount: os.length,
-          totalSpentUsd: Math.round(paid.reduce((s, o) => s + o.totalUsd, 0) * 100) / 100,
-        };
-      }),
-    );
+
+    return rows.map(r => ({
+      id: r.id,
+      email: r.email,
+      status: r.status,
+      createdAt: r.createdAt,
+      orderCount: Number(r.orderCount),
+      totalSpentUsd: Math.round(Number(r.totalSpentUsd || 0) * 100) / 100,
+    }));
   })
   .get("/customers/:id", async ({ params: { id }, set }) => {
     const u = (await db.select().from(users).where(eq(users.id, id)))[0];
