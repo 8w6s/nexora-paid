@@ -28,6 +28,7 @@ import {
 } from "../lib/payments.ts";
 import { rateLimitCheck } from "../lib/rate-limit.ts";
 import { getAllSettings, setSetting } from "../lib/settings.ts";
+import { SETTINGS_SCHEMA } from "../lib/settings-schema.ts";
 import { uniqueSlug } from "../lib/slug.ts";
 
 // Defense-in-depth rate limit on admin mutations. The admin is already
@@ -481,101 +482,30 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .put(
     "/settings",
     async ({ body, set }) => {
-      // Validate xpub before persisting (reject unparseable keys).
-      if (body.ltc_xpub !== undefined && body.ltc_xpub !== "") {
-        const v = validateXpub(body.ltc_xpub);
+      // Schema-driven settings update: SETTINGS_SCHEMA declares every admin key.
+      // Special case: ltc_xpub validates xpub + mirrors to pay_crypto_ltc_xpub +
+      // sets hd_address_type. Everything else flows through the generic loop.
+      const b = body as Record<string, any>;
+
+      if (b.ltc_xpub !== undefined && b.ltc_xpub !== "") {
+        const v = validateXpub(b.ltc_xpub);
         if (!v.ok) {
           set.status = 400;
           return { error: `Invalid xpub: ${v.error}`, code: "BAD_XPUB" };
         }
-        await setSetting("ltc_xpub", body.ltc_xpub);
         await setSetting("hd_address_type", v.type);
-        // Mirror to the Payments tab field so both screens stay in sync.
-        await setSetting("pay_crypto_ltc_xpub", body.ltc_xpub);
+        await setSetting("pay_crypto_ltc_xpub", b.ltc_xpub);
       }
-      if (body.required_confirmations !== undefined)
-        await setSetting("required_confirmations", String(body.required_confirmations));
-      if (body.payment_window_minutes !== undefined)
-        await setSetting("payment_window_minutes", String(body.payment_window_minutes));
-      if (body.store_name !== undefined) await setSetting("store_name", body.store_name);
 
-      // Save additional storefront configuration
-      if (body.subdomain !== undefined) await setSetting("subdomain", body.subdomain);
-      if (body.currency !== undefined) await setSetting("currency", body.currency);
-      if (body.description !== undefined) await setSetting("description", body.description);
-      
-      // Socials
-      if (body.discord !== undefined) await setSetting("discord", body.discord);
-      if (body.youtube !== undefined) await setSetting("youtube", body.youtube);
-      if (body.telegram !== undefined) await setSetting("telegram", body.telegram);
-      if (body.tiktok !== undefined) await setSetting("tiktok", body.tiktok);
-      if (body.instagram !== undefined) await setSetting("instagram", body.instagram);
-
-      // Checkout Toggles
-      if (body.allow_change_theme !== undefined) await setSetting("allow_change_theme", body.allow_change_theme ? "true" : "false");
-      if (body.collect_billing !== undefined) await setSetting("collect_billing", body.collect_billing ? "true" : "false");
-      if (body.show_coupon !== undefined) await setSetting("show_coupon", body.show_coupon ? "true" : "false");
-      if (body.show_terms !== undefined) await setSetting("show_terms", body.show_terms ? "true" : "false");
-      if (body.precheck_terms !== undefined) await setSetting("precheck_terms", body.precheck_terms ? "true" : "false");
-      if (body.show_newsletter !== undefined) await setSetting("show_newsletter", body.show_newsletter ? "true" : "false");
-
-      // Invoices & Tax
-      if (body.enable_tax_calculation !== undefined) await setSetting("enable_tax_calculation", body.enable_tax_calculation ? "true" : "false");
-      if (body.tax_rate !== undefined) await setSetting("tax_rate", String(body.tax_rate));
-      if (body.send_invoice_pdfs !== undefined) await setSetting("send_invoice_pdfs", body.send_invoice_pdfs ? "true" : "false");
-      if (body.show_invoice_pdf_link !== undefined) await setSetting("show_invoice_pdf_link", body.show_invoice_pdf_link ? "true" : "false");
-      if (body.invoice_pdf_header !== undefined) await setSetting("invoice_pdf_header", body.invoice_pdf_header);
-      if (body.invoice_pdf_notes !== undefined) await setSetting("invoice_pdf_notes", body.invoice_pdf_notes);
-      if (body.invoice_pdf_footer !== undefined) await setSetting("invoice_pdf_footer", body.invoice_pdf_footer);
-
-      // Feedbacks
-      if (body.enable_automatic_feedbacks !== undefined) await setSetting("enable_automatic_feedbacks", body.enable_automatic_feedbacks ? "true" : "false");
-
-      // Affiliate Program
-      if (body.enable_affiliate_program !== undefined) await setSetting("enable_affiliate_program", body.enable_affiliate_program ? "true" : "false");
-      if (body.make_affiliate_program_public !== undefined) await setSetting("make_affiliate_program_public", body.make_affiliate_program_public ? "true" : "false");
-      if (body.allow_customers_edit_affiliate_code !== undefined) await setSetting("allow_customers_edit_affiliate_code", body.allow_customers_edit_affiliate_code ? "true" : "false");
-      if (body.affiliate_percentage !== undefined) await setSetting("affiliate_percentage", String(body.affiliate_percentage));
-
-      // Tickets
-      if (body.enable_tickets !== undefined) await setSetting("enable_tickets", body.enable_tickets ? "true" : "false");
-
-      // Legal Pages
-      if (body.terms_of_service !== undefined) await setSetting("terms_of_service", body.terms_of_service);
-      if (body.privacy_policy !== undefined) await setSetting("privacy_policy", body.privacy_policy);
-      if (body.refund_policy !== undefined) await setSetting("refund_policy", body.refund_policy);
-
-      // Integrations
-      if (body.google_analytics !== undefined) await setSetting("google_analytics", body.google_analytics);
-      if (body.crisp !== undefined) await setSetting("crisp", body.crisp);
-      if (body.tawk_to !== undefined) await setSetting("tawk_to", body.tawk_to);
-      if (body.trustpilot !== undefined) await setSetting("trustpilot", body.trustpilot);
-
-      // Discord Integration
-      if (body.discord_client_id !== undefined) await setSetting("discord_client_id", body.discord_client_id);
-      if (body.discord_client_secret !== undefined) await setSetting("discord_client_secret", body.discord_client_secret);
-      if (body.discord_bot_token !== undefined) await setSetting("discord_bot_token", body.discord_bot_token);
-
-      // SEO & Meta
-      if (body.meta_title !== undefined) await setSetting("meta_title", body.meta_title);
-      if (body.meta_description !== undefined) await setSetting("meta_description", body.meta_description);
-      if (body.meta_twitter_card !== undefined) await setSetting("meta_twitter_card", body.meta_twitter_card);
-
-      // Checkout Color Scheme
-      if (body.checkout_color_scheme !== undefined) await setSetting("checkout_color_scheme", body.checkout_color_scheme);
-
-      // Additional Miscellaneous
-      if (body.redirect_custom_domain !== undefined) await setSetting("redirect_custom_domain", body.redirect_custom_domain ? "true" : "false");
-      if (body.hide_out_of_stock !== undefined) await setSetting("hide_out_of_stock", body.hide_out_of_stock ? "true" : "false");
-      if (body.refund_out_of_stock_to_balance !== undefined) await setSetting("refund_out_of_stock_to_balance", body.refund_out_of_stock_to_balance ? "true" : "false");
-      if (body.maintenance_password !== undefined) await setSetting("maintenance_password", body.maintenance_password);
-
-      // Custom Domain name
-      if (body.custom_domain_name !== undefined) await setSetting("custom_domain_name", body.custom_domain_name);
-
-      // Misc
-      if (body.maintenance_mode !== undefined) await setSetting("maintenance_mode", body.maintenance_mode ? "true" : "false");
-      if (body.custom_header_script !== undefined) await setSetting("custom_header_script", body.custom_header_script);
+      for (const def of SETTINGS_SCHEMA) {
+        const value = b[def.key];
+        if (value === undefined) continue;
+        let toStore: string;
+        if (def.type === "boolean") toStore = value ? "true" : "false";
+        else if (def.type === "number") toStore = String(value);
+        else toStore = String(value ?? "");
+        await setSetting(def.key, toStore);
+      }
 
       const all = await getAllSettings();
       const xpub = all.ltc_xpub;
