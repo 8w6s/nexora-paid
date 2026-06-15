@@ -1,4 +1,5 @@
 import { and, eq, lte, sql } from "drizzle-orm";
+import pLimit from "p-limit";
 import { db } from "../db/connection.ts";
 import { orders, productKeys, products } from "../db/schema.ts";
 import { getAddrStatus, paymentDecision } from "./explorer.ts";
@@ -135,12 +136,25 @@ async function tick(): Promise<void> {
   const tol = await getSettingNumber("rate_tolerance_litoshi", 1000);
 
   const payable = await db.select().from(orders).where(PAYABLE);
-  for (const o of payable) {
-    try {
-      await checkOrder(o, token, requiredConf, tol);
-    } catch (_e) {}
-    await Bun.sleep(PER_ADDRESS_DELAY_MS);
-  }
+
+  // Limit concurrency to 5 simultaneous address checks. BlockCypher limit is ~3 req/s;
+  // with 350ms delay per address, 5 concurrent respects that globally.
+  const limiter = pLimit(5);
+
+  await Promise.all(
+    payable.map((o) =>
+      limiter(async () => {
+        try {
+          await checkOrder(o, token, requiredConf, tol);
+        } catch (e) {
+          console.error(
+            `[watcher] checkOrder failed for ${o.id}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+        await Bun.sleep(PER_ADDRESS_DELAY_MS);
+      }),
+    ),
+  );
 }
 
 /** Start the background loop (idempotent — only one loop per process). */
