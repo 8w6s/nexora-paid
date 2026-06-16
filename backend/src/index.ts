@@ -1,6 +1,15 @@
 import { cors } from "@elysiajs/cors";
-import { Elysia } from "elysia";
-import { primeOrderTokenSecret } from "./lib/auth.ts";
+import { eq } from "drizzle-orm";
+import { Elysia, t } from "elysia";
+import { db } from "./db/connection.ts";
+import { orders } from "./db/schema.ts";
+import {
+  primeOrderTokenSecret,
+  SESSION_COOKIE,
+  validateSession,
+  verifyOrderToken,
+} from "./lib/auth.ts";
+import { printBootBanner } from "./lib/banner.ts";
 import { EmailService } from "./lib/email.ts";
 import { loadPlugins } from "./lib/plugin/loader.ts";
 import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watcher.ts";
@@ -50,6 +59,77 @@ const TRUST_PROXY = (Bun.env.TRUST_PROXY ?? "").toLowerCase() === "true";
 const baseApp = new Elysia()
   // CORS for cookie auth: explicit origin + credentials (no wildcard).
   .use(cors({ origin: PUBLIC_ORIGIN, credentials: true }))
+  .onRequest((ctx) => {
+    (ctx as any).startTime = performance.now();
+  })
+  .onAfterResponse((ctx) => {
+    const url = new URL(ctx.request.url);
+    const path = url.pathname;
+
+    // Filter out frequent read-only polling requests to keep logs quiet
+    if (
+      ctx.request.method === "GET" &&
+      (path.endsWith("/stats") ||
+        path.endsWith("/activity") ||
+        path.endsWith("/overview") ||
+        path.endsWith("/products") ||
+        path.endsWith("/orders") ||
+        path.endsWith("/config") ||
+        path === "/api/health")
+    ) {
+      return;
+    }
+
+    const duration = (ctx as any).startTime
+      ? `${(performance.now() - (ctx as any).startTime).toFixed(1)}ms`
+      : "";
+
+    const method = ctx.request.method;
+    let methodBg = "\x1b[47m\x1b[30m";
+    if (method === "GET") methodBg = "\x1b[42m\x1b[30m";
+    else if (method === "POST") methodBg = "\x1b[44m\x1b[97m";
+    else if (method === "PUT" || method === "PATCH") methodBg = "\x1b[43m\x1b[30m";
+    else if (method === "DELETE") methodBg = "\x1b[41m\x1b[97m";
+    const methodBlock = `${methodBg} ${method.padEnd(5)} \x1b[0m`;
+
+    const status = ctx.set.status || 200;
+    let statusBg = "\x1b[42m\x1b[30m";
+    if (status >= 500) statusBg = "\x1b[41m\x1b[97m";
+    else if (status >= 400) statusBg = "\x1b[43m\x1b[30m";
+    else if (status >= 300) statusBg = "\x1b[46m\x1b[30m";
+    const statusBlock = `${statusBg} ${status} \x1b[0m`;
+
+    console.log(
+      `${methodBlock} ${url.pathname.padEnd(35)} ${statusBlock} \x1b[90m(${duration})\x1b[0m`,
+    );
+  })
+  .onError(({ code, error, request }) => {
+    const url = new URL(request.url);
+
+    // Classify error severity
+    let severity = "HIGH";
+    if (
+      code === "NOT_FOUND" ||
+      code === "VALIDATION" ||
+      error.message.includes("rate limit") ||
+      error.message.includes("unauthorized") ||
+      error.message.includes("forbidden")
+    ) {
+      severity = "LOW";
+    } else if (
+      error.message.includes("third-party") ||
+      error.message.includes("email") ||
+      error.message.includes("blockchain") ||
+      error.message.includes("explorer") ||
+      error.message.includes("BlockCypher")
+    ) {
+      severity = "MEDIUM";
+    }
+
+    console.error(
+      `[ERROR] [SEVERITY:${severity}] \x1b[41m\x1b[97m ERR \x1b[0m \x1b[31m${request.method} ${url.pathname} - Code: ${code} | Error: ${error.message}\x1b[0m`,
+    );
+  })
   // CSRF defense-in-depth: reject cross-origin state-changing requests.
   // Strengthened post-pentest:
   //   1. If Origin is missing AND Referer is also missing on a state-changing
@@ -119,37 +199,91 @@ const baseApp = new Elysia()
 
   .get("/api/health", () => ({ ok: true }))
 
+  .post(
+    "/api/log-error",
+    ({ body }) => {
+      const { message, severity, stack, url } = body as any;
+      console.error(
+        `[ERROR] [SEVERITY:${severity || "LOW"}] \x1b[41m\x1b[97m CLIENT ERR \x1b[0m \x1b[31m${message || "Unknown error"} at ${url || "unknown"}${stack ? " - Stack: " + stack : ""}\x1b[0m`,
+      );
+      return { ok: true };
+    },
+    {
+      body: t.Object({
+        message: t.String(),
+        severity: t.Optional(t.Union([t.Literal("LOW"), t.Literal("MEDIUM"), t.Literal("HIGH")])),
+        stack: t.Optional(t.String()),
+        url: t.Optional(t.String()),
+      }),
+    },
+  )
+
   // ───── Real-time Payment Updates (SSE) ─────
-  .get("/api/orders/:id/events", ({ params: { id }, set }) => {
-    set.headers["content-type"] = "text/event-stream";
-    set.headers["cache-control"] = "no-cache";
-    set.headers["connection"] = "keep-alive";
+  .get(
+    "/api/orders/:id/events",
+    async ({ params: { id }, query, cookie, set, status, request }) => {
+      // Auth: must be the order owner OR present a valid order token. Without
+      // this gate any caller could subscribe to deliveries for any guessable
+      // orderId, turning the stream into a delivery side-channel oracle.
+      const u = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
+      const o = (await db.select().from(orders).where(eq(orders.id, id)))[0];
+      const isOwner = !!o && !!u && (o.userId === u.id || u.role === "admin");
+      const isTokenValid = verifyOrderToken(id, query?.token);
+      if (!o || (!isOwner && !isTokenValid)) {
+        return status(404, { error: "Not found", code: "NOT_FOUND" });
+      }
 
-    return new ReadableStream({
-      start(controller) {
-        const send = (data: any) => {
-          controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
-        };
+      set.headers["content-type"] = "text/event-stream";
+      set.headers["cache-control"] = "no-cache";
+      set.headers["connection"] = "keep-alive";
+      set.headers["x-accel-buffering"] = "no"; // disable proxy buffering
 
-        // Send initial connection state
-        send({ type: "connected", orderId: id });
+      let cleanup: (() => void) | null = null;
+      let heartbeat: ReturnType<typeof setInterval> | null = null;
+      let closed = false;
 
-        // Subscribe to watcher delivery events via hook bus
-        const cleanup = onOrderDelivered((deliveredId) => {
-          if (deliveredId === id) {
-            send({ type: "status_update", status: "paid" });
-            // controller.close(); // Optional: close stream when done
-          }
-        });
+      // Lifecycle: subscriber appends to deliverHooks[] + arms heartbeat.
+      // Tear both down on client disconnect or the list grows unbounded and
+      // controller.enqueue() against a closed stream throws.
+      return new ReadableStream({
+        start(controller) {
+          const send = (data: unknown) => {
+            if (closed) return;
+            try {
+              controller.enqueue(`data: ${JSON.stringify(data)}
 
-        // Heartbeat loop to keep connection alive
-        const heartbeat = setInterval(() => send({ type: "heartbeat" }), 30000);
+`);
+            } catch {
+              closed = true;
+            }
+          };
 
-        // Cleanup on client disconnect
-        // request.signal.addEventListener("abort", () => { ... });
-      },
-    });
-  })
+          send({ type: "connected", orderId: id });
+
+          cleanup = onOrderDelivered((deliveredId) => {
+            if (deliveredId === id) send({ type: "status_update", status: "paid" });
+          });
+          heartbeat = setInterval(() => send({ type: "heartbeat" }), 30_000);
+
+          request.signal?.addEventListener("abort", () => {
+            try { controller.close(); } catch {}
+          });
+        },
+        cancel() {
+          closed = true;
+          if (cleanup) cleanup();
+          if (heartbeat) clearInterval(heartbeat);
+          cleanup = null;
+          heartbeat = null;
+        },
+      });
+    },
+    {
+      query: t.Object({
+        token: t.Optional(t.String()),
+      }),
+    },
+  )
 
   // ───── Public routes (no auth required) ─────
   .use(configRoutes)
@@ -172,19 +306,16 @@ const baseApp = new Elysia()
 // Paid modules register here (gated by license). Empty registry = no-op.
 const app = await loadPlugins(baseApp);
 
-// Bootstrap admin + prime crypto secrets BEFORE we listen() so the very first
-// request can never observe the throw-on-uninitialized branch in
-// generateOrderToken. Previously this ran post-listen and there was a sliver
-// of a window where /api/checkout could 500 instead of returning a token.
+// Bootstrap admin + prime crypto secrets BEFORE anything else can observe
+// the throw-on-uninitialized branch in generateOrderToken. Previously this
+// ran post-listen and there was a sliver of a window where /api/checkout
+// could 500 instead of returning a token.
 await bootstrapAdmin();
 await primeOrderTokenSecret();
 
-app.listen(Number(Bun.env.PORT ?? 3000));
-
-console.log(`Nexora API running at http://localhost:${Bun.env.PORT ?? 3000}`);
-console.log(`CORS origin: ${PUBLIC_ORIGIN}`);
-
-// Best-effort email on delivery (no-op unless email is configured in settings/env).
+// Register delivery hooks BEFORE recoverStuckOrders / startWatcher / listen.
+// Previously the email hook was registered AFTER recoverStuckOrders(), so a
+// crash-recovery delivery on boot could complete with no email side-effect.
 onOrderDelivered((orderId, email, keys) => {
   EmailService.deliveredKeys(orderId, email, keys).then((r) => {
     if ("error" in r) console.warn(`[email] order ${orderId} send failed: ${r.error}`);
@@ -192,7 +323,15 @@ onOrderDelivered((orderId, email, keys) => {
   });
 });
 
+// Recover any orders that were mid-flight when the previous process died,
+// then start the watcher loop. Both run BEFORE listen() so the first inbound
+// request sees a fully consistent world: no half-delivered orders, no
+// "address index already used" race against a stuck pending order.
 await recoverStuckOrders();
 startWatcher();
+
+app.listen(Number(Bun.env.PORT ?? 3000));
+
+printBootBanner();
 
 export type App = typeof app;
