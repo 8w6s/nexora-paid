@@ -10,13 +10,21 @@ export const hashPassword = (pw: string) =>
 export const verifyPassword = (pw: string, hash: string) => Bun.password.verify(pw, hash);
 
 // Dummy hash to equalize timing when an email doesn't exist (anti-enumeration).
-const DUMMY_HASH = await hashPassword("x".repeat(24));
+// Lazy-init: argon2id with our cost params takes 100-300ms; doing it at
+// top-level await blocks the entire ESM graph during cold start. We don't
+// need the dummy until the first failed-login attempt, so compute on demand
+// and memoize the promise (handles concurrent first-login race for free).
+let DUMMY_HASH_PROMISE: Promise<string> | null = null;
+const getDummyHash = (): Promise<string> => {
+  if (!DUMMY_HASH_PROMISE) DUMMY_HASH_PROMISE = hashPassword("x".repeat(24));
+  return DUMMY_HASH_PROMISE;
+};
 export async function verifyLogin(
   user: { passwordHash: string } | undefined,
   pw: string,
 ): Promise<boolean> {
   if (!user) {
-    await verifyPassword(pw, DUMMY_HASH); // spend the same time
+    await verifyPassword(pw, await getDummyHash()); // spend the same time
     return false;
   }
   return verifyPassword(pw, user.passwordHash);

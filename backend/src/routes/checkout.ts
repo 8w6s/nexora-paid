@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import * as v from "valibot";
@@ -10,6 +10,7 @@ import {
   productKeys,
   products,
   productVariants,
+  settings,
   users,
 } from "../db/schema.ts";
 import {
@@ -239,7 +240,19 @@ export const checkoutRoutes = new Elysia()
           totalUsd >= c.minOrderUsd;
         if (!valid)
           return status(400, { error: "Invalid or ineligible coupon", code: "BAD_COUPON" });
-        const discount = c?.type === "percent" ? (totalUsd * c?.value) / 100 : c?.value;
+        // Cap coupon math: percent must be 0..100 and dollar discount cannot
+        // exceed totalUsd. Without these clamps a bad row in `coupons` (or a
+        // future admin-side mistake) could produce a negative subtotal that
+        // gets floored to $0.01 — effectively free goods. The original code
+        // floored to 0.01 but did not validate the inputs that made the
+        // flor necessary.
+        let discount: number;
+        if (c?.type === "percent") {
+          const pct = Math.max(0, Math.min(100, c?.value ?? 0));
+          discount = (totalUsd * pct) / 100;
+        } else {
+          discount = Math.max(0, Math.min(totalUsd, c?.value ?? 0));
+        }
         totalUsd = Math.max(0.01, Math.round((totalUsd - discount) * 100) / 100);
         appliedCoupon = c!;
       }
@@ -252,13 +265,28 @@ export const checkoutRoutes = new Elysia()
         return status(503, { error: "Exchange rate unavailable, try again", code: "NO_RATE" });
       }
 
-      const orderId = `GG-${randomUUID().split("-")[0].toUpperCase()}`;
+      // Order ID: 16-char hex (64 bits) keeps the namespace large enough that
+      // an attacker who knows the base prefix `GG-` still has 2^64 to brute
+      // force per probe. The previous 8-char form was 32 bits — feasible to
+      // enumerate against /api/orders/:id/status (which now rate-limits, but
+      // 60/min/IP × distributed = thousands/sec) to find paid orders by
+      // delivery side-channel. UUIDv4 split was also Unicode-uppercase which
+      // is fine for hex but unnecessarily lossy.
+      const orderId = `GG-${randomBytes(8).toString("hex").toUpperCase()}`;
 
-      // Allocate a unique HD index + address, reserve keys, insert order — all in one transaction.
-      // The orders.address_index / ltc_address UNIQUE constraints are the hard race backstop.
+      // Allocate a unique HD index + address, reserve keys, insert order — all in
       try {
         const result = await db.transaction(async (tx) => {
+          // HD index MUST be monotonic — never derive from `max(orders.addressIndex)`
+          // because an admin DELETE on a stuck pending order would shrink the
+          // max and the next checkout would reuse that index → address reuse,
+          // which leaks the buyer's privacy by linking unrelated orders to one
+          // on-chain address. Read+bump `hd_next_index` inside the tx so SQLite's
+          // write serialization gives us a unique increasing value; UNIQUE on
+          // ltc_address + addressIndex remains the hard backstop.
           const counter = await getSettingNumber("hd_next_index", 0);
+          // Backfill: if existing orders went past `counter` (older builds),
+          // jump forward — we never go backward.
           const maxRow = await tx
             .select({ m: sql<number>`coalesce(max(${orders.addressIndex}), -1)` })
             .from(orders);
@@ -314,11 +342,22 @@ export const checkoutRoutes = new Elysia()
               .where(eq(coupons.id, fresh.id));
           }
 
+          // Advance the monotonic counter INSIDE the transaction so a crash
+          // between the order INSERT and the setting write can't roll back the
+          // address allocation while leaving the counter behind. Previously
+          // this ran post-tx; under heavy concurrency two checkouts could
+          // observe the same `counter`, both succeed via the `max+1` fallback,
+          // and the counter would lag behind reality.
+          await tx
+            .insert(settings)
+            .values({ key: "hd_next_index", value: String(addressIndex + 1) })
+            .onConflictDoUpdate({
+              target: settings.key,
+              set: { value: String(addressIndex + 1) },
+            });
+
           return { addressIndex, ltcAddress };
         });
-
-        // Advance the monotonic counter AFTER a successful insert (UNIQUE backstops a race).
-        await setSetting("hd_next_index", String(result.addressIndex + 1));
 
         // Emit hook for plugins to react (discord notification, analytics, etc.)
         hookBus.emit("order.created", { orderId, userId: checkoutUserId }).catch(() => {});

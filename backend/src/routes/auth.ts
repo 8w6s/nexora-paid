@@ -15,6 +15,7 @@ import {
   verifyLogin,
 } from "../lib/auth.ts";
 import { hookBus } from "../lib/plugin/hook-bus.ts";
+import { verifyCode } from "../lib/totp.ts";
 import {
   lockoutBump,
   lockoutCheck,
@@ -149,6 +150,27 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         void logAuthEvent(email, "login.banned", ip);
         return { error: "Account suspended", code: "ACCOUNT_BANNED" };
       }
+      // 2FA gate. If the account has TOTP enabled, password alone isn't
+      // enough — caller must include `code` in the request body. Without
+      // this gate, enabling 2FA in the admin UI did NOTHING at the login
+      // boundary: the session cookie was minted on password-only and the
+      // TOTP flag was cosmetic. Verify the 6-digit code BEFORE issuing the
+      // cookie so a stolen password is useless without the second factor.
+      if (user.totpEnabled && user.totpSecret) {
+        const code = body.code;
+        if (!code || code.length !== 6) {
+          set.status = 401;
+          // Don't bump lockout for "missing code" — the password was right;
+          // the client just needs to re-submit with the code attached.
+          return { error: "2FA code required", code: "TOTP_REQUIRED" };
+        }
+        if (!verifyCode(user.totpSecret, code)) {
+          lockoutBump(lockKey, LOGIN_LOCKOUT_WINDOW_MS);
+          set.status = 401;
+          void logAuthEvent(email, "login.2fa_fail", ip);
+          return { error: "Invalid 2FA code", code: "BAD_2FA" };
+        }
+      }
       lockoutReset(lockKey);
       const { token, expiresAt } = await createSession(user.id);
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
@@ -159,6 +181,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       body: t.Object({
         email: t.String({ maxLength: 254 }),
         password: t.String({ maxLength: 200 }),
+        code: t.Optional(t.String({ minLength: 6, maxLength: 6 })),
       }),
     },
   )
@@ -194,6 +217,7 @@ export async function bootstrapAdmin() {
   if (!email) {
     return;
   }
+  (globalThis as any).__nexora_admin_email = email;
   let passwordHash = Bun.env.ADMIN_PASSWORD_HASH ?? null;
   if (!passwordHash && Bun.env.ADMIN_PASSWORD) {
     passwordHash = await hashPassword(Bun.env.ADMIN_PASSWORD);
