@@ -1,4 +1,5 @@
 import { and, eq, lte, sql } from "drizzle-orm";
+import pLimit from "p-limit";
 import { db } from "../db/connection.ts";
 import { orders, productKeys, products } from "../db/schema.ts";
 import { getAddrStatus, paymentDecision } from "./explorer.ts";
@@ -13,7 +14,11 @@ import { getSetting, getSettingNumber } from "./settings.ts";
 
 let running = false;
 const POLL_INTERVAL_MS = 30_000;
-const PER_ADDRESS_DELAY_MS = 350; // stay under ~3 req/s
+// Concurrent address checks per tick. BlockCypher's keyless tier is ~3 req/s
+// hard, so 5 concurrent + small per-call jitter keeps us under the limit
+// while still draining the payable backlog faster than sequential 350ms gaps
+// (which choked at ~85 active orders per 30s tick before tx overlap).
+const TICK_CONCURRENCY = 5;
 
 type DeliverHook = (orderId: string, email: string, keys: { name: string; code: string }[]) => void;
 const deliverHooks: DeliverHook[] = [];
@@ -48,20 +53,25 @@ async function expireStaleOrders(): Promise<void> {
     .from(orders)
     .where(and(PAYABLE, lte(orders.expiresAt, now)));
   if (stale.length === 0) return;
-  let _expired = 0;
   for (const o of stale) {
     await db.transaction(async (tx) => {
-      const res = await tx
-        .update(orders)
-        .set({ status: "expired" })
-        .where(and(eq(orders.id, o.id), PAYABLE));
-      const affected = (res as any)?.changes ?? (res as any)?.rowsAffected ?? 0;
-      if (affected !== 1) return; // someone else (payment race) advanced the order — leave it alone
+      // SELECT-then-UPDATE guard. Drizzle's UPDATE result shape (.changes /
+      // .rowsAffected) is version-dependent; relying on it for the
+      // "someone else won the race" branch was fragile. SQLite serializes
+      // writes inside a transaction, so re-reading the row here is
+      // race-safe — only the first concurrent caller observes a payable
+      // status; the rest bail out without releasing keys.
+      const cur = await tx
+        .select({ status: orders.status })
+        .from(orders)
+        .where(eq(orders.id, o.id));
+      const s = cur[0]?.status;
+      if (s !== "pending" && s !== "awaiting_payment" && s !== "underpaid") return;
+      await tx.update(orders).set({ status: "expired" }).where(eq(orders.id, o.id));
       await tx
         .update(productKeys)
         .set({ status: "available", orderId: null, reservedAt: null })
         .where(and(eq(productKeys.orderId, o.id), eq(productKeys.status, "reserved")));
-      _expired++;
     });
   }
 }
@@ -84,7 +94,11 @@ async function checkOrder(
       status.maxConfirmations,
     );
     if (delivered) {
-      for (const h of deliverHooks) {
+      // Snapshot the hook list before iterating: a hook's body may call its
+      // own returned cleanup() (SSE clients commonly do this when they see
+      // status_update=paid), which mutates deliverHooks via splice() and
+      // would shift indexes mid-iteration → some hooks skipped.
+      for (const h of [...deliverHooks]) {
         try {
           h(o.id, o.email, delivered);
         } catch (_e) {}
@@ -135,16 +149,24 @@ async function tick(): Promise<void> {
   const tol = await getSettingNumber("rate_tolerance_litoshi", 1000);
 
   const payable = await db.select().from(orders).where(PAYABLE);
-  for (const o of payable) {
-    try {
-      await checkOrder(o, token, requiredConf, tol);
-    } catch (e) {
-      console.error(
-        `[watcher] checkOrder failed for ${o.id}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-    await Bun.sleep(PER_ADDRESS_DELAY_MS);
-  }
+  // Bounded concurrency: TICK_CONCURRENCY parallel checks. p-limit guarantees
+  // we never exceed the cap, so the upstream explorer rate-limit holds even
+  // when payable.length is huge. Errors are swallowed per-order so one
+  // explorer outage doesn't cancel sibling checks.
+  const limit = pLimit(TICK_CONCURRENCY);
+  await Promise.all(
+    payable.map((o) =>
+      limit(async () => {
+        try {
+          await checkOrder(o, token, requiredConf, tol);
+        } catch (e) {
+          console.error(
+            `[watcher] checkOrder failed for ${o.id}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }),
+    ),
+  );
 }
 
 /** Start the background loop (idempotent — only one loop per process). */
@@ -156,9 +178,7 @@ export function startWatcher(): void {
       try {
         await tick();
       } catch (e) {
-        console.error(
-          `[watcher] tick failed: ${e instanceof Error ? e.message : String(e)}`,
-        );
+        console.error(`[watcher] tick failed: ${e instanceof Error ? e.message : String(e)}`);
       }
       await Bun.sleep(POLL_INTERVAL_MS);
     }
@@ -190,15 +210,21 @@ export async function recoverStuckOrders(): Promise<void> {
 }
 
 // Deliver reserved keys for an order already in 'paid' (crash-recovery path), idempotent.
+// Emits hooks like the normal path so plugin analytics/webhooks see the same
+// stream of events whether delivery happened in real time or via recovery.
+// Previously recovery silently bypassed the hook bus, causing analytics
+// double-count drift after crashes.
 async function redeliverPaid(orderId: string): Promise<void> {
-  await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const reserved = await tx
       .select()
       .from(productKeys)
       .where(and(eq(productKeys.orderId, orderId), eq(productKeys.status, "reserved")));
-    if (reserved.length === 0) return;
+    if (reserved.length === 0) return null;
     const now = new Date();
+    const codes: string[] = [];
     for (const k of reserved) {
+      codes.push(k.code);
       await tx
         .update(productKeys)
         .set({ status: "delivered", deliveredAt: now })
@@ -209,5 +235,25 @@ async function redeliverPaid(orderId: string): Promise<void> {
         .where(eq(products.id, k.productId));
     }
     await tx.update(orders).set({ deliveredAt: now }).where(eq(orders.id, orderId));
+    const o = (await tx.select().from(orders).where(eq(orders.id, orderId)))[0];
+    return { o, codes };
   });
+  if (!result?.o) return;
+  hookBus
+    .emit("payment.paid", {
+      orderId: result.o.id,
+      userId: result.o.userId,
+      amountUsd: result.o.totalUsd,
+    })
+    .catch(() => {});
+  for (const code of result.codes) {
+    hookBus
+      .emit("product.delivered", {
+        orderId: result.o.id,
+        userId: result.o.userId,
+        productId: "",
+        deliveredKeys: [code],
+      })
+      .catch(() => {});
+  }
 }

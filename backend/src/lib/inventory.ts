@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db/connection.ts";
 import { orders, productKeys, products } from "../db/schema.ts";
 import { EmailService } from "./email.ts";
+import { getSetting } from "./settings.ts";
 
 /**
  * Key inventory operations. All stock state lives in product_keys:
@@ -50,7 +51,10 @@ export async function reserveKeys(
       .where(and(eq(productKeys.id, row.id), eq(productKeys.status, "available")));
   }
 
-  // Low stock check
+  // Low stock check. Defer the alert lookup outside the transaction so we don't
+  // hold a write tx open while we read settings + send email; the actual
+  // alert dispatch happens after reserveKeys returns. Fire-and-forget to keep
+  // checkout latency unaffected by SMTP weather.
   const remaining = await tx
     .select({ c: sql<number>`count(*)` })
     .from(productKeys)
@@ -67,10 +71,19 @@ export async function reserveKeys(
       await tx.select({ name: products.name }).from(products).where(eq(products.id, productId))
     )[0];
     const prodName = prod?.name ?? productId;
-    const adminEmail = Bun.env.ADMIN_EMAIL;
-    if (adminEmail) {
-      EmailService.lowStockAlert(adminEmail, prodName, remainingCount).catch((_e) => {});
-    }
+    // Resolve the alert recipient AFTER tx returns. Previously we read
+    // Bun.env.ADMIN_EMAIL inline — that desyncs the moment an admin updates
+    // their email in the DB without touching the .env. Read settings first,
+    // fall back to env only if nothing's configured.
+    queueMicrotask(() => {
+      void (async () => {
+        try {
+          const fromSetting = await getSetting("admin_alert_email");
+          const recipient = fromSetting || Bun.env.ADMIN_EMAIL;
+          if (recipient) await EmailService.lowStockAlert(recipient, prodName, remainingCount);
+        } catch {}
+      })();
+    });
   }
 
   return true;
@@ -100,8 +113,26 @@ export async function markPaidAndDeliver(
   confirmations: number,
 ): Promise<{ name: string; code: string }[] | null> {
   return db.transaction(async (tx) => {
-    // Idempotent guard: only flips a still-payable order.
-    const res = await tx
+    // Idempotent guard via SELECT-then-conditional-UPDATE inside the
+    // transaction. The previous version relied on Drizzle's UPDATE result
+    // shape (`changes` / `rowsAffected`) which is version-dependent; relying
+    // on it for delivery correctness was a payment-loss bug waiting to
+    // happen. SQLite serializes writes in a transaction, so re-reading the
+    // row here is race-safe: only the first concurrent caller observes a
+    // payable status, the rest fall through to null.
+    const cur = await tx
+      .select({ status: orders.status })
+      .from(orders)
+      .where(eq(orders.id, orderId));
+    const curStatus = cur[0]?.status;
+    if (
+      curStatus !== "pending" &&
+      curStatus !== "awaiting_payment" &&
+      curStatus !== "underpaid"
+    ) {
+      return null; // already delivered/expired/cancelled — not payable
+    }
+    await tx
       .update(orders)
       .set({
         status: "paid",
@@ -110,16 +141,7 @@ export async function markPaidAndDeliver(
         confirmations,
         paidAt: new Date(),
       })
-      .where(
-        and(
-          eq(orders.id, orderId),
-          sql`${orders.status} in ('pending','awaiting_payment','underpaid')`,
-        ),
-      );
-
-    // drizzle bun-sqlite: .run() result has `changes`. The update above returns a result we can inspect.
-    const affected = (res as any)?.changes ?? (res as any)?.rowsAffected ?? 0;
-    if (affected !== 1) return null; // someone else handled it, or not payable
+      .where(eq(orders.id, orderId));
 
     // Convert this order's reserved keys → delivered.
     const reserved = await tx
