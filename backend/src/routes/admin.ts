@@ -16,7 +16,7 @@ import {
   users,
 } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
-import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { hashPassword, SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { EmailService } from "../lib/email.ts";
 import { FEATURES, type FeatureKey, getFlags, setFlag } from "../lib/features.ts";
 import { validateXpub } from "../lib/hd.ts";
@@ -51,6 +51,9 @@ const SECRET_KEYS = new Set([
   "order_token_secret",
   "discord_client_secret",
   "discord_bot_token",
+  // maintenance_password is now hashed at write-time, but mask it in GET so
+  // we don't leak the bcrypt hash either (a hash is itself attack-useful).
+  "maintenance_password",
 ]);
 
 // Allowlist for ?status= filters on admin orders / keys endpoints. Same set
@@ -260,11 +263,26 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
   .patch(
     "/products/:id",
-    async ({ params: { id }, body, set }) => {
+    async ({ params: { id }, body, set, adminEmail }) => {
       const existing = (await db.select().from(products).where(eq(products.id, id)))[0];
       if (!existing) {
         set.status = 404;
         return { error: "Product not found", code: "NOT_FOUND" };
+      }
+      // Block javascript:/data: URIs in image — these would XSS storefront
+      // visitors when rendered as <img src> or background-image. Allow
+      // https://, /relative, and empty.
+      if (body.image !== undefined && body.image !== "") {
+        const trimmed = body.image.trim();
+        // Allow https://… or absolute /path. Block javascript:, data:, file:,
+        // ftp:, etc. — those would render as XSS or SSRF when admin pastes
+        // them into a product card or category banner.
+        const isHttps = trimmed.startsWith("https://");
+        const isAbsPath = trimmed.startsWith("/") && !trimmed.startsWith("//");
+        if (!isHttps && !isAbsPath) {
+          set.status = 400;
+          return { error: "Image must be https:// or absolute path", code: "BAD_IMAGE" };
+        }
       }
       const updates: Record<string, unknown> = {};
       if (body.name !== undefined) updates.name = body.name;
@@ -278,6 +296,16 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       if (body.categoryId !== undefined) updates.categoryId = body.categoryId;
       if (body.slug !== undefined) updates.slug = await uniqueSlug(body.slug, id);
       await db.update(products).set(updates).where(eq(products.id, id));
+      // Audit log: list field names only (not values — description can be
+      // long/HTML, priceUsd reveals merchandising). Variant edits cascade
+      // through `productVariants` below; surface that as a separate detail.
+      const changedFields = Object.keys(updates);
+      if (changedFields.length > 0 || body.variants !== undefined) {
+        const detail =
+          (changedFields.length > 0 ? changedFields.join(",") : "") +
+          (body.variants !== undefined ? `${changedFields.length ? " + " : ""}variants` : "");
+        await logAdminAction(adminEmail, "product.update", `${existing.name}: ${detail}`);
+      }
 
       if (body.variants !== undefined) {
         const currentVariants = await db
@@ -481,11 +509,12 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
   .put(
     "/settings",
-    async ({ body, set }) => {
+    async ({ body, set, adminEmail }) => {
       // Schema-driven settings update: SETTINGS_SCHEMA declares every admin key.
       // Special case: ltc_xpub validates xpub + mirrors to pay_crypto_ltc_xpub +
       // sets hd_address_type. Everything else flows through the generic loop.
       const b = body as Record<string, any>;
+      const changedKeys: string[] = [];
 
       if (b.ltc_xpub !== undefined && b.ltc_xpub !== "") {
         const v = validateXpub(b.ltc_xpub);
@@ -495,6 +524,26 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         }
         await setSetting("hd_address_type", v.type);
         await setSetting("pay_crypto_ltc_xpub", b.ltc_xpub);
+        changedKeys.push("ltc_xpub");
+      }
+
+      // maintenance_password is a gate credential, not a display string —
+      // hash it before persisting so a DB read (backup leak, future SQLi
+      // somewhere else) doesn't surface a usable password. Hashing happens
+      // BEFORE the generic loop so the loop's String() coercion can't store
+      // the plaintext by accident. Empty string clears the gate.
+      if (b.maintenance_password !== undefined) {
+        const raw = String(b.maintenance_password);
+        if (raw === "") {
+          await setSetting("maintenance_password", "");
+        } else if (raw.length >= 6) {
+          await setSetting("maintenance_password", await hashPassword(raw));
+        } else {
+          set.status = 400;
+          return { error: "Maintenance password must be ≥6 chars", code: "BAD_PW" };
+        }
+        changedKeys.push("maintenance_password");
+        delete b.maintenance_password; // skip the generic loop below
       }
 
       for (const def of SETTINGS_SCHEMA) {
@@ -505,6 +554,13 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         else if (def.type === "number") toStore = String(value);
         else toStore = String(value ?? "");
         await setSetting(def.key, toStore);
+        changedKeys.push(def.key);
+      }
+
+      // Audit log: list keys touched, never values (would dump secrets like
+      // resend_api_key, smtp_pass, custom_header_script payload).
+      if (changedKeys.length > 0) {
+        await logAdminAction(adminEmail, "settings.update", changedKeys.join(","));
       }
 
       const all = await getAllSettings();
@@ -639,6 +695,20 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
   // Resend email with keys to the customer (admin).
   .post("/orders/:id/resend-email", async ({ params: { id }, set, adminEmail }) => {
+    // Per-order cooldown: 1 resend / 5 min. Without this a malicious or
+    // sloppy admin could mail-bomb a customer (60 admin-mutate per minute
+    // global cap × N admins). Spam reports tank deliverability for the
+    // whole shop, so the cap is per orderId not per admin.
+    const rl = rateLimitCheck(`resend-email:${id}`, 1, 5 * 60_000);
+    if (!rl.allowed) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+      return {
+        error: "Wait before resending again",
+        code: "RATE_LIMITED",
+        retryAfterMs: rl.resetMs,
+      };
+    }
     const o = (await db.select().from(orders).where(eq(orders.id, id)))[0];
     if (!o) {
       set.status = 404;
@@ -831,10 +901,23 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   })
   .post(
     "/plugins/:id/enabled",
-    async ({ params, body }) => {
+    async ({ params, body, set, adminEmail }) => {
       const id = params.id;
+      // Validate against the loaded-plugins registry. Without this guard, an
+      // arbitrary `:id` (multi-megabyte garbage, prefix-collision attempts)
+      // would pollute the settings table with `feature_plugin_*` keys —
+      // storage bloat + cache poisoning vector for any future setting that
+      // shares the prefix.
+      const loaded = (globalThis as any).__nexora_plugins as
+        | { id: string }[]
+        | undefined;
+      if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id) || !loaded?.some((p) => p.id === id)) {
+        set.status = 400;
+        return { error: "Unknown plugin", code: "BAD_PLUGIN" };
+      }
       const value = (body as { enabled: boolean })?.enabled === true;
       await setSetting(`feature_plugin_${id}`, value ? "true" : "false");
+      await logAdminAction(adminEmail, `plugin.${value ? "enable" : "disable"}`, id);
       return { ok: true, restart_required: true };
     },
     { body: t.Object({ enabled: t.Boolean() }) },
@@ -868,13 +951,15 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   )
   .put(
     "/payments/:id/config",
-    async ({ params: { id }, body, set }) => {
+    async ({ params: { id }, body, set, adminEmail }) => {
       const def = PROVIDER_BY_ID[id];
       if (!def) {
         set.status = 400;
         return { error: "Unknown provider", code: "BAD_PROVIDER" };
       }
       // Only persist known fields; skip empty secret values so we don't wipe a saved secret.
+      const changedNonSecret: string[] = [];
+      let secretsChanged = 0;
       for (const f of def.fields) {
         const v = (body.config as Record<string, string>)[f.key];
         if (v === undefined) continue;
@@ -891,6 +976,19 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
           await setSetting("hd_address_type", res.type);
         }
         await setProviderField(id, f.key, v);
+        if (f.secret) secretsChanged++;
+        else changedNonSecret.push(f.key);
+      }
+      // Audit a payment-config change. Critical for forensics: a compromised
+      // admin swapping `xpub` to an attacker-owned wallet would otherwise
+      // route every subsequent LTC payment to them with no log trail.
+      // Never log the secret values themselves — only the field names.
+      if (changedNonSecret.length > 0 || secretsChanged > 0) {
+        await logAdminAction(
+          adminEmail,
+          "payment.config",
+          `${id}: ${changedNonSecret.join(",") || "—"} (secrets:${secretsChanged})`,
+        );
       }
       return { ok: true, id };
     },
@@ -914,7 +1012,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       .groupBy(users.id)
       .orderBy(desc(users.createdAt));
 
-    return rows.map(r => ({
+    return rows.map((r) => ({
       id: r.id,
       email: r.email,
       status: r.status,
@@ -944,8 +1042,17 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         set.status = 404;
         return { error: "Not found", code: "NOT_FOUND" };
       }
-      await db.update(users).set({ status: body.status }).where(eq(users.id, id));
-      if (body.status === "banned") await db.delete(sessions).where(eq(sessions.userId, id)); // force logout
+      // Atomic ban: delete sessions FIRST, then flip status, both inside a
+      // transaction. The previous order had a window where status=banned was
+      // committed but sessions still resolved → an in-flight admin action
+      // by the soon-to-be-banned user could still mutate state. SQLite
+      // serializes writes so the tx closes that window completely.
+      await db.transaction(async (tx) => {
+        if (body.status === "banned") {
+          await tx.delete(sessions).where(eq(sessions.userId, id));
+        }
+        await tx.update(users).set({ status: body.status }).where(eq(users.id, id));
+      });
       await logAdminAction(
         adminEmail,
         body.status === "banned" ? "customer.ban" : "customer.unban",
@@ -1026,18 +1133,50 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   )
   .patch(
     "/coupons/:id",
-    async ({ params: { id }, body, set }) => {
+    async ({ params: { id }, body, set, adminEmail }) => {
       const c = (await db.select().from(coupons).where(eq(coupons.id, id)))[0];
       if (!c) {
         set.status = 404;
         return { error: "Not found", code: "NOT_FOUND" };
+      }
+      // Re-validate against the existing coupon's TYPE. POST validates these
+      // bounds; PATCH historically did not, so a compromised admin cookie
+      // could PATCH `value=10000` on a percent coupon → 10000% discount →
+      // checkout floor clamps total to $0.01 → effectively free goods. The
+      // payment-loss path is identical to a missing POST validation.
+      if (body.value !== undefined) {
+        if (body.value < 0) {
+          set.status = 400;
+          return { error: "Coupon value must be ≥ 0", code: "BAD_VALUE" };
+        }
+        if (c.type === "percent" && body.value > 100) {
+          set.status = 400;
+          return { error: "Percent coupons must be 0..100", code: "BAD_VALUE" };
+        }
+        if (c.type === "fixed" && body.value > 10_000) {
+          set.status = 400;
+          return { error: "Fixed coupons capped at $10,000", code: "BAD_VALUE" };
+        }
+      }
+      if (body.maxUses !== undefined && (body.maxUses < 1 || body.maxUses > 1_000_000)) {
+        set.status = 400;
+        return { error: "maxUses must be 1..1_000_000", code: "BAD_MAX_USES" };
+      }
+      if (
+        body.minOrderUsd !== undefined &&
+        (body.minOrderUsd < 0 || body.minOrderUsd > 1_000_000)
+      ) {
+        set.status = 400;
+        return { error: "minOrderUsd must be 0..1_000_000", code: "BAD_MIN_ORDER" };
       }
       const u: Record<string, unknown> = {};
       if (body.active !== undefined) u.active = body.active;
       if (body.value !== undefined) u.value = body.value;
       if (body.maxUses !== undefined) u.maxUses = body.maxUses;
       if (body.minOrderUsd !== undefined) u.minOrderUsd = body.minOrderUsd;
+      if (Object.keys(u).length === 0) return { ok: true };
       await db.update(coupons).set(u).where(eq(coupons.id, id));
+      await logAdminAction(adminEmail, "coupon.update", `${c.code}: ${Object.keys(u).join(",")}`);
       return { ok: true };
     },
     {
@@ -1049,8 +1188,10 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }),
     },
   )
-  .delete("/coupons/:id", async ({ params: { id } }) => {
+  .delete("/coupons/:id", async ({ params: { id }, adminEmail }) => {
+    const c = (await db.select().from(coupons).where(eq(coupons.id, id)))[0];
     await db.delete(coupons).where(eq(coupons.id, id));
+    if (c) await logAdminAction(adminEmail, "coupon.delete", c.code);
     return { ok: true };
   })
 
@@ -1190,6 +1331,40 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         if (body.parentId === id) {
           set.status = 400;
           return { error: "Cannot parent to self", code: "SELF_PARENT" };
+        }
+        // Walk ancestors of the proposed parent — if THIS category appears in
+        // that chain we'd create a cycle (A → B → A) → recursive tree builders
+        // on the storefront would loop / blow the call stack. Also re-enforce
+        // the 4-level depth cap that POST checks; reparenting can otherwise
+        // push a deep subtree past the limit.
+        if (body.parentId) {
+          let depth = 1;
+          let pid: string | null = body.parentId;
+          const seen = new Set<string>();
+          while (pid && depth < 16) {
+            if (pid === id) {
+              set.status = 400;
+              return { error: "Reparenting would create a cycle", code: "CYCLE" };
+            }
+            if (seen.has(pid)) break; // pre-existing cycle in DB — bail safely
+            seen.add(pid);
+            const p: { parentId: string | null } | undefined = (
+              await db
+                .select({ parentId: categories.parentId })
+                .from(categories)
+                .where(eq(categories.id, pid))
+            )[0];
+            if (!p) {
+              set.status = 400;
+              return { error: "Parent not found", code: "BAD_PARENT" };
+            }
+            pid = p.parentId;
+            depth++;
+          }
+          if (depth > 4) {
+            set.status = 400;
+            return { error: "Categories nest at most 4 levels deep", code: "TOO_DEEP" };
+          }
         }
         upd.parentId = body.parentId;
       }

@@ -7,6 +7,13 @@ import { logAdminAction } from "../lib/audit.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { EmailService } from "../lib/email.ts";
 import { isEnabled } from "../lib/features.ts";
+import { rateLimitCheck } from "../lib/rate-limit.ts";
+
+// Cap ticket creation + reply rate so a single user can't flood the admin
+// inbox or spam an open ticket with thousands of message rows. 10 mutations
+// per minute per user is well above any human pace; over that = automation.
+const TICKET_MUTATE_MAX = 10;
+const TICKET_MUTATE_WINDOW_MS = 60_000;
 
 async function requireUser(cookie: any) {
   return validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
@@ -47,6 +54,20 @@ export const ticketRoutes = new Elysia()
         return status(403, { error: "Tickets disabled", code: "DISABLED" });
       const user = await requireUser(cookie);
       if (!user) return status(401, { error: "Sign in", code: "UNAUTHENTICATED" });
+      const rl = rateLimitCheck(
+        `ticket-mutate:${user.id}`,
+        TICKET_MUTATE_MAX,
+        TICKET_MUTATE_WINDOW_MS,
+      );
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return {
+          error: "Too many tickets, slow down",
+          code: "RATE_LIMITED",
+          retryAfterMs: rl.resetMs,
+        };
+      }
       const cleanSubject = body.subject.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
       const cleanMessage = body.message.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
       if (!cleanSubject || !cleanMessage)
@@ -96,6 +117,24 @@ export const ticketRoutes = new Elysia()
     async ({ params: { id }, body, cookie, status, set }) => {
       const user = await requireUser(cookie);
       if (!user) return status(401, { error: "Sign in", code: "UNAUTHENTICATED" });
+      // Same per-user mutation cap as ticket creation. Admins bypass — staff
+      // legitimately need to burst-reply during inbox triage.
+      if (user.role !== "admin") {
+        const rl = rateLimitCheck(
+          `ticket-mutate:${user.id}`,
+          TICKET_MUTATE_MAX,
+          TICKET_MUTATE_WINDOW_MS,
+        );
+        if (!rl.allowed) {
+          set.status = 429;
+          set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+          return {
+            error: "Too many replies, slow down",
+            code: "RATE_LIMITED",
+            retryAfterMs: rl.resetMs,
+          };
+        }
+      }
       const tk = (await db.select().from(tickets).where(eq(tickets.id, id)))[0];
       if (!tk || (tk.userId !== user.id && user.role !== "admin"))
         return status(404, { error: "Not found", code: "NOT_FOUND" });
