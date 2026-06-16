@@ -50,7 +50,7 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
   if (state === "error") return wrap(<div className="od-state">{err}</div>);
 
   const done = o?.status === "paid" || o?.status === "completed";
-  const payable = ["pending", "awaiting_payment", "underpaid"].includes(o?.status);
+  const payable = ["pending", "awaiting_payment", "underpaid"].includes(o?.status ?? "");
   return wrap(
     <div className="od card">
       <div className="od-head">
@@ -73,7 +73,7 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
       <div className="od-total">
         <span className="od-total-label">Total</span>
         <span className="price">
-          {fmtUsd(o?.totalUsd)} · {o?.ltcAmount} LTC
+          {fmtUsd(o?.totalUsd ?? 0)} · {o?.ltcAmount} LTC
         </span>
       </div>
       {done && (

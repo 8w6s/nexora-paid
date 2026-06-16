@@ -37,13 +37,16 @@ type IconName =
   | "activity"
   | "settings"
   | "globe"
+  | "envelope"
   | "link";
 
 interface IconProps {
   name: IconName;
   size?: number;
   className?: string;
-  /** FA visual style: "duotone" (soft 2-tone, default), "regular" (thin rounded), "badge" (icon in a round tinted chip). */
+  /** Inline style passthrough — callers occasionally need to nudge color/opacity per-instance. */
+  style?: React.CSSProperties;
+  /** FA visual style. */
   variant?: "duotone" | "regular" | "duotone-regular" | "badge";
 }
 
@@ -197,6 +200,12 @@ const paths: Record<IconName, React.ReactNode> = {
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </>
   ),
+  envelope: (
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-10 6L2 7" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -243,6 +252,7 @@ const faName: Record<IconName, string> = {
   activity: "chart-line",
   settings: "gear",
   globe: "globe",
+  envelope: "envelope",
   link: "link",
 };
 
@@ -250,6 +260,7 @@ export const Icon: React.FC<IconProps> = ({
   name,
   size = 20,
   className,
+  style,
   variant = "duotone-regular",
 }) => {
   const _svg = (
@@ -263,6 +274,7 @@ export const Icon: React.FC<IconProps> = ({
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       {paths[name]}
@@ -282,7 +294,7 @@ export const Icon: React.FC<IconProps> = ({
   const iconEl = (
     <i
       className={`${styleClass} fa-${faName[name]}${spin} ${variant === "badge" ? "" : (className ?? "")}`}
-      style={{ fontSize: variant === "badge" ? size : size, lineHeight: 1 }}
+      style={{ fontSize: size, lineHeight: 1, ...style }}
       aria-hidden="true"
     />
   );

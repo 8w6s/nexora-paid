@@ -11,7 +11,8 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** code is the optional 6-digit TOTP, only required when the account has 2FA enabled. */
+  login: (email: string, password: string, code?: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -47,8 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [refresh]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      await api.post("/api/auth/login", { email, password });
+    async (email: string, password: string, code?: string) => {
+      // `code` is sent only when the user already typed it. Backend returns
+      // a TOTP_REQUIRED error code on first attempt for 2FA accounts; the
+      // form catches it and re-submits with the code attached.
+      await api.post("/api/auth/login", code ? { email, password, code } : { email, password });
       await refresh();
     },
     [refresh],

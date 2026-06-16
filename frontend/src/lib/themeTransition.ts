@@ -85,7 +85,7 @@ export function runThemeCurtain(next: "light" | "dark", apply: () => void): void
     return;
   }
 
-  // @ts-expect-error — experimental API
+  // startViewTransition is experimental; the `as any` below already silences TS.
   const startVT = (document as any).startViewTransition?.bind(document);
   if (!startVT) {
     apply();

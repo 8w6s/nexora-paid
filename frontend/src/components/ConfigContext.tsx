@@ -1,5 +1,5 @@
 import type React from "react";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { runThemeCurtain } from "../lib/themeTransition";
 
@@ -79,13 +79,17 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
-  const refresh = async () => {
+  // useCallback so the function identity is stable. Without this, `refresh` is
+  // recreated on every render, the [refresh] dep below sees a "new" value, and
+  // the effect re-runs forever — a classic infinite-fetch loop. We saw it in
+  // practice as `/api/config` being hit dozens of times per second on mount.
+  const refresh = useCallback(async () => {
     try {
       setConfig(await api.get<StoreConfig>("/api/config"));
     } catch {
       setConfig(DEFAULT);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let active = true;
