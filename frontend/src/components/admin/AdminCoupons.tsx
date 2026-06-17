@@ -204,11 +204,12 @@ export const AdminCoupons: React.FC = () => {
         .code { font-family: monospace; font-weight: 700; background: var(--surface-2); padding: 3px 8px; border-radius: 6px; }
         tr.off { opacity: .5; }
         .empty { text-align: center; color: var(--ink-faint); padding: 40px; }
-        .badge { border: none; cursor: pointer; padding: 4px 11px; border-radius: 100px; font-size: .72rem; font-weight: 600; }
-        .badge.on { color: var(--auto,#137333); background: var(--auto-soft,#e6f4ea); }
+        .badge { border: none; cursor: pointer; padding: 5px 12px; border-radius: 100px; font-size: .72rem; font-weight: 600; min-height: 24px; line-height: 1; transition: filter .12s; }
+        .badge:hover { filter: brightness(.96); }
+        .badge.on { color: var(--auto, #137333); background: var(--auto-soft, #e6f4ea); }
         .badge.offb { color: var(--ink-faint); background: var(--surface-2); }
-        .lnk { background: none; border: none; cursor: pointer; color: var(--ink-faint); display: flex; }
-        .lnk.del:hover { color: var(--price); }
+        .lnk { background: none; border: none; cursor: pointer; color: var(--ink-faint); display: inline-flex; align-items: center; justify-content: center; padding: 6px; min-width: 30px; min-height: 30px; border-radius: var(--radius-sm); transition: background .12s, color .12s; }
+        .lnk.del:hover { color: var(--price); background: var(--price-soft); }
         @media (max-width: 760px) { .cpn-grid { grid-template-columns: 1fr; } }
       `}</style>
     </div>
