@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
@@ -1691,4 +1691,53 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         newPassword: t.String({ minLength: 12, maxLength: 200 }),
       }),
     },
-  );
+  )
+
+  /* ───────── Account: list active sessions ─────────
+   * Surfaces every live session belonging to the actor so the Profile UI
+   * can render a "logged in devices" panel — same SOC2 / ISO 27001 baseline
+   * the rest of the auth surface targets. The current session is flagged
+   * so the UI can render "this device" instead of a generic timestamp.
+   * Token values are NEVER returned; we expose an opaque short id derived
+   * from the stored hash so the operator can match a row in the audit log
+   * without ever holding raw cookie material.
+   */
+  .get("/account/sessions", async ({ adminId, currentToken }) => {
+    const rows = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.userId, adminId))
+      .orderBy(desc(sessions.lastSeenAt));
+    const currentId = currentToken
+      ? createHash("sha256").update(currentToken).digest("hex")
+      : null;
+    return {
+      sessions: rows.map((s) => ({
+        // 12-char prefix of the stored sha256 — non-reversible to the cookie
+        // but unique enough to identify a row in admin_actions audit trails.
+        id: s.token.slice(0, 12),
+        createdAt: s.createdAt,
+        lastSeenAt: s.lastSeenAt,
+        expiresAt: s.expiresAt,
+        current: s.token === currentId,
+      })),
+    };
+  })
+
+  /* ───────── Account: revoke every OTHER session ─────────
+   * One-click "log me out everywhere else" for the actor. The current
+   * session always survives so the operator isn't logged out mid-flow.
+   * Audit-logged so a stolen cookie that calls this endpoint to evict
+   * the legitimate user shows up in the trail.
+   */
+  .post("/account/sessions/revoke-others", async ({ adminId, adminEmail, currentToken }) => {
+    const revoked = await revokeOtherSessions(adminId, currentToken);
+    if (revoked > 0) {
+      await logAdminAction(
+        adminEmail,
+        "account.sessions.revoke_others",
+        `Revoked ${revoked} session${revoked === 1 ? "" : "s"} from Profile`,
+      );
+    }
+    return { ok: true, revokedSessions: revoked };
+  });

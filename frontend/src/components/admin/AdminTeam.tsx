@@ -29,6 +29,154 @@ const ROLE_COLORS: Record<TeamRole, string> = {
   viewer: "badge-gray",
 };
 
+interface AdminSession {
+  id: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
+/**
+ * Active-sessions card. Lists every live session for the actor with a
+ * one-click "log out everywhere else" so a stolen cookie can be evicted
+ * without rotating the password. Pairs with AdminAccountCard for the
+ * SOC2/ISO 27001 baseline most enterprise self-host buyers expect.
+ */
+const AdminSessionsCard: React.FC = () => {
+  const [list, setList] = useState<AdminSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    api
+      .get<{ sessions: AdminSession[] }>("/api/admin/account/sessions")
+      .then((r) => setList(r?.sessions ?? []))
+      .catch(() => setList([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const revokeOthers = async () => {
+    if (!confirm("Log out every other device for your account?")) return;
+    setBusy(true);
+    try {
+      const res = await api.post<{ ok: boolean; revokedSessions: number }>(
+        "/api/admin/account/sessions/revoke-others",
+        {},
+      );
+      const n = res?.revokedSessions ?? 0;
+      setOkMsg(
+        n > 0
+          ? `Revoked ${n} other session${n === 1 ? "" : "s"}.`
+          : "No other sessions to revoke.",
+      );
+      load();
+    } catch {
+      setOkMsg("Failed to revoke sessions.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const others = list.filter((s) => !s.current).length;
+
+  return (
+    <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, fontSize: ".95rem" }}>Active sessions</div>
+          <div className="muted" style={{ fontSize: ".82rem", marginTop: 2 }}>
+            Devices currently logged in to your account.
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={revokeOthers}
+          disabled={busy || others === 0}
+        >
+          {busy ? (
+            <>
+              <Icon name="spinner" size={14} className="is-spinning" /> Revoking…
+            </>
+          ) : (
+            <>
+              <Icon name="close" size={14} /> Log out other devices
+            </>
+          )}
+        </button>
+      </div>
+      {okMsg && (
+        <div className="team-success" style={{ marginBottom: 12 }}>
+          <Icon name="check" size={15} />
+          <span>{okMsg}</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setOkMsg(null)}
+          >
+            <Icon name="close" size={13} />
+          </button>
+        </div>
+      )}
+      {loading ? (
+        <div className="adm-loading">
+          <Icon name="spinner" size={20} className="is-spinning" />
+        </div>
+      ) : list.length === 0 ? (
+        <div className="muted" style={{ fontSize: ".85rem" }}>
+          No active sessions.
+        </div>
+      ) : (
+        <table className="adm-table">
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Started</th>
+              <th>Last seen</th>
+              <th>Expires</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((s) => (
+              <tr key={s.id}>
+                <td>
+                  <code style={{ fontSize: ".78rem" }}>{s.id}…</code>
+                  {s.current && (
+                    <span
+                      className="badge badge-green"
+                      style={{ marginLeft: 8, fontSize: ".7rem" }}
+                    >
+                      this device
+                    </span>
+                )}
+                </td>
+                <td>{new Date(s.createdAt).toLocaleString()}</td>
+                <td>{new Date(s.lastSeenAt).toLocaleString()}</td>
+                <td>{new Date(s.expiresAt).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
+
 /**
  * Self-service password rotation card. Lives on the Team tab so an admin
  * who lands here to manage access also sees their own credential controls
@@ -263,6 +411,7 @@ export const AdminTeam: React.FC = () => {
   return (
     <div className="adm-section">
       <AdminAccountCard />
+      <AdminSessionsCard />
       <div className="adm-sec-head">
         <div>
           <h2>Team</h2>
