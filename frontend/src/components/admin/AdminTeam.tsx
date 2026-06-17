@@ -84,6 +84,19 @@ const AdminSessionsCard: React.FC = () => {
     }
   };
 
+  const revokeOne = async (id: string) => {
+    if (!confirm("Revoke this session? The device will be logged out immediately.")) {
+      return;
+    }
+    try {
+      await api.post(`/api/admin/account/sessions/${id}/revoke`, {});
+      setOkMsg("Session revoked.");
+      load();
+    } catch (e) {
+      setOkMsg(e instanceof Error ? e.message : "Failed to revoke session.");
+    }
+  };
+
   const others = list.filter((s) => !s.current).length;
 
   return (
@@ -149,6 +162,7 @@ const AdminSessionsCard: React.FC = () => {
               <th>Started</th>
               <th>Last seen</th>
               <th>Expires</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -163,11 +177,23 @@ const AdminSessionsCard: React.FC = () => {
                     >
                       this device
                     </span>
-                )}
+                  )}
                 </td>
                 <td>{new Date(s.createdAt).toLocaleString()}</td>
                 <td>{new Date(s.lastSeenAt).toLocaleString()}</td>
                 <td>{new Date(s.expiresAt).toLocaleString()}</td>
+                <td style={{ textAlign: "right" }}>
+                  {!s.current && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm btn-danger-icon"
+                      title="Revoke this session"
+                      onClick={() => revokeOne(s.id)}
+                    >
+                      <Icon name="close" size={13} />
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
