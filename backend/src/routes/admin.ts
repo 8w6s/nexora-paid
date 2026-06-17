@@ -39,6 +39,11 @@ import { uniqueSlug } from "../lib/slug.ts";
 const ADMIN_MUTATE_MAX = 60;
 const ADMIN_MUTATE_WINDOW_MS = 60_000;
 
+// In-process cache for /stats. Keyed by `days` so each range chip gets its
+// own slot. TTL slightly under the admin overview's 30s poll so a single
+// open tab keeps the cache hot while a hard refresh bypasses it.
+const statsCache = new Map<number, { payload: any; expiresAt: number }>();
+
 // Settings keys whose values must never leave the server in cleartext.
 // `order_token_secret` is added so it never appears in the admin /settings GET
 // even though the admin can otherwise see all key/value pairs — leaking it
@@ -821,15 +826,71 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     return { ok: true, message: "Email resent successfully" };
   })
 
-  /* ───────── Stats / revenue ───────── */
+  /* ───────── Stats / revenue ─────── */
   .get("/stats", async ({ query }) => {
     const q = query as Record<string, string>;
     // Range is parsed/clamped — `?days=99999` capped at 90, `?days=foo` defaults to 14.
     const days = Math.max(1, Math.min(90, parseInt(q.days ?? "14", 10) || 14));
-    // For shops with millions of orders this is still a full scan; in that
-    // regime move to a materialised daily-stats table. For everything else,
-    // scanning under the admin guard is fine.
-    const all = await db.select().from(orders);
+
+    // Cache hot reads for 25s — the admin overview polls every 30s, so a 25s
+    // TTL means a single tab refresh keeps the cache hot while a hard refresh
+    // (Cmd-R) bypasses it. Per-`days` so each range chip gets its own slot.
+    const cached = statsCache.get(days);
+    if (cached && cached.expiresAt > Date.now()) return cached.payload;
+
+    // Push aggregation into SQL instead of streaming every order into JS:
+    // - status histogram via GROUP BY status (uses orders_status_idx)
+    // - paid+completed revenue via SUM with WHERE status IN
+    // - day buckets via SUM/COUNT GROUP BY date(created_at) for the range
+    // - recent 5 via ORDER BY createdAt DESC LIMIT 5 (uses orders_created_idx)
+    // - total via COUNT(*)
+    const dayMs = 86_400_000;
+    const today = Math.floor(Date.now() / dayMs);
+    const rangeStart = (today - (days - 1)) * dayMs;
+
+    const [statusRows, totalRow, revenueRow, recentRows, seriesRows] = await Promise.all([
+      db
+        .select({ status: orders.status, n: count() })
+        .from(orders)
+        .groupBy(orders.status),
+      db.select({ n: count() }).from(orders),
+      db
+        .select({
+          totalUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
+          totalLitoshi: sql<number>`COALESCE(SUM(${orders.expectedLitoshi}), 0)`,
+        })
+        .from(orders)
+        .where(inArray(orders.status, ["paid", "completed"] as any)),
+      db
+        .select({
+          id: orders.id,
+          email: orders.email,
+          status: orders.status,
+          totalUsd: orders.totalUsd,
+          createdAt: orders.createdAt,
+        })
+        .from(orders)
+        .orderBy(desc(orders.createdAt))
+        .limit(5),
+      // Bucket by UTC day. orders.createdAt is timestamp_ms so divide by
+      // 86400000 then floor — equivalent to date() in UTC. WHERE bound on
+      // rangeStart keeps the scan to N days even if the table has years.
+      db
+        .select({
+          dayKey: sql<number>`CAST(${orders.createdAt} / ${dayMs} AS INTEGER)`,
+          revenueUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
+          n: count(),
+        })
+        .from(orders)
+        .where(
+          and(
+            inArray(orders.status, ["paid", "completed"] as any),
+            sql`${orders.createdAt} >= ${rangeStart}`,
+          ),
+        )
+        .groupBy(sql`CAST(${orders.createdAt} / ${dayMs} AS INTEGER)`),
+    ]);
+
     const byStatus: Record<string, number> = {
       pending: 0,
       awaiting_payment: 0,
@@ -839,14 +900,25 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       expired: 0,
       cancelled: 0,
     };
-    let revenueUsd = 0;
-    let revenueLtcLitoshi = 0;
-    for (const o of all) {
-      byStatus[o.status] = (byStatus[o.status] ?? 0) + 1;
-      if (o.status === "paid" || o.status === "completed") {
-        revenueUsd += o.totalUsd;
-        revenueLtcLitoshi += o.expectedLitoshi;
-      }
+    for (const r of statusRows) {
+      if (r.status) byStatus[r.status] = r.n;
+    }
+    const totalOrders = totalRow[0]?.n ?? 0;
+    const revenueUsd = Number(revenueRow[0]?.totalUsd ?? 0);
+    const revenueLtcLitoshi = Number(revenueRow[0]?.totalLitoshi ?? 0);
+
+    // Build the day series; missing days from the SQL result stay at 0.
+    const series: { day: string; revenueUsd: number; orders: number }[] = [];
+    const seriesByKey = new Map(seriesRows.map((r) => [Number(r.dayKey), r]));
+    for (let i = days - 1; i >= 0; i--) {
+      const dayKey = today - i;
+      const d = dayKey * dayMs;
+      const row = seriesByKey.get(dayKey);
+      series.push({
+        day: new Date(d).toISOString().slice(0, 10),
+        revenueUsd: row ? Number(row.revenueUsd) : 0,
+        orders: row ? row.n : 0,
+      });
     }
 
     const allProducts = await db.select().from(products);
@@ -860,47 +932,25 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       .filter((p) => p.available <= 5)
       .sort((a, b) => a.available - b.available);
 
-    // N-day revenue series (UTC day buckets) for the chart.
-    const dayMs = 86_400_000;
-    const today = Math.floor(Date.now() / dayMs);
-    const series: { day: string; revenueUsd: number; orders: number }[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = (today - i) * dayMs;
-      series.push({ day: new Date(d).toISOString().slice(0, 10), revenueUsd: 0, orders: 0 });
-    }
-    const idx = (ts: number) => days - 1 - (today - Math.floor(new Date(ts).getTime() / dayMs));
-    for (const o of all) {
-      if (o.status !== "paid" && o.status !== "completed") continue;
-      const i = idx(new Date(o.createdAt).getTime());
-      if (i >= 0 && i < days) {
-        series[i].revenueUsd += o.totalUsd;
-        series[i].orders += 1;
-      }
-    }
-
-    // Most recent 5 orders (any status) for the "Latest orders" panel.
-    const recentOrders = [...all]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
-      .map((o) => ({
-        id: o.id,
-        email: o.email,
-        status: o.status,
-        totalUsd: o.totalUsd,
-        createdAt: o.createdAt,
-      }));
-
-    return {
-      totalOrders: all.length,
+    const payload = {
+      totalOrders,
       ordersByStatus: byStatus,
       revenueUsd: Math.round(revenueUsd * 100) / 100,
       revenueLtc: (revenueLtcLitoshi / 1e8).toFixed(8),
       topProducts,
       lowStock,
       revenueSeries: series,
-      recentOrders,
+      recentOrders: recentRows.map((o) => ({
+        id: o.id,
+        email: o.email,
+        status: o.status,
+        totalUsd: o.totalUsd,
+        createdAt: o.createdAt,
+      })),
       rangeDays: days,
     };
+    statsCache.set(days, { payload, expiresAt: Date.now() + 25_000 });
+    return payload;
   })
 
   /* ───────── Email settings (optional) ───────── */
