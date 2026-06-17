@@ -678,34 +678,65 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
   /* ───────── Orders (admin view) ───────── */
   .get("/orders", async ({ query }) => {
-    const status = (query as Record<string, string>).status;
-    const list =
-      status && ORDER_STATUSES.has(status)
-        ? await db
-            .select()
-            .from(orders)
-            .where(eq(orders.status, status as any))
-            .orderBy(desc(orders.createdAt))
-        : await db.select().from(orders).orderBy(desc(orders.createdAt));
-    return Promise.all(
-      list.map(async (o) => ({
-        id: o.id,
-        status: o.status,
-        email: o.email,
-        totalUsd: o.totalUsd,
-        ltcAmount: o.ltcAmount,
-        receivedLitoshi: o.receivedLitoshi,
-        expectedLitoshi: o.expectedLitoshi,
-        confirmations: o.confirmations,
-        ltcAddress: o.ltcAddress,
-        paidTxId: o.paidTxId,
-        createdAt: o.createdAt,
-        items: await db
-          .select({ name: orderItems.name, quantity: orderItems.quantity })
-          .from(orderItems)
-          .where(eq(orderItems.orderId, o.id)),
-      })),
-    );
+    // Previously: unbounded `select * from orders` + per-row `select * from
+    // orderItems where orderId = o.id`. At 50k orders that's 50k+1 queries
+    // per page load and the admin UI auto-polls this every 8s. Now: paginate
+    // to a default of 50 (max 200), then a single inArray() to fetch items
+    // for the page in one round trip.
+    const q = query as Record<string, string>;
+    const status = q.status;
+    const limitRaw = Number.parseInt(q.limit ?? "50", 10);
+    const offsetRaw = Number.parseInt(q.offset ?? "0", 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 50;
+    const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0;
+
+    const baseWhere =
+      status && ORDER_STATUSES.has(status) ? eq(orders.status, status as any) : undefined;
+
+    const list = await (baseWhere
+      ? db
+          .select()
+          .from(orders)
+          .where(baseWhere)
+          .orderBy(desc(orders.createdAt))
+          .limit(limit)
+          .offset(offset)
+      : db
+          .select()
+          .from(orders)
+          .orderBy(desc(orders.createdAt))
+          .limit(limit)
+          .offset(offset));
+
+    if (list.length === 0) return [];
+
+    // Single round trip for items across the entire page, then group by orderId.
+    const ids = list.map((o) => o.id);
+    const items = await db
+      .select({ orderId: orderItems.orderId, name: orderItems.name, quantity: orderItems.quantity })
+      .from(orderItems)
+      .where(inArray(orderItems.orderId, ids));
+    const byOrder = new Map<string, { name: string; quantity: number }[]>();
+    for (const it of items) {
+      const arr = byOrder.get(it.orderId);
+      if (arr) arr.push({ name: it.name, quantity: it.quantity });
+      else byOrder.set(it.orderId, [{ name: it.name, quantity: it.quantity }]);
+    }
+
+    return list.map((o) => ({
+      id: o.id,
+      status: o.status,
+      email: o.email,
+      totalUsd: o.totalUsd,
+      ltcAmount: o.ltcAmount,
+      receivedLitoshi: o.receivedLitoshi,
+      expectedLitoshi: o.expectedLitoshi,
+      confirmations: o.confirmations,
+      ltcAddress: o.ltcAddress,
+      paidTxId: o.paidTxId,
+      createdAt: o.createdAt,
+      items: byOrder.get(o.id) ?? [],
+    }));
   })
 
   // Detail view for a single order (admin).

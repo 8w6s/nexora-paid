@@ -43,8 +43,21 @@ export const AdminOrders: React.FC = () => {
   useEffect(() => {
     setLoaded(false);
     load(filter);
-    const t = setInterval(() => load(filter), 8000);
-    return () => clearInterval(t);
+    // Poll every 30s instead of 8s, and pause when the tab is backgrounded.
+    // Combined with the backend's new pagination + single-batched items
+    // query, this drops admin-orders polling cost from ~50k+1 queries every
+    // 8s to a single bounded query every 30s while the tab is visible.
+    const t = setInterval(() => {
+      if (!document.hidden) load(filter);
+    }, 30000);
+    const onVis = () => {
+      if (!document.hidden) load(filter);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [filter, load]);
 
   if (openId) return <AdminOrderDetail orderId={openId} onBack={() => setOpenId(null)} />;
