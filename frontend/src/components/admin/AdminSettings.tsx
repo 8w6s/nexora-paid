@@ -164,7 +164,7 @@ export const AdminSettings: React.FC = () => {
   // Email Server state
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [emailProvider, setEmailProvider] = useState<"resend" | "smtp">("resend");
-  const [emailFrom, setEmailFrom] = useState("noreply@nexora.shop");
+  const [emailFrom, setEmailFrom] = useState("");
   const [resendApiKey, setResendApiKey] = useState("");
   const [smtpHost, setSmtpHost] = useState("");
   const [smtpPort, setSmtpPort] = useState("587");
@@ -347,7 +347,7 @@ export const AdminSettings: React.FC = () => {
           // Email Server load
           setEmailEnabled(d.email_enabled === "true" || d.email_enabled === true);
           setEmailProvider((d.email_provider as "resend" | "smtp") ?? "resend");
-          setEmailFrom(d.email_from ?? "noreply@nexora.shop");
+          setEmailFrom(d.email_from ?? "");
           setResendApiKey(typeof d.resend_api_key === "string" ? d.resend_api_key : "");
           setSmtpHost(d.smtp_host ?? "");
           setSmtpPort(String(d.smtp_port ?? "587"));
