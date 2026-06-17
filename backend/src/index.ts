@@ -42,9 +42,15 @@ if (Bun.env.NODE_ENV === "production") {
     process.exit(1);
   }
   if (!Bun.env.ORDER_TOKEN_SECRET || Bun.env.ORDER_TOKEN_SECRET.length < 32) {
-    console.warn(
-      "[boot] WARNING: ORDER_TOKEN_SECRET unset or short — falling back to DB-stored random secret.",
+    // Refuse to boot rather than fall back to a DB-stored secret in prod:
+    // any DB read (offline backup leak, future SQLi, support engineer with
+    // read-replica access) yields the HMAC key that signs guest order
+    // capability tokens, letting an attacker forge ?token= for any
+    // guessable order id and exfiltrate delivered keys.
+    console.error(
+      "[boot] FATAL: ORDER_TOKEN_SECRET must be set to a 32+ character random value in production.",
     );
+    process.exit(1);
   }
 }
 
