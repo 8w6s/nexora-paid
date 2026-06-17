@@ -33,10 +33,77 @@ async function stockMap(productIds: string[]): Promise<Record<string, number>> {
   return m;
 }
 
+/**
+ * One-shot stock query covering BOTH product-level and variant-level keys for
+ * a set of products. Replaces the old pattern of two separate groupBy queries
+ * (stockMap by productId, then by variantId). The product_keys_product_status_idx
+ * is hit once instead of twice. Result groups by (productId, variantId|null).
+ */
+async function stockMapCombined(productIds: string[]): Promise<{
+  byProduct: Record<string, number>;
+  byVariant: Record<string, number>;
+}> {
+  if (productIds.length === 0) return { byProduct: {}, byVariant: {} };
+  const rows = await db
+    .select({
+      productId: productKeys.productId,
+      variantId: productKeys.variantId,
+      c: count(),
+    })
+    .from(productKeys)
+    .where(and(inArray(productKeys.productId, productIds), eq(productKeys.status, "available")))
+    .groupBy(productKeys.productId, productKeys.variantId);
+  const byProduct: Record<string, number> = {};
+  const byVariant: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.variantId) byVariant[r.variantId] = Number(r.c);
+    else byProduct[r.productId] = Number(r.c);
+  }
+  return { byProduct, byVariant };
+}
+
+// Catalog list cache. Stock-aware queries change infrequently relative to read
+// volume, so even a 5-second TTL gives a huge hit ratio on the storefront
+// homepage. Keyed by the full canonicalised query string so each filter set
+// gets its own slot. The watcher's deliver hook clears this when stock moves.
+const catalogCache = new Map<string, { payload: any[]; expiresAt: number }>();
+const CATALOG_CACHE_TTL_MS = 5_000;
+export function clearCatalogCache(): void {
+  catalogCache.clear();
+}
+
 export const productRoutes = new Elysia()
   /* ───── Public catalog: search + filter + sort (stock from product_keys) ───── */
-  .get("/api/products", async ({ query }) => {
+  .get("/api/products", async ({ query, set }) => {
     const q = query as Record<string, string>;
+
+    // Pagination: default 24, max 60. Storefront grids show 12-24 per page,
+    // so 60 is a generous max for power-user filtering. Without this, an
+    // unbounded /api/products on a 5k-SKU catalog ships multi-MB JSON on
+    // every page load.
+    const limitRaw = Number.parseInt(q.limit ?? "24", 10);
+    const offsetRaw = Number.parseInt(q.offset ?? "0", 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 60) : 24;
+    const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0;
+
+    // Cache key: canonicalise the inputs so identical queries hit the same slot.
+    const cacheKey = JSON.stringify({
+      cat: q.category ?? null,
+      q: q.q?.trim() ?? null,
+      sort: q.sort ?? null,
+      inStock: q.inStock ?? null,
+      limit,
+      offset,
+    });
+    const cached = catalogCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      // Tell intermediaries the response is fresh enough to reuse for a few
+      // seconds. ETag-style validators would be even better but for a 5s TTL
+      // the gain isn't worth the complexity.
+      set.headers["Cache-Control"] = "public, max-age=5";
+      return cached.payload;
+    }
+
     const conds = [eq(products.active, true)];
     if (q.category && q.category !== "All" && q.category.length <= 80) {
       conds.push(eq(products.category, q.category));
@@ -67,11 +134,16 @@ export const productRoutes = new Elysia()
       .select()
       .from(products)
       .where(and(...conds))
-      .orderBy(order);
-    const productIds = rows.map((p) => p.id);
-    const stock = await stockMap(productIds);
+      .orderBy(order)
+      .limit(limit)
+      .offset(offset);
 
-    // Fetch variants for all these products
+    const productIds = rows.map((p) => p.id);
+
+    // Single combined stock query — replaces two separate groupBy passes.
+    const { byProduct: stock, byVariant: variantStock } = await stockMapCombined(productIds);
+
+    // Fetch variants for all these products in one shot.
     const allVariants =
       productIds.length > 0
         ? await db
@@ -79,22 +151,6 @@ export const productRoutes = new Elysia()
             .from(productVariants)
             .where(inArray(productVariants.productId, productIds))
         : [];
-
-    // Fetch key counts grouped by variantId
-    const variantStockRows =
-      productIds.length > 0
-        ? await db
-            .select({ variantId: productKeys.variantId, c: count() })
-            .from(productKeys)
-            .where(
-              and(inArray(productKeys.productId, productIds), eq(productKeys.status, "available")),
-            )
-            .groupBy(productKeys.variantId)
-        : [];
-    const variantStock: Record<string, number> = {};
-    for (const r of variantStockRows) {
-      if (r.variantId) variantStock[r.variantId] = Number(r.c);
-    }
 
     // Map variants to products
     const variantsByProduct: Record<string, any[]> = {};
@@ -122,12 +178,22 @@ export const productRoutes = new Elysia()
     });
 
     if (q.inStock === "true") out = out.filter((p) => p.inStock); // in-stock-only filter
+
+    catalogCache.set(cacheKey, { payload: out, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS });
+    set.headers["Cache-Control"] = "public, max-age=5";
     return out;
   })
 
   .get("/api/products/:idOrSlug", async ({ params: { idOrSlug }, set }) => {
-    let row = (await db.select().from(products).where(eq(products.slug, idOrSlug)))[0];
-    if (!row) row = (await db.select().from(products).where(eq(products.id, idOrSlug)))[0];
+    // Single query with OR instead of two sequential selects on miss. The slug
+    // lookup is the common path; the id fallback covers admin links.
+    const row = (
+      await db
+        .select()
+        .from(products)
+        .where(or(eq(products.slug, idOrSlug), eq(products.id, idOrSlug))!)
+        .limit(1)
+    )[0];
     if (!row?.active) {
       set.status = 404;
       return { error: "Product not found", code: "NOT_FOUND" };

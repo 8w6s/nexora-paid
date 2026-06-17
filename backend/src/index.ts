@@ -20,7 +20,7 @@ import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
 import { categoryRoutes } from "./routes/categories.ts";
 import { checkoutRoutes } from "./routes/checkout.ts";
 import { configRoutes } from "./routes/config.ts";
-import { productRoutes } from "./routes/products.ts";
+import { clearCatalogCache, productRoutes } from "./routes/products.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { adminTicketRoutes, ticketRoutes } from "./routes/tickets.ts";
@@ -386,6 +386,14 @@ onOrderDelivered((orderId, email, keys) => {
     if ("error" in r) console.warn(`[email] order ${orderId} send failed: ${r.error}`);
     else if ("id" in r) console.log(`[email] delivered-keys sent for ${orderId} (${r.id})`);
   });
+});
+
+// Invalidate the public catalog cache the moment stock moves. Without this,
+// a freshly out-of-stock SKU keeps showing as available for up to TTL seconds
+// after delivery — annoying for high-velocity inventory and an actual bug for
+// low-stock single-key SKUs where two customers see "1 in stock" simultaneously.
+onOrderDelivered(() => {
+  clearCatalogCache();
 });
 
 // Recover any orders that were mid-flight when the previous process died,
