@@ -1,4 +1,4 @@
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 import pLimit from "p-limit";
 import { db } from "../db/connection.ts";
 import { orders, productKeys, products } from "../db/schema.ts";
@@ -19,6 +19,16 @@ const POLL_INTERVAL_MS = 30_000;
 // while still draining the payable backlog faster than sequential 350ms gaps
 // (which choked at ~85 active orders per 30s tick before tx overlap).
 const TICK_CONCURRENCY = 5;
+// Per-tick quota cap. BlockCypher keyless = ~200/hr ≈ 100 per 30s tick. Use
+// a conservative default so a backlog never exhausts the quota and stalls
+// confirmations for every order. With a token, the limit is much higher and
+// the operator can override via TICK_QUOTA env. lastCheckedAt prioritisation
+// guarantees oldest-pending always gets the next slot.
+const TICK_QUOTA = Number.parseInt(Bun.env.WATCHER_TICK_QUOTA ?? "60", 10);
+// Cooldown: don't repoll an address that was checked < this window ago, so a
+// large backlog spreads its checks across multiple ticks instead of hammering
+// the same address on every tick. 90s = a confirmation cycle for LTC.
+const ADDR_RECHECK_COOLDOWN_MS = 90_000;
 
 type DeliverHook = (orderId: string, email: string, keys: { name: string; code: string }[]) => void;
 // Hard cap: ~1k subscribers is far above any plausible legitimate need
@@ -99,6 +109,11 @@ async function checkOrder(
 ): Promise<void> {
   const status = await getAddrStatus(o.ltcAddress, token);
   const decision = paymentDecision(status, o.expectedLitoshi, requiredConf, tol);
+  // Stamp every check (paid / underpaid / waiting / no-progress) so the
+  // tick() cooldown + ORDER BY ASC sees this order at the back of the queue
+  // until the cooldown elapses. Without this stamp we'd re-poll the same
+  // recently-checked address on every tick and exhaust the keyless quota.
+  const checkedNow = new Date();
 
   if (decision === "paid") {
     const delivered = await markPaidAndDeliver(
@@ -107,6 +122,11 @@ async function checkOrder(
       status.receivedLitoshi,
       status.maxConfirmations,
     );
+    // markPaidAndDeliver flips status->paid and stamps paidAt/deliveredAt
+    // but doesn't know about the watcher's lastCheckedAt accounting; stamp
+    // it here so a paid order that the next tick still sees (e.g. mid-flight
+    // hook chain) doesn't get re-polled within its cooldown window.
+    await db.update(orders).set({ lastCheckedAt: checkedNow }).where(eq(orders.id, o.id));
     if (delivered) {
       // Snapshot the hook list before iterating: a hook's body may call its
       // own returned cleanup() (SSE clients commonly do this when they see
@@ -140,17 +160,29 @@ async function checkOrder(
         status: "underpaid",
         receivedLitoshi: status.receivedLitoshi,
         confirmations: status.maxConfirmations,
+        lastCheckedAt: checkedNow,
       })
       .where(and(eq(orders.id, o.id), PAYABLE));
   } else {
-    // waiting: record any partial/confirmation progress for the pay page
+    // waiting: record any partial/confirmation progress for the pay page,
+    // and ALWAYS stamp lastCheckedAt so the cooldown queue advances even
+    // when nothing on-chain changed (the common case for an idle address).
     if (
       status.receivedLitoshi !== o.receivedLitoshi ||
       status.maxConfirmations !== o.confirmations
     ) {
       await db
         .update(orders)
-        .set({ receivedLitoshi: status.receivedLitoshi, confirmations: status.maxConfirmations })
+        .set({
+          receivedLitoshi: status.receivedLitoshi,
+          confirmations: status.maxConfirmations,
+          lastCheckedAt: checkedNow,
+        })
+        .where(and(eq(orders.id, o.id), PAYABLE));
+    } else {
+      await db
+        .update(orders)
+        .set({ lastCheckedAt: checkedNow })
         .where(and(eq(orders.id, o.id), PAYABLE));
     }
   }
@@ -162,7 +194,23 @@ async function tick(): Promise<void> {
   const requiredConf = await getSettingNumber("required_confirmations", 2);
   const tol = await getSettingNumber("rate_tolerance_litoshi", 1000);
 
-  const payable = await db.select().from(orders).where(PAYABLE);
+  // Quota + cooldown gate. Without this, every tick re-polls every payable
+  // order indiscriminately; once the payable backlog crossed ~90 orders the
+  // BlockCypher keyless quota was exhausted within minutes and confirmations
+  // stalled across ALL orders. Now we:
+  //   1. Skip addresses checked within ADDR_RECHECK_COOLDOWN_MS (default 90s).
+  //   2. Order remaining by lastCheckedAt ASC so the longest-waiting order
+  //      always gets the next slot.
+  //   3. Cap to TICK_QUOTA per tick so a backlog spreads across multiple
+  //      ticks instead of blowing the per-hour quota in one burst.
+  // The composite (status, last_checked_at) index keeps this off a filesort.
+  const cooldownCutoff = new Date(Date.now() - ADDR_RECHECK_COOLDOWN_MS);
+  const payable = await db
+    .select()
+    .from(orders)
+    .where(and(PAYABLE, lte(orders.lastCheckedAt, cooldownCutoff)))
+    .orderBy(asc(orders.lastCheckedAt))
+    .limit(TICK_QUOTA);
   // Bounded concurrency: TICK_CONCURRENCY parallel checks. p-limit guarantees
   // we never exceed the cap, so the upstream explorer rate-limit holds even
   // when payable.length is huge. Errors are swallowed per-order so one

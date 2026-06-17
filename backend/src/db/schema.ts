@@ -247,6 +247,14 @@ export const orders = sqliteTable(
     paidAt: integer("paid_at", { mode: "timestamp_ms" }),
     deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    // Watcher fan-out tracking. Without this every tick re-polls every payable
+    // address indiscriminately, exhausting the BlockCypher quota once the
+    // payable backlog crosses ~90 orders. lastCheckedAt lets us prioritise
+    // oldest-pending first and skip recently-checked. Migration 0006 backfills
+    // existing rows to 0 so the first tick after deploy covers them all.
+    lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(0),
   },
   (t) => ({
     statusIdx: index("orders_status_idx").on(t.status),
@@ -258,6 +266,11 @@ export const orders = sqliteTable(
     createdIdx: index("orders_created_idx").on(t.createdAt),
     emailIdx: index("orders_email_idx").on(t.email),
     userCreatedIdx: index("orders_user_created_idx").on(t.userId, t.createdAt),
+    // Watcher prioritises payable orders by lastCheckedAt ASC so the
+    // oldest-checked address gets the next slot in the limited BlockCypher
+    // quota each tick. Composite (status, lastCheckedAt) keeps the ORDER BY
+    // out of a filesort.
+    statusCheckedIdx: index("orders_status_checked_idx").on(t.status, t.lastCheckedAt),
     ltcAddressUnique: uniqueIndex("orders_ltc_address_unique").on(t.ltcAddress),
     addressIndexUnique: uniqueIndex("orders_address_index_unique").on(t.addressIndex),
   }),
