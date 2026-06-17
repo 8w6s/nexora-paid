@@ -38,6 +38,7 @@ const META: Record<string, { label: string; tone: string }> = {
   "settings.update": { label: "Updated settings", tone: "neutral" },
   "settings.email.update": { label: "Updated email settings", tone: "neutral" },
   "settings.wallet.fail": { label: "Wallet rotation refused (bad password)", tone: "bad" },
+  "settings.email.fail": { label: "Email credential rotation refused (bad password)", tone: "bad" },
   "payment.config": { label: "Updated payment provider", tone: "neutral" },
   "payment.wallet.fail": { label: "Wallet rotation refused (bad password)", tone: "bad" },
   "keys.upload": { label: "Uploaded inventory keys", tone: "good" },
