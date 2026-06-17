@@ -30,12 +30,30 @@ const PREFIX: Record<string, { v: { private: number; public: number }; type: Fla
   zpub: { v: { public: 0x04b24746, private: 0x04b2430c }, type: "p2wpkh" }, // BIP84 (generic)
 };
 
+// Unambiguously Bitcoin prefixes. xpub/ypub are BIP44/BIP49 BTC versions;
+// pasting them here would derive technically-valid LTC addresses from a
+// Bitcoin key, sending customer LTC to a wallet the merchant cannot see in
+// their normal tooling AND letting anyone else holding that BTC xpub
+// (Electrum server, hw-vendor logs, watch-only sharer) sweep the funds.
+// zpub stays allowed because it is the de-facto BIP84 prefix many LTC
+// wallets emit for native SegWit; gating it would break real users.
+const NON_LTC_PREFIXES = new Set(["xpub", "ypub"]);
+
 export function detectFlavor(xpub: string): {
   v: { private: number; public: number };
   type: Flavor;
 } {
-  const cfg = PREFIX[xpub.slice(0, 4)];
-  if (!cfg) throw new Error(`Unsupported extended key prefix: ${xpub.slice(0, 4)}`);
+  const prefix = xpub.slice(0, 4);
+  const cfg = PREFIX[prefix];
+  if (!cfg) throw new Error(`Unsupported extended key prefix: ${prefix}`);
+  if (NON_LTC_PREFIXES.has(prefix)) {
+    const allow = (process.env.NEXORA_ALLOW_CROSS_CHAIN_XPUB ?? "").toLowerCase() === "true";
+    if (!allow) {
+      throw new Error(
+        `Refusing ${prefix}: that's a Bitcoin extended key. Paste an Ltub/Mtub/zpub from a Litecoin wallet, or set NEXORA_ALLOW_CROSS_CHAIN_XPUB=true to override (you almost certainly do not want to).`,
+      );
+    }
+  }
   return cfg;
 }
 
