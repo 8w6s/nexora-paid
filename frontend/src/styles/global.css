@@ -66,6 +66,10 @@
 
 html {
   scrollbar-color: var(--line-strong) var(--bg);
+  /* The cart drawer is fixed + translated 100% off-screen until opened.
+     Without clip, that off-screen position contributes to scrollWidth and
+     mobile viewports get a phantom 20px+ horizontal scroll. */
+  overflow-x: clip;
 }
 
 body {
