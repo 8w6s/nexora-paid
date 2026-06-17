@@ -16,7 +16,13 @@ import {
   users,
 } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
-import { hashPassword, SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import {
+  hashPassword,
+  revokeOtherSessions,
+  SESSION_COOKIE,
+  validateSession,
+  verifyPassword,
+} from "../lib/auth.ts";
 import { EmailService } from "../lib/email.ts";
 import { FEATURES, type FeatureKey, getFlags, setFlag } from "../lib/features.ts";
 import { validateXpub } from "../lib/hd.ts";
@@ -162,10 +168,19 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     }
     return;
   })
-  // Expose the acting admin's email to handlers (for the audit log).
+  // Expose the acting admin's email + id + raw cookie token to handlers.
+  // - adminEmail / adminId fed the audit log and per-user rate limit keys.
+  // - currentToken lets sensitive flows (password rotate, etc.) call
+  //   revokeOtherSessions(adminId, currentToken) so the actor's own
+  //   session survives the credential change while every other one drops.
   .derive(async ({ cookie }) => {
-    const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
-    return { adminEmail: user?.email ?? "unknown" };
+    const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+    const user = await validateSession(tok);
+    return {
+      adminEmail: user?.email ?? "unknown",
+      adminId: user?.id ?? "",
+      currentToken: tok,
+    };
   })
 
   /* ───────── Activity log ───────── */
@@ -1612,4 +1627,68 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     await db.delete(categories).where(eq(categories.id, id));
     await logAdminAction(adminEmail, "category.delete", cat.name);
     return { ok: true };
-  });
+  })
+
+  /* ───────── Account: rotate admin password ─────────
+   * Self-service rotation that doesn't require ADMIN_BOOTSTRAP_FORCE on the
+   * env. Verifies the current password against the stored argon2id hash,
+   * persists the new hash, and revokes every OTHER session belonging to this
+   * admin so a stolen cookie minted before the rotation cannot outlive the
+   * change. The actor's current session survives so they aren't logged out
+   * mid-flow. Audit-logged with the revoked-session count.
+   *
+   * Per-account rate limit (5/15min) deters credential-stuffing of the
+   * current-password field by a stolen cookie that doesn't actually know
+   * the password.
+   */
+  .post(
+    "/account/password",
+    async ({ body, set, adminId, adminEmail, currentToken }) => {
+      const rl = rateLimitCheck(`admin-pw-rotate:${adminId}`, 5, 15 * 60_000);
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return { error: "Too many attempts", code: "RATE_LIMITED", retryAfterMs: rl.resetMs };
+      }
+      if (body.newPassword.length < 12) {
+        set.status = 400;
+        return {
+          error: "New password must be at least 12 characters",
+          code: "PW_TOO_SHORT",
+        };
+      }
+      if (body.newPassword === body.currentPassword) {
+        set.status = 400;
+        return { error: "New password must differ from current", code: "PW_SAME" };
+      }
+      const u = (await db.select().from(users).where(eq(users.id, adminId)))[0];
+      if (!u) {
+        set.status = 404;
+        return { error: "Admin not found", code: "NOT_FOUND" };
+      }
+      const ok = await verifyPassword(body.currentPassword, u.passwordHash);
+      if (!ok) {
+        set.status = 401;
+        await logAdminAction(adminEmail, "account.password.fail", "current password mismatch");
+        return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+      }
+      const newHash = await hashPassword(body.newPassword);
+      await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, adminId));
+      // Drop every other session — a stolen cookie minted before this point
+      // must not survive the rotation. Keep the actor's so they aren't
+      // immediately logged out.
+      const revoked = await revokeOtherSessions(adminId, currentToken);
+      await logAdminAction(
+        adminEmail,
+        "account.password.rotate",
+        `Rotated password (revoked ${revoked} session${revoked === 1 ? "" : "s"})`,
+      );
+      return { ok: true, revokedSessions: revoked };
+    },
+    {
+      body: t.Object({
+        currentPassword: t.String({ minLength: 1, maxLength: 200 }),
+        newPassword: t.String({ minLength: 12, maxLength: 200 }),
+      }),
+    },
+  );
