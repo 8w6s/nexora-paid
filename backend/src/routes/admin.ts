@@ -864,18 +864,48 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   /* ───────── Email settings (optional) ───────── */
   .put(
     "/settings/email",
-    async ({ body }) => {
+    async ({ body, adminEmail }) => {
+      // Track which fields changed (especially secret-bearing ones) so the
+      // audit log records the rotation without leaking the values themselves.
+      // A compromised admin can swap the email API key/SMTP password to
+      // exfiltrate every future delivery — without an audit entry the
+      // operator has no record of the swap. Mirror the payment.config pattern.
+      const changedFields: string[] = [];
+      const secretFields: string[] = [];
+
       await setSetting("email_enabled", body.enabled ? "true" : "false");
-      if (body.provider !== undefined) await setSetting("email_provider", body.provider);
-      if (body.from !== undefined) await setSetting("email_from", body.from);
-      if (body.resendApiKey) await setSetting("resend_api_key", body.resendApiKey);
+      changedFields.push("enabled");
+      if (body.provider !== undefined) {
+        await setSetting("email_provider", body.provider);
+        changedFields.push("provider");
+      }
+      if (body.from !== undefined) {
+        await setSetting("email_from", body.from);
+        changedFields.push("from");
+      }
+      if (body.resendApiKey) {
+        await setSetting("resend_api_key", body.resendApiKey);
+        changedFields.push("resendApiKey");
+        secretFields.push("resendApiKey");
+      }
       if (body.smtp) {
         await setSetting("smtp_host", body.smtp.host);
         await setSetting("smtp_port", String(body.smtp.port));
         await setSetting("smtp_secure", body.smtp.secure ? "true" : "false");
         await setSetting("smtp_user", body.smtp.user);
-        if (body.smtp.pass) await setSetting("smtp_pass", body.smtp.pass);
+        changedFields.push("smtp.host", "smtp.port", "smtp.secure", "smtp.user");
+        if (body.smtp.pass) {
+          await setSetting("smtp_pass", body.smtp.pass);
+          changedFields.push("smtp.pass");
+          secretFields.push("smtp.pass");
+        }
       }
+
+      const detail =
+        changedFields.join(", ") +
+        (secretFields.length ? ` (secrets: ${secretFields.length})` : "");
+      await logAdminAction(adminEmail, "settings.email.update", detail);
+
       return { ok: true, enabled: body.enabled, provider: body.provider ?? null };
     },
     {
