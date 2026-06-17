@@ -1,33 +1,84 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
-import { AdminAbandonedCheckouts } from "./admin/AdminAbandonedCheckouts";
-import { AdminActivity } from "./admin/AdminActivity";
-import { AdminAddons } from "./admin/AdminAddons";
-import { AdminBlacklist } from "./admin/AdminBlacklist";
-import { AdminBlog } from "./admin/AdminBlog";
-import { AdminBundleOffers } from "./admin/AdminBundleOffers";
-import { AdminCategories } from "./admin/AdminCategories";
-import { AdminCoupons } from "./admin/AdminCoupons";
-import { AdminCustomers } from "./admin/AdminCustomers";
-import { AdminDevelopers } from "./admin/AdminDevelopers";
-import { AdminFeatures } from "./admin/AdminFeatures";
-import { AdminGroups } from "./admin/AdminGroups";
-import { AdminImport } from "./admin/AdminImport";
 import { AdminLogin } from "./admin/AdminLogin";
-import { AdminNotifications } from "./admin/AdminNotifications";
-import { AdminOrders } from "./admin/AdminOrders";
 import { AdminOverview } from "./admin/AdminOverview";
-import { AdminPayments } from "./admin/AdminPayments";
-import { AdminProducts } from "./admin/AdminProducts";
-import { AdminQuantityDeals } from "./admin/AdminQuantityDeals";
-import { AdminReviews } from "./admin/AdminReviews";
-import { AdminSettings } from "./admin/AdminSettings";
-import { AdminTeam } from "./admin/AdminTeam";
-import { AdminTickets } from "./admin/AdminTickets";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
+
+// Lazy-load every non-default tab. Pre-audit AdminDashboard imported all
+// 23 tab modules at the top, which made Astro/Vite ship a single ~400-600 KB
+// admin chunk on every /admin/* page load — even when the admin only viewed
+// the overview. Now: AdminLogin + AdminOverview stay eager (login is
+// always-on, overview is the default tab). Everything else gets a
+// per-tab chunk that downloads only when the admin clicks the tab.
+const AdminAbandonedCheckouts = lazy(() =>
+  import("./admin/AdminAbandonedCheckouts").then((m) => ({ default: m.AdminAbandonedCheckouts })),
+);
+const AdminActivity = lazy(() =>
+  import("./admin/AdminActivity").then((m) => ({ default: m.AdminActivity })),
+);
+const AdminAddons = lazy(() =>
+  import("./admin/AdminAddons").then((m) => ({ default: m.AdminAddons })),
+);
+const AdminBlacklist = lazy(() =>
+  import("./admin/AdminBlacklist").then((m) => ({ default: m.AdminBlacklist })),
+);
+const AdminBlog = lazy(() =>
+  import("./admin/AdminBlog").then((m) => ({ default: m.AdminBlog })),
+);
+const AdminBundleOffers = lazy(() =>
+  import("./admin/AdminBundleOffers").then((m) => ({ default: m.AdminBundleOffers })),
+);
+const AdminCategories = lazy(() =>
+  import("./admin/AdminCategories").then((m) => ({ default: m.AdminCategories })),
+);
+const AdminCoupons = lazy(() =>
+  import("./admin/AdminCoupons").then((m) => ({ default: m.AdminCoupons })),
+);
+const AdminCustomers = lazy(() =>
+  import("./admin/AdminCustomers").then((m) => ({ default: m.AdminCustomers })),
+);
+const AdminDevelopers = lazy(() =>
+  import("./admin/AdminDevelopers").then((m) => ({ default: m.AdminDevelopers })),
+);
+const AdminFeatures = lazy(() =>
+  import("./admin/AdminFeatures").then((m) => ({ default: m.AdminFeatures })),
+);
+const AdminGroups = lazy(() =>
+  import("./admin/AdminGroups").then((m) => ({ default: m.AdminGroups })),
+);
+const AdminImport = lazy(() =>
+  import("./admin/AdminImport").then((m) => ({ default: m.AdminImport })),
+);
+const AdminNotifications = lazy(() =>
+  import("./admin/AdminNotifications").then((m) => ({ default: m.AdminNotifications })),
+);
+const AdminOrders = lazy(() =>
+  import("./admin/AdminOrders").then((m) => ({ default: m.AdminOrders })),
+);
+const AdminPayments = lazy(() =>
+  import("./admin/AdminPayments").then((m) => ({ default: m.AdminPayments })),
+);
+const AdminProducts = lazy(() =>
+  import("./admin/AdminProducts").then((m) => ({ default: m.AdminProducts })),
+);
+const AdminQuantityDeals = lazy(() =>
+  import("./admin/AdminQuantityDeals").then((m) => ({ default: m.AdminQuantityDeals })),
+);
+const AdminReviews = lazy(() =>
+  import("./admin/AdminReviews").then((m) => ({ default: m.AdminReviews })),
+);
+const AdminSettings = lazy(() =>
+  import("./admin/AdminSettings").then((m) => ({ default: m.AdminSettings })),
+);
+const AdminTeam = lazy(() =>
+  import("./admin/AdminTeam").then((m) => ({ default: m.AdminTeam })),
+);
+const AdminTickets = lazy(() =>
+  import("./admin/AdminTickets").then((m) => ({ default: m.AdminTickets })),
+);
 
 type Tab =
   | "overview"
@@ -269,29 +320,49 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
           <h1>{activeLabel}</h1>
         </header>
         <div className="adm-body">
-          {tab === "overview" && <AdminOverview />}
-          {tab === "products" && <AdminProducts />}
-          {tab === "groups" && <AdminGroups />}
-          {tab === "addons" && <AdminAddons />}
-          {tab === "categories" && <AdminCategories />}
-          {tab === "coupons" && <AdminCoupons />}
-          {tab === "quantity-deals" && <AdminQuantityDeals />}
-          {tab === "bundle-offers" && <AdminBundleOffers />}
-          {tab === "orders" && <AdminOrders />}
-          {tab === "customers" && <AdminCustomers />}
-          {tab === "reviews" && <AdminReviews />}
-          {tab === "abandoned" && <AdminAbandonedCheckouts />}
-          {tab === "tickets" && <AdminTickets />}
-          {tab === "payments" && <AdminPayments />}
-          {tab === "features" && <AdminFeatures />}
-          {tab === "blog" && <AdminBlog />}
-          {tab === "notifications" && <AdminNotifications />}
-          {tab === "blacklist" && <AdminBlacklist />}
-          {tab === "import" && <AdminImport />}
-          {tab === "activity" && <AdminActivity />}
-          {tab === "team" && <AdminTeam />}
-          {tab === "developers" && <AdminDevelopers />}
-          {tab === "settings" && <AdminSettings />}
+          {/* Suspense fallback for lazy-loaded tabs (every tab except
+              overview is dynamically imported — see top of file). The
+              spinner matches the loading state used in the auth gate
+              above so the user sees a consistent affordance. */}
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "60px 0",
+                  color: "var(--ink-soft)",
+                }}
+              >
+                <Icon name="spinner" size={24} className="is-spinning" />
+              </div>
+            }
+          >
+            {tab === "overview" && <AdminOverview />}
+            {tab === "products" && <AdminProducts />}
+            {tab === "groups" && <AdminGroups />}
+            {tab === "addons" && <AdminAddons />}
+            {tab === "categories" && <AdminCategories />}
+            {tab === "coupons" && <AdminCoupons />}
+            {tab === "quantity-deals" && <AdminQuantityDeals />}
+            {tab === "bundle-offers" && <AdminBundleOffers />}
+            {tab === "orders" && <AdminOrders />}
+            {tab === "customers" && <AdminCustomers />}
+            {tab === "reviews" && <AdminReviews />}
+            {tab === "abandoned" && <AdminAbandonedCheckouts />}
+            {tab === "tickets" && <AdminTickets />}
+            {tab === "payments" && <AdminPayments />}
+            {tab === "features" && <AdminFeatures />}
+            {tab === "blog" && <AdminBlog />}
+            {tab === "notifications" && <AdminNotifications />}
+            {tab === "blacklist" && <AdminBlacklist />}
+            {tab === "import" && <AdminImport />}
+            {tab === "activity" && <AdminActivity />}
+            {tab === "team" && <AdminTeam />}
+            {tab === "developers" && <AdminDevelopers />}
+            {tab === "settings" && <AdminSettings />}
+          </Suspense>
         </div>
       </main>
 
