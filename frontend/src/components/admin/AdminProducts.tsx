@@ -333,7 +333,7 @@ export const AdminProducts: React.FC = () => {
         .badge { border: none; cursor: pointer; padding: 4px 10px; border-radius: 100px; font-size: .72rem; font-weight: 600; }
         .badge.on { color: var(--auto,#137333); background: var(--auto-soft,#e6f4ea); }
         .badge.off { color: var(--ink-faint); background: var(--surface-2); }
-        .row-actions { display: flex; gap: 8px; }
+        .row-actions { display: flex; gap: 8px; justify-content: flex-end; }
         .lnk { background: none; border: none; color: var(--brand); cursor: pointer; font-weight: 600; font-size: .82rem; }
         .icon-btn { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; transition: background .15s var(--ease); }
         .icon-btn:hover { background: var(--brand-soft); }
