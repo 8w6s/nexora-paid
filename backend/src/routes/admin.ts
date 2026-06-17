@@ -561,6 +561,28 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       for (const def of SETTINGS_SCHEMA) {
         const value = b[def.key];
         if (value === undefined) continue;
+        // Length cap defense (M6): typebox bounds the body shape but a
+        // future schema relaxation must not let a multi-megabyte string
+        // through to setSetting. Skip silently rather than 400, since
+        // the typebox layer already rejects oversize payloads up front.
+        if (
+          def.maxLength !== undefined &&
+          typeof value === "string" &&
+          value.length > def.maxLength
+        ) {
+          continue;
+        }
+        // Defense-in-depth (M6): SETTINGS_SCHEMA declares per-key validators
+        // (range checks for tax_rate/affiliate/etc.) that pre-audit lived
+        // dead in the schema file because the loop ignored them. Wire them
+        // up here so a 400 fires before setSetting persists nonsense.
+        if (def.validate) {
+          const v = def.validate(value);
+          if (!v.ok) {
+            set.status = 400;
+            return { error: v.error || `Invalid value for ${def.key}`, code: "BAD_SETTING" };
+          }
+        }
         let toStore: string;
         if (def.type === "boolean") toStore = value ? "true" : "false";
         else if (def.type === "number") toStore = String(value);
