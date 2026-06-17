@@ -53,19 +53,34 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     refreshState();
   }, []);
 
+  // queryCommandState is deprecated and synchronous-DOM-read for each call —
+  // four reads per keystroke on long docs (10k+ chars) reliably blow past
+  // the 200ms INP target. Defer to requestIdleCallback so the read happens
+  // after the browser finishes the current commit; a 16ms timeout fallback
+  // keeps non-suporting environments (Safari pre-17) sane.
+  const pendingRefresh = useRef<number | null>(null);
   const refreshState = () => {
-    try {
-      setFormats({
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        bold: document.queryCommandState("bold"),
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        italic: document.queryCommandState("italic"),
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        underline: document.queryCommandState("underline"),
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        strikeThrough: document.queryCommandState("strikeThrough"),
-      });
-    } catch {}
+    if (pendingRefresh.current !== null) return; // coalesce
+    const run = () => {
+      pendingRefresh.current = null;
+      try {
+        setFormats({
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          bold: document.queryCommandState("bold"),
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          italic: document.queryCommandState("italic"),
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          underline: document.queryCommandState("underline"),
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
+          strikeThrough: document.queryCommandState("strikeThrough"),
+        });
+      } catch {}
+    };
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      pendingRefresh.current = (window as any).requestIdleCallback(run, { timeout: 16 });
+    } else {
+      pendingRefresh.current = window.setTimeout(run, 16);
+    }
   };
 
   const handleInput = () => {
