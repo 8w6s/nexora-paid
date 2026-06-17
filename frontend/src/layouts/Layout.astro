@@ -41,17 +41,37 @@ const {
     <meta name="description" content={description} />
 
     {/* Font Awesome Pro (self-hosted from /public/fontawesome). CSS Webfonts mode
-        is used instead of SVG replacement mode to avoid DOM mutations that break 
-        React client-side hydration. */}
-    <link rel="stylesheet" href="/fontawesome/css/all.min.css" />
+        is used instead of SVG replacement mode to avoid DOM mutations that break
+        React client-side hydration.
 
-    <!-- Google Fonts: Fredoka (primary, rounded) + Kosugi Maru (Japanese) -->
+        Async-loaded via preload+swap so the ~80-100 KB stylesheet stops blocking
+        first paint. The <noscript> fallback restores the synchronous load for
+        users who disable JS (rare, but the cost is just the original behavior). */}
+    <link
+      rel="preload"
+      href="/fontawesome/css/all.min.css"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript><link rel="stylesheet" href="/fontawesome/css/all.min.css" /></noscript>
+
+    {/* Google Fonts: Fredoka (primary, rounded) + Kosugi Maru (Japanese fallback).
+        Async via preload+swap to avoid the cross-origin DNS+TLS handshake on the
+        critical path (typically +100-300ms LCP on cold connections). */}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Kosugi+Maru&display=swap"
-      rel="stylesheet"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Kosugi+Maru&display=swap"
+      />
+    </noscript>
 
     <slot name="head" />
   </head>
