@@ -65,8 +65,8 @@ export const RefundApp: React.FC = () => (
                 >
                   Support
                 </span>{" "}
-                section. Include your Order ID and screenshots
-                showing the error. We will investigate and respond within 24 hours.
+                section. Include your Order ID and screenshots showing the error. We will
+                investigate and respond within 24 hours.
               </p>
             </div>
           </main>

@@ -11,12 +11,14 @@ export const PasswordInput: React.FC<{
   minLength?: number;
   required?: boolean;
   id?: string;
-}> = ({ value, onChange, placeholder, className, autoComplete, minLength, required, id }) => {
+  name?: string;
+}> = ({ value, onChange, placeholder, className, autoComplete, minLength, required, id, name }) => {
   const [reveal, setReveal] = useState(false);
   return (
     <div className={`pw ${className ?? ""}`}>
       <input
         id={id}
+        name={name}
         className="input pw-input"
         type={reveal ? "text" : "password"}
         value={value}

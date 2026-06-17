@@ -47,8 +47,18 @@ type Tab =
   | "developer"
   | "miscellaneous";
 
-interface CustomField { key: string; label: string; type: "text" | "number" | "checkbox" | "select"; options?: string; required: boolean; }
-interface ProductAddon { id: string; name: string; priceUsd: number; }
+interface CustomField {
+  key: string;
+  label: string;
+  type: "text" | "number" | "checkbox" | "select";
+  options?: string;
+  required: boolean;
+}
+interface ProductAddon {
+  id: string;
+  name: string;
+  priceUsd: number;
+}
 
 interface FormState {
   name: string;
@@ -96,12 +106,20 @@ const initialForm = (p?: ProductRow): FormState => ({
   categoryId: p?.categoryId ?? "",
   deliverables: p?.deliverables ?? "serials",
   active: p?.active ?? true,
-  metaTitle: "", metaDescription: "",
-  showWhenOutOfStock: false, requireEmailVerification: false, limitPerCustomer: "",
+  metaTitle: "",
+  metaDescription: "",
+  showWhenOutOfStock: false,
+  requireEmailVerification: false,
+  limitPerCustomer: "",
   payoutTaxPercent: "",
-  discordRoleId: "", discordServerId: "",
+  discordRoleId: "",
+  discordServerId: "",
   webhookUrl: "",
-  sortOrder: "", featured: false, minOrderQty: "1", maxOrderQty: "", warrantyDays: "",
+  sortOrder: "",
+  featured: false,
+  minOrderQty: "1",
+  maxOrderQty: "",
+  warrantyDays: "",
 });
 
 // RichTextEditor is imported from ../RichTextEditor
@@ -130,8 +148,14 @@ export const AdminProductEditor: React.FC<{
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
 
   useEffect(() => {
-    api.get<Category[]>("/api/admin/categories").then(setCats).catch(() => setCats([]));
-    api.get<ProductAddon[]>("/api/admin/addons").then(setAvailableAddons).catch(() => {});
+    api
+      .get<Category[]>("/api/admin/categories")
+      .then(setCats)
+      .catch(() => setCats([]));
+    api
+      .get<ProductAddon[]>("/api/admin/addons")
+      .then(setAvailableAddons)
+      .catch(() => {});
   }, []);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -228,7 +252,13 @@ export const AdminProductEditor: React.FC<{
 
       <div className="pe-alert-banner">
         <Icon name="bell" size={16} />
-        <span>Before adding a product, please review our <a href="#" onClick={(e) => e.preventDefault()}>Acceptable Use Policy</a> to ensure it's permitted.</span>
+        <span>
+          Before adding a product, please review our{" "}
+          <a href="#" onClick={(e) => e.preventDefault()}>
+            Acceptable Use Policy
+          </a>{" "}
+          to ensure it's permitted.
+        </span>
       </div>
 
       <nav className="pe-tabs">
@@ -254,7 +284,7 @@ export const AdminProductEditor: React.FC<{
             <Icon name="folder" size={18} />
             <h3>General</h3>
           </div>
-          
+
           <div className="pe-form-row">
             <label className="pe-field-label">
               <span>Name</span>
@@ -269,7 +299,9 @@ export const AdminProductEditor: React.FC<{
 
           <div className="pe-form-row">
             <label className="pe-field-label">
-              <span>URL Path <em>(optional)</em></span>
+              <span>
+                URL Path <em>(optional)</em>
+              </span>
               <input
                 className="input input-lg"
                 value={form.slug}
@@ -297,7 +329,9 @@ export const AdminProductEditor: React.FC<{
 
           <div className="pe-form-row">
             <label className="pe-field-label">
-              <span>Category <em>(optional)</em></span>
+              <span>
+                Category <em>(optional)</em>
+              </span>
               <Dropdown<string>
                 value={form.categoryId}
                 onChange={(v) => set("categoryId", v)}
@@ -314,10 +348,13 @@ export const AdminProductEditor: React.FC<{
             <label className="pe-field-label">
               <span>Image URL</span>
               <div className="gallery-picker-wrapper">
-                <div className="gallery-picker" onClick={() => {
-                  const url = prompt("Enter Image URL:");
-                  if (url) set("image", url);
-                }}>
+                <div
+                  className="gallery-picker"
+                  onClick={() => {
+                    const url = prompt("Enter Image URL:");
+                    if (url) set("image", url);
+                  }}
+                >
                   {form.image ? (
                     <img src={form.image} alt="Preview" className="gallery-preview" />
                   ) : (
@@ -340,7 +377,9 @@ export const AdminProductEditor: React.FC<{
           <div className="pe-form-row">
             <label className="pe-field-label">
               <span>Instructions</span>
-              <span className="pe-field-sub">This will be shown to the customer on invoice page & in email.</span>
+              <span className="pe-field-sub">
+                This will be shown to the customer on invoice page & in email.
+              </span>
             </label>
             <RichTextEditor
               value={form.instructions}
@@ -352,8 +391,11 @@ export const AdminProductEditor: React.FC<{
 
           <div className="pe-deliverables-section">
             <h4>Deliverables Type</h4>
-            <span className="pe-field-sub">This will determine how the product is delivered to the customer and how the stock is managed.</span>
-            
+            <span className="pe-field-sub">
+              This will determine how the product is delivered to the customer and how the stock is
+              managed.
+            </span>
+
             <div className="pe-deliv-options">
               {[
                 {
@@ -385,7 +427,9 @@ export const AdminProductEditor: React.FC<{
                     checked={form.deliverables === d.key}
                     onChange={() => set("deliverables", d.key)}
                   />
-                  <span className={`pe-radio-selector ${form.deliverables === d.key ? "on" : ""}`} />
+                  <span
+                    className={`pe-radio-selector ${form.deliverables === d.key ? "on" : ""}`}
+                  />
                   <div className="pe-deliv-card-content">
                     <strong>{d.title}</strong>
                     <span>{d.desc}</span>
@@ -409,7 +453,7 @@ export const AdminProductEditor: React.FC<{
             <div className="pe-variant-header-row">
               <span className="pe-variant-title">Default</span>
             </div>
-            
+
             <div className="grid-2" style={{ padding: "16px 20px" }}>
               <label className="pe-field-label">
                 <span>Price (USD)</span>
@@ -421,7 +465,9 @@ export const AdminProductEditor: React.FC<{
                 />
               </label>
               <label className="pe-field-label">
-                <span>Compare-at Price (USD) <em>(optional)</em></span>
+                <span>
+                  Compare-at Price (USD) <em>(optional)</em>
+                </span>
                 <NumberInput
                   decimal
                   min={0}
@@ -430,7 +476,7 @@ export const AdminProductEditor: React.FC<{
                 />
               </label>
             </div>
-            
+
             <div className="kv-row" style={{ padding: "0 20px 20px" }}>
               <div className="kv">
                 <span className="kv-label">Available Stock</span>
@@ -459,10 +505,13 @@ export const AdminProductEditor: React.FC<{
               </button>
             </div>
             <p className="pe-field-sub">
-              If variants are configured, customers will choose a variant at checkout. Each variant will have its own keys pool.
+              If variants are configured, customers will choose a variant at checkout. Each variant
+              will have its own keys pool.
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "14px" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "14px" }}
+            >
               {variants.map((v, i) => (
                 <div key={i} className="pe-variant-editor-row">
                   <label className="pe-field-label">
@@ -521,47 +570,139 @@ export const AdminProductEditor: React.FC<{
       {/* ───── Custom Fields ───── */}
       {tab === "custom_fields" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="settings" size={18} /><h3>Custom Fields</h3></div>
-          <p className="pe-field-sub">Custom fields are displayed to customers at checkout and visible on the invoice.</p>
+          <div className="pe-pane-header">
+            <Icon name="settings" size={18} />
+            <h3>Custom Fields</h3>
+          </div>
+          <p className="pe-field-sub">
+            Custom fields are displayed to customers at checkout and visible on the invoice.
+          </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
             {customFields.map((f, i) => (
               <div key={i} className="pe-cf-row">
-                <label className="pe-field-label" style={{ flex: 1 }}>Label
-                  <input className="input" value={f.label} onChange={e => { const n=[...customFields]; n[i].label=e.target.value; setCustomFields(n); }} placeholder="e.g. Discord Username" />
+                <label className="pe-field-label" style={{ flex: 1 }}>
+                  Label
+                  <input
+                    className="input"
+                    value={f.label}
+                    onChange={(e) => {
+                      const n = [...customFields];
+                      n[i].label = e.target.value;
+                      setCustomFields(n);
+                    }}
+                    placeholder="e.g. Discord Username"
+                  />
                 </label>
-                <label className="pe-field-label">Type
-                  <select className="input" value={f.type} onChange={e => { const n=[...customFields]; n[i].type=e.target.value as CustomField["type"]; setCustomFields(n); }}>
+                <label className="pe-field-label">
+                  Type
+                  <select
+                    className="input"
+                    value={f.type}
+                    onChange={(e) => {
+                      const n = [...customFields];
+                      n[i].type = e.target.value as CustomField["type"];
+                      setCustomFields(n);
+                    }}
+                  >
                     <option value="text">Text</option>
                     <option value="number">Number</option>
                     <option value="checkbox">Checkbox</option>
                     <option value="select">Dropdown</option>
                   </select>
                 </label>
-                <label className="pe-field-label" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 22 }}>
-                  <input type="checkbox" checked={f.required} onChange={e => { const n=[...customFields]; n[i].required=e.target.checked; setCustomFields(n); }} />
+                <label
+                  className="pe-field-label"
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingTop: 22,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={f.required}
+                    onChange={(e) => {
+                      const n = [...customFields];
+                      n[i].required = e.target.checked;
+                      setCustomFields(n);
+                    }}
+                  />
                   Required
                 </label>
-                <button type="button" className="btn btn-ghost btn-sm btn-danger-icon" style={{ alignSelf: "flex-end" }} onClick={() => setCustomFields(cf => cf.filter((_,j)=>j!==i))}><Icon name="close" size={14} /></button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm btn-danger-icon"
+                  style={{ alignSelf: "flex-end" }}
+                  onClick={() => setCustomFields((cf) => cf.filter((_, j) => j !== i))}
+                >
+                  <Icon name="close" size={14} />
+                </button>
               </div>
             ))}
           </div>
-          <button type="button" className="btn btn-outline btn-sm" style={{ marginTop: 12, alignSelf: "flex-start" }} onClick={() => setCustomFields(cf => [...cf, { key: `field_${Date.now()}`, label: "", type: "text", required: false }])}><Icon name="plus" size={13} /> Add Field</button>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            style={{ marginTop: 12, alignSelf: "flex-start" }}
+            onClick={() =>
+              setCustomFields((cf) => [
+                ...cf,
+                { key: `field_${Date.now()}`, label: "", type: "text", required: false },
+              ])
+            }
+          >
+            <Icon name="plus" size={13} /> Add Field
+          </button>
         </section>
       )}
 
       {/* ───── Addons & Upsells ───── */}
       {tab === "addons" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="tag" size={18} /><h3>Addons & Upsells</h3></div>
-          <p className="pe-field-sub">Select which addons are available for customers to add on this product's page.</p>
+          <div className="pe-pane-header">
+            <Icon name="tag" size={18} />
+            <h3>Addons & Upsells</h3>
+          </div>
+          <p className="pe-field-sub">
+            Select which addons are available for customers to add on this product's page.
+          </p>
           {availableAddons.length === 0 ? (
-            <p className="pe-field-sub" style={{ marginTop: 16 }}>No addons created yet. <a href="#" onClick={e => { e.preventDefault(); onDone(); }} style={{ color: "var(--brand)"}}>Go to Addons</a> to create some.</p>
+            <p className="pe-field-sub" style={{ marginTop: 16 }}>
+              No addons created yet.{" "}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onDone();
+                }}
+                style={{ color: "var(--brand)" }}
+              >
+                Go to Addons
+              </a>{" "}
+              to create some.
+            </p>
           ) : (
             <div className="pe-addon-grid">
-              {availableAddons.map(a => (
-                <label key={a.id} className={`pe-addon-card ${selectedAddonIds.includes(a.id) ? "on" : ""}`}>
-                  <input type="checkbox" checked={selectedAddonIds.includes(a.id)} onChange={() => setSelectedAddonIds(ids => ids.includes(a.id) ? ids.filter(x=>x!==a.id) : [...ids, a.id])} style={{ display: "none" }} />
-                  <span className="pe-addon-check">{selectedAddonIds.includes(a.id) ? <Icon name="check" size={11} /> : null}</span>
+              {availableAddons.map((a) => (
+                <label
+                  key={a.id}
+                  className={`pe-addon-card ${selectedAddonIds.includes(a.id) ? "on" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAddonIds.includes(a.id)}
+                    onChange={() =>
+                      setSelectedAddonIds((ids) =>
+                        ids.includes(a.id) ? ids.filter((x) => x !== a.id) : [...ids, a.id],
+                      )
+                    }
+                    style={{ display: "none" }}
+                  />
+                  <span className="pe-addon-check">
+                    {selectedAddonIds.includes(a.id) ? <Icon name="check" size={11} /> : null}
+                  </span>
                   <strong>{a.name}</strong>
                   <span style={{ color: "var(--ink-soft)", fontSize: ".8rem" }}>${a.priceUsd}</span>
                 </label>
@@ -574,23 +715,45 @@ export const AdminProductEditor: React.FC<{
       {/* ───── SEO ───── */}
       {tab === "seo" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="search" size={18} /><h3>SEO</h3></div>
+          <div className="pe-pane-header">
+            <Icon name="search" size={18} />
+            <h3>SEO</h3>
+          </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Meta Title
-              <span className="pe-field-sub">Leave empty to use product name ({form.name || "Product Name"}).</span>
-              <input className="input" value={form.metaTitle} onChange={e => set("metaTitle", e.target.value)} placeholder={form.name || "Product Name"} />
+            <label className="pe-field-label">
+              Meta Title
+              <span className="pe-field-sub">
+                Leave empty to use product name ({form.name || "Product Name"}).
+              </span>
+              <input
+                className="input"
+                value={form.metaTitle}
+                onChange={(e) => set("metaTitle", e.target.value)}
+                placeholder={form.name || "Product Name"}
+              />
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Meta Description
+            <label className="pe-field-label">
+              Meta Description
               <span className="pe-field-sub">Leave empty to use the product description.</span>
-              <textarea className="input" rows={3} value={form.metaDescription} onChange={e => set("metaDescription", e.target.value)} placeholder="A short description for search engines..." />
+              <textarea
+                className="input"
+                rows={3}
+                value={form.metaDescription}
+                onChange={(e) => set("metaDescription", e.target.value)}
+                placeholder="A short description for search engines..."
+              />
             </label>
           </div>
           <div className="pe-seo-preview">
-            <span className="pe-seo-url">https://yourstore.com/products/{form.slug || "product-url"}</span>
+            <span className="pe-seo-url">
+              https://yourstore.com/products/{form.slug || "product-url"}
+            </span>
             <span className="pe-seo-title">{form.metaTitle || form.name || "Product Name"}</span>
-            <span className="pe-seo-desc">{form.metaDescription || "A short description for search engines..."}</span>
+            <span className="pe-seo-desc">
+              {form.metaDescription || "A short description for search engines..."}
+            </span>
           </div>
         </section>
       )}
@@ -598,28 +761,61 @@ export const AdminProductEditor: React.FC<{
       {/* ───── Visibility ───── */}
       {tab === "visibility" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="shield" size={18} /><h3>Visibility</h3></div>
+          <div className="pe-pane-header">
+            <Icon name="shield" size={18} />
+            <h3>Visibility</h3>
+          </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Product Status
-              <Dropdown<string> value={form.active ? "active" : "hidden"} onChange={v => set("active", v === "active")} options={[{value:"active",label:"Active — Visible to everyone"},{value:"hidden",label:"Hidden — Not visible on store"}]} width="100%" />
+            <label className="pe-field-label">
+              Product Status
+              <Dropdown<string>
+                value={form.active ? "active" : "hidden"}
+                onChange={(v) => set("active", v === "active")}
+                options={[
+                  { value: "active", label: "Active — Visible to everyone" },
+                  { value: "hidden", label: "Hidden — Not visible on store" },
+                ]}
+                width="100%"
+              />
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <input type="checkbox" checked={form.showWhenOutOfStock} onChange={e => set("showWhenOutOfStock", e.target.checked)} />
+            <label
+              className="pe-field-label"
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <input
+                type="checkbox"
+                checked={form.showWhenOutOfStock}
+                onChange={(e) => set("showWhenOutOfStock", e.target.checked)}
+              />
               Show product when out of stock
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <input type="checkbox" checked={form.requireEmailVerification} onChange={e => set("requireEmailVerification", e.target.checked)} />
+            <label
+              className="pe-field-label"
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <input
+                type="checkbox"
+                checked={form.requireEmailVerification}
+                onChange={(e) => set("requireEmailVerification", e.target.checked)}
+              />
               Require email verification before purchase
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Limit Per Customer <em>(optional)</em>
-              <span className="pe-field-sub">Max purchases of this product per customer. Leave empty for unlimited.</span>
-              <NumberInput min={1} value={form.limitPerCustomer} onChange={v => set("limitPerCustomer", v)} />
+            <label className="pe-field-label">
+              Limit Per Customer <em>(optional)</em>
+              <span className="pe-field-sub">
+                Max purchases of this product per customer. Leave empty for unlimited.
+              </span>
+              <NumberInput
+                min={1}
+                value={form.limitPerCustomer}
+                onChange={(v) => set("limitPerCustomer", v)}
+              />
             </label>
           </div>
         </section>
@@ -628,16 +824,45 @@ export const AdminProductEditor: React.FC<{
       {/* ───── Financials ───── */}
       {tab === "financials" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="activity" size={18} /><h3>Financials</h3></div>
-          <div className="kv-row" style={{ gap: 16, flexDirection: "column" }}>
-            <div className="kv"><span className="kv-label">Total Revenue</span><span className="kv-val" style={{ color: "var(--success)", fontSize: "1.4rem", fontWeight: 700 }}>${product ? (product.sold * product.priceUsd).toFixed(2) : "0.00"}</span></div>
-            <div className="kv"><span className="kv-label">Units Sold</span><span className="kv-val">{product?.sold ?? 0}</span></div>
-            <div className="kv"><span className="kv-label">Average Order Value</span><span className="kv-val">${product ? (product.priceUsd).toFixed(2) : "0.00"}</span></div>
+          <div className="pe-pane-header">
+            <Icon name="activity" size={18} />
+            <h3>Financials</h3>
           </div>
-          <div className="pe-form-row" style={{ marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 20 }}>
-            <label className="pe-field-label">Payout Tax Override % <em>(optional)</em>
-              <span className="pe-field-sub">Override the default payout tax percentage for this product only.</span>
-              <NumberInput decimal min={0} max={100} value={form.payoutTaxPercent} onChange={v => set("payoutTaxPercent", v)} />
+          <div className="kv-row" style={{ gap: 16, flexDirection: "column" }}>
+            <div className="kv">
+              <span className="kv-label">Total Revenue</span>
+              <span
+                className="kv-val"
+                style={{ color: "var(--success)", fontSize: "1.4rem", fontWeight: 700 }}
+              >
+                ${product ? (product.sold * product.priceUsd).toFixed(2) : "0.00"}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="kv-label">Units Sold</span>
+              <span className="kv-val">{product?.sold ?? 0}</span>
+            </div>
+            <div className="kv">
+              <span className="kv-label">Average Order Value</span>
+              <span className="kv-val">${product ? product.priceUsd.toFixed(2) : "0.00"}</span>
+            </div>
+          </div>
+          <div
+            className="pe-form-row"
+            style={{ marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 20 }}
+          >
+            <label className="pe-field-label">
+              Payout Tax Override % <em>(optional)</em>
+              <span className="pe-field-sub">
+                Override the default payout tax percentage for this product only.
+              </span>
+              <NumberInput
+                decimal
+                min={0}
+                max={100}
+                value={form.payoutTaxPercent}
+                onChange={(v) => set("payoutTaxPercent", v)}
+              />
             </label>
           </div>
         </section>
@@ -646,44 +871,82 @@ export const AdminProductEditor: React.FC<{
       {/* ───── Statistics ───── */}
       {tab === "statistics" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="activity" size={18} /><h3>Statistics</h3></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 16 }}>
+          <div className="pe-pane-header">
+            <Icon name="activity" size={18} />
+            <h3>Statistics</h3>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))",
+              gap: 16,
+            }}
+          >
             {[
               { label: "Total Sales", value: product?.sold ?? 0 },
               { label: "Available Stock", value: product?.available ?? 0 },
               { label: "Delivered", value: product?.delivered ?? 0 },
-              { label: "Revenue (est.)", value: `$${((product?.sold ?? 0) * (product?.priceUsd ?? 0)).toFixed(2)}` },
-            ].map(s => (
+              {
+                label: "Revenue (est.)",
+                value: `$${((product?.sold ?? 0) * (product?.priceUsd ?? 0)).toFixed(2)}`,
+              },
+            ].map((s) => (
               <div key={s.label} className="pe-stat-card">
                 <span className="pe-stat-label">{s.label}</span>
                 <span className="pe-stat-value">{s.value}</span>
               </div>
             ))}
           </div>
-          {!product && <p className="pe-field-sub" style={{ marginTop: 12 }}>Statistics will appear here after the product is created and has sales.</p>}
+          {!product && (
+            <p className="pe-field-sub" style={{ marginTop: 12 }}>
+              Statistics will appear here after the product is created and has sales.
+            </p>
+          )}
         </section>
       )}
 
       {/* ───── Discord ───── */}
       {tab === "discord" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="bell" size={18} /><h3>Discord Role Delivery</h3></div>
-          <p className="pe-field-sub">Automatically grant a Discord role to customers after purchase.</p>
+          <div className="pe-pane-header">
+            <Icon name="bell" size={18} />
+            <h3>Discord Role Delivery</h3>
+          </div>
+          <p className="pe-field-sub">
+            Automatically grant a Discord role to customers after purchase.
+          </p>
           <div className="pe-form-row" style={{ marginTop: 16 }}>
-            <label className="pe-field-label">Discord Server ID
-              <span className="pe-field-sub">Right-click your server → Copy ID (enable Developer Mode first).</span>
-              <input className="input" value={form.discordServerId} onChange={e => set("discordServerId", e.target.value)} placeholder="e.g. 1234567890" />
+            <label className="pe-field-label">
+              Discord Server ID
+              <span className="pe-field-sub">
+                Right-click your server → Copy ID (enable Developer Mode first).
+              </span>
+              <input
+                className="input"
+                value={form.discordServerId}
+                onChange={(e) => set("discordServerId", e.target.value)}
+                placeholder="e.g. 1234567890"
+              />
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Discord Role ID
+            <label className="pe-field-label">
+              Discord Role ID
               <span className="pe-field-sub">Right-click the role → Copy ID.</span>
-              <input className="input" value={form.discordRoleId} onChange={e => set("discordRoleId", e.target.value)} placeholder="e.g. 9876543210" />
+              <input
+                className="input"
+                value={form.discordRoleId}
+                onChange={(e) => set("discordRoleId", e.target.value)}
+                placeholder="e.g. 9876543210"
+              />
             </label>
           </div>
           <div className="pe-disc-info">
             <Icon name="bell" size={15} />
-            <span>Make sure the Nexora bot is in your server and has <strong>Manage Roles</strong> permission.</span>
+            <span>
+              Make sure the Nexora bot is in your server and has <strong>Manage Roles</strong>{" "}
+              permission.
+            </span>
           </div>
         </section>
       )}
@@ -691,18 +954,44 @@ export const AdminProductEditor: React.FC<{
       {/* ───── Developer ───── */}
       {tab === "developer" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="zap" size={18} /><h3>Developer / Webhook</h3></div>
-          <p className="pe-field-sub">Configure a webhook URL to deliver dynamic product content. Only applies when deliverable type is <strong>Dynamic</strong>.</p>
+          <div className="pe-pane-header">
+            <Icon name="zap" size={18} />
+            <h3>Developer / Webhook</h3>
+          </div>
+          <p className="pe-field-sub">
+            Configure a webhook URL to deliver dynamic product content. Only applies when
+            deliverable type is <strong>Dynamic</strong>.
+          </p>
           <div className="pe-form-row" style={{ marginTop: 16 }}>
-            <label className="pe-field-label">Webhook URL
-              <input className="input" value={form.webhookUrl} onChange={e => set("webhookUrl", e.target.value)} placeholder="https://your-api.com/webhook" />
+            <label className="pe-field-label">
+              Webhook URL
+              <input
+                className="input"
+                value={form.webhookUrl}
+                onChange={(e) => set("webhookUrl", e.target.value)}
+                placeholder="https://your-api.com/webhook"
+              />
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Product ID <em>(read-only)</em>
+            <label className="pe-field-label">
+              Product ID <em>(read-only)</em>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input className="input" value={product?.id ?? "Will be assigned after creation"} readOnly style={{ color: "var(--ink-soft)" }} />
-                {product?.id && <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard.writeText(product.id)}><Icon name="copy" size={13} /> Copy</button>}
+                <input
+                  className="input"
+                  value={product?.id ?? "Will be assigned after creation"}
+                  readOnly
+                  style={{ color: "var(--ink-soft)" }}
+                />
+                {product?.id && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => navigator.clipboard.writeText(product.id)}
+                  >
+                    <Icon name="copy" size={13} /> Copy
+                  </button>
+                )}
               </div>
             </label>
           </div>
@@ -712,31 +1001,59 @@ export const AdminProductEditor: React.FC<{
       {/* ───── Miscellaneous ───── */}
       {tab === "miscellaneous" && (
         <section className="pe-pane card">
-          <div className="pe-pane-header"><Icon name="settings" size={18} /><h3>Miscellaneous</h3></div>
+          <div className="pe-pane-header">
+            <Icon name="settings" size={18} />
+            <h3>Miscellaneous</h3>
+          </div>
           <div className="pe-form-row">
-            <label className="pe-field-label" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <input type="checkbox" checked={form.featured} onChange={e => set("featured", e.target.checked)} />
+            <label
+              className="pe-field-label"
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <input
+                type="checkbox"
+                checked={form.featured}
+                onChange={(e) => set("featured", e.target.checked)}
+              />
               Featured product (highlighted on storefront)
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Sort Order <em>(optional)</em>
-              <span className="pe-field-sub">Lower numbers appear first. Leave empty for default ordering.</span>
-              <NumberInput min={0} value={form.sortOrder} onChange={v => set("sortOrder", v)} />
+            <label className="pe-field-label">
+              Sort Order <em>(optional)</em>
+              <span className="pe-field-sub">
+                Lower numbers appear first. Leave empty for default ordering.
+              </span>
+              <NumberInput min={0} value={form.sortOrder} onChange={(v) => set("sortOrder", v)} />
             </label>
           </div>
           <div className="grid-2" style={{ marginTop: 0 }}>
-            <label className="pe-field-label">Min Order Quantity
-              <NumberInput min={1} value={form.minOrderQty} onChange={v => set("minOrderQty", v)} />
+            <label className="pe-field-label">
+              Min Order Quantity
+              <NumberInput
+                min={1}
+                value={form.minOrderQty}
+                onChange={(v) => set("minOrderQty", v)}
+              />
             </label>
-            <label className="pe-field-label">Max Order Quantity <em>(optional)</em>
-              <NumberInput min={1} value={form.maxOrderQty} onChange={v => set("maxOrderQty", v)} />
+            <label className="pe-field-label">
+              Max Order Quantity <em>(optional)</em>
+              <NumberInput
+                min={1}
+                value={form.maxOrderQty}
+                onChange={(v) => set("maxOrderQty", v)}
+              />
             </label>
           </div>
           <div className="pe-form-row">
-            <label className="pe-field-label">Warranty <em>(days, optional)</em>
+            <label className="pe-field-label">
+              Warranty <em>(days, optional)</em>
               <span className="pe-field-sub">Shown on the product page and invoice.</span>
-              <NumberInput min={1} value={form.warrantyDays} onChange={v => set("warrantyDays", v)} />
+              <NumberInput
+                min={1}
+                value={form.warrantyDays}
+                onChange={(v) => set("warrantyDays", v)}
+              />
             </label>
           </div>
         </section>

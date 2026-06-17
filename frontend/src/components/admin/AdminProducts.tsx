@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { Icon } from "../Icon";
 import { Modal } from "../Modal";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { useToast } from "../Toast";
 import { AdminProductEditor, type ProductRow } from "./AdminProductEditor";
 import { AdminProductWizard } from "./AdminProductWizard";
-import { ConfirmModal } from "../ConfirmModal";
 
 interface AdminProduct extends ProductRow {}
 
@@ -159,7 +159,7 @@ export const AdminProducts: React.FC = () => {
                     <tr key={p.id} className={p.active ? "" : "inactive"}>
                       <td>
                         <div className="pcell">
-                          <img src={p.image} alt="" />
+                          {p.image ? <img src={p.image} alt="" /> : null}
                           <strong>{p.name}</strong>
                         </div>
                       </td>
@@ -300,7 +300,7 @@ export const AdminProducts: React.FC = () => {
         onConfirm={async () => {
           if (!deletingProduct) return;
           try {
-            await api.delete(`/api/admin/products/${deletingProduct.id}`);
+            await api.del(`/api/admin/products/${deletingProduct.id}`);
             toast.success("Product deleted.");
             load();
           } catch (e) {

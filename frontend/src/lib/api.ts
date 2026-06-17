@@ -18,6 +18,38 @@ export const API_ORIGIN =
 
 export type ApiError = { error: string; code: string };
 
+export const reportClientError = async (
+  message: string,
+  severity: "LOW" | "MEDIUM" | "HIGH" = "LOW",
+  stack?: string,
+) => {
+  try {
+    await fetch(`${API_ORIGIN}/api/log-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        severity,
+        stack,
+        url: typeof window !== "undefined" ? window.location.href : "SSR",
+      }),
+    });
+  } catch {}
+};
+
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (event) => {
+    if (event.filename && event.filename.includes("/api/log-error")) return;
+    reportClientError(event.message, "LOW", event.error?.stack);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? reason.stack : undefined;
+    reportClientError(`Unhandled Promise Rejection: ${msg}`, "LOW", stack);
+  });
+}
+
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_ORIGIN}${path}`, {
     credentials: "include", // send/receive the session cookie
@@ -27,11 +59,14 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = data as ApiError;
-    throw new ApiRequestError(
+    const reqErr = new ApiRequestError(
       err.error || `Request failed (${res.status})`,
       err.code || "ERROR",
       res.status,
     );
+    // Auto-report failed API requests
+    reportClientError(reqErr.message, "LOW", reqErr.stack);
+    throw reqErr;
   }
   return data as T;
 }
@@ -71,6 +106,7 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
 /* Types shared across the frontend */

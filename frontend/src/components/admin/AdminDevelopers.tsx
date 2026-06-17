@@ -1,8 +1,8 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { Icon } from "../Icon";
 import { EmptyState } from "../EmptyState";
+import { Icon } from "../Icon";
 
 interface ApiKey {
   id: string;
@@ -54,30 +54,47 @@ export const AdminDevelopers: React.FC = () => {
     Promise.all([
       api.get<ApiKey[]>("/api/admin/api-keys").catch(() => [] as ApiKey[]),
       api.get<WebhookEvent[]>("/api/admin/webhook-logs").catch(() => [] as WebhookEvent[]),
-    ]).then(([k, w]) => { setApiKeys(k); setWebhookLog(w); }).finally(() => setLoading(false));
+    ])
+      .then(([k, w]) => {
+        setApiKeys(k);
+        setWebhookLog(w);
+      })
+      .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const createKey = async () => {
     if (!keyName.trim()) return setErr("Key name is required");
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setErr(null);
     try {
-      const result = await api.post<{ key: string }>("/api/admin/api-keys", { name: keyName.trim(), scopes });
+      const result = await api.post<{ key: string }>("/api/admin/api-keys", {
+        name: keyName.trim(),
+        scopes,
+      });
       setNewKey(result.key);
-      setKeyName(""); setScopes(["products:read", "orders:read"]); setCreating(false); load();
-    } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); }
-    finally { setBusy(false); }
+      setKeyName("");
+      setScopes(["products:read", "orders:read"]);
+      setCreating(false);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const revokeKey = async (id: string) => {
     if (!confirm("Revoke this API key? This cannot be undone.")) return;
-    await api.delete(`/api/admin/api-keys/${id}`).catch(() => {});
+    await api.del(`/api/admin/api-keys/${id}`).catch(() => {});
     load();
   };
 
   const toggleScope = (scope: string) => {
-    setScopes(s => s.includes(scope) ? s.filter(x => x !== scope) : [...s, scope]);
+    setScopes((s) => (s.includes(scope) ? s.filter((x) => x !== scope) : [...s, scope]));
   };
 
   const copyKey = async (key: string) => {
@@ -96,10 +113,18 @@ export const AdminDevelopers: React.FC = () => {
       </div>
 
       <div className="pe-tabs" style={{ marginBottom: 0 }}>
-        <button type="button" className={`pe-tab ${tab === "api-keys" ? "on" : ""}`} onClick={() => setTab("api-keys")}>
+        <button
+          type="button"
+          className={`pe-tab ${tab === "api-keys" ? "on" : ""}`}
+          onClick={() => setTab("api-keys")}
+        >
           <Icon name="key" size={14} /> API Keys
         </button>
-        <button type="button" className={`pe-tab ${tab === "webhooks" ? "on" : ""}`} onClick={() => setTab("webhooks")}>
+        <button
+          type="button"
+          className={`pe-tab ${tab === "webhooks" ? "on" : ""}`}
+          onClick={() => setTab("webhooks")}
+        >
           <Icon name="zap" size={14} /> Webhook Logs
         </button>
       </div>
@@ -113,101 +138,228 @@ export const AdminDevelopers: React.FC = () => {
                 <strong>Your new API key — copy it now, it won't be shown again.</strong>
                 <div className="dev-key-display">
                   <code>{newKey}</code>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => copyKey(newKey)}>
-                    {copied ? <><Icon name="check" size={13} /> Copied!</> : <><Icon name="copy" size={13} /> Copy</>}
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => copyKey(newKey)}
+                  >
+                    {copied ? (
+                      <>
+                        <Icon name="check" size={13} /> Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="copy" size={13} /> Copy
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNewKey(null)}><Icon name="close" size={13} /></button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setNewKey(null)}
+              >
+                <Icon name="close" size={13} />
+              </button>
             </div>
           )}
 
           <div className="adm-sec-head" style={{ marginTop: 0 }}>
             <h3 style={{ fontSize: "1rem", fontWeight: 700 }}>API Keys</h3>
-            <button className="btn btn-outline" onClick={() => { setCreating(true); setErr(null); }}>
+            <button
+              className="btn btn-outline"
+              onClick={() => {
+                setCreating(true);
+                setErr(null);
+              }}
+            >
               <Icon name="plus" size={14} /> Create Key
             </button>
           </div>
 
           {creating && (
-            <div className="card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div
+              className="card"
+              style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}
+            >
               {err && <div className="pe-err">{err}</div>}
-              <label className="pe-field-label">Key Name
-                <input className="input" value={keyName} onChange={e => setKeyName(e.target.value)} placeholder="e.g. My Integration" onKeyDown={e => e.key === "Enter" && createKey()} />
+              <label className="pe-field-label">
+                Key Name
+                <input
+                  className="input"
+                  value={keyName}
+                  onChange={(e) => setKeyName(e.target.value)}
+                  placeholder="e.g. My Integration"
+                  onKeyDown={(e) => e.key === "Enter" && createKey()}
+                />
               </label>
               <label className="pe-field-label">Permissions</label>
               <div className="dev-scopes">
-                {ALL_SCOPES.map(s => (
+                {ALL_SCOPES.map((s) => (
                   <label key={s.key} className={`dev-scope ${scopes.includes(s.key) ? "on" : ""}`}>
-                    <input type="checkbox" checked={scopes.includes(s.key)} onChange={() => toggleScope(s.key)} style={{ display: "none" }} />
-                    {scopes.includes(s.key) ? <Icon name="check" size={12} /> : <span className="dev-scope-dot" />}
+                    <input
+                      type="checkbox"
+                      checked={scopes.includes(s.key)}
+                      onChange={() => toggleScope(s.key)}
+                      style={{ display: "none" }}
+                    />
+                    {scopes.includes(s.key) ? (
+                      <Icon name="check" size={12} />
+                    ) : (
+                      <span className="dev-scope-dot" />
+                    )}
                     {s.label}
                   </label>
                 ))}
               </div>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button className="btn btn-ghost" onClick={() => setCreating(false)}>Cancel</button>
+                <button className="btn btn-ghost" onClick={() => setCreating(false)}>
+                  Cancel
+                </button>
                 <button className="btn" onClick={createKey} disabled={busy || scopes.length === 0}>
-                  {busy ? <><Icon name="spinner" size={14} className="is-spinning" /> Creating…</> : "Create Key"}
+                  {busy ? (
+                    <>
+                      <Icon name="spinner" size={14} className="is-spinning" /> Creating…
+                    </>
+                  ) : (
+                    "Create Key"
+                  )}
                 </button>
               </div>
             </div>
           )}
 
-          {loading ? <div className="adm-loading"><Icon name="spinner" size={24} className="is-spinning" /></div>
-            : apiKeys.length === 0
-              ? <EmptyState icon="key" title="No API Keys" message="Create an API key to access the Nexora API." action={{ label: "Create Key", onClick: () => setCreating(true) }} />
-              : (
-                <div className="card" style={{ overflow: "hidden" }}>
-                  <table className="adm-table">
-                    <thead><tr><th>Name</th><th>Key</th><th>Scopes</th><th>Last Used</th><th>Status</th><th></th></tr></thead>
-                    <tbody>
-                      {apiKeys.map(k => (
-                        <tr key={k.id}>
-                          <td><strong>{k.name}</strong></td>
-                          <td><code style={{ fontSize: ".82rem" }}>{k.key}</code></td>
-                          <td>
-                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                              {k.scopes.slice(0, 2).map(s => <span key={s} className="badge badge-gray" style={{ fontSize: ".7rem" }}>{s}</span>)}
-                              {k.scopes.length > 2 && <span className="badge badge-gray" style={{ fontSize: ".7rem" }}>+{k.scopes.length - 2}</span>}
-                            </div>
-                          </td>
-                          <td>{k.lastUsed ? new Date(k.lastUsed).toLocaleDateString() : "Never"}</td>
-                          <td><span className={`badge ${k.active ? "badge-green" : "badge-gray"}`}>{k.active ? "Active" : "Revoked"}</span></td>
-                          <td>
-                            {k.active && <button className="btn btn-ghost btn-sm btn-danger-icon" onClick={() => revokeKey(k.id)} title="Revoke key"><Icon name="close" size={13} /></button>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          {loading ? (
+            <div className="adm-loading">
+              <Icon name="spinner" size={24} className="is-spinning" />
+            </div>
+          ) : apiKeys.length === 0 ? (
+            <EmptyState
+              icon="key"
+              title="No API Keys"
+              message="Create an API key to access the Nexora API."
+              action={{ label: "Create Key", onClick: () => setCreating(true) }}
+            />
+          ) : (
+            <div className="card" style={{ overflow: "hidden" }}>
+              <table className="adm-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Key</th>
+                    <th>Scopes</th>
+                    <th>Last Used</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apiKeys.map((k) => (
+                    <tr key={k.id}>
+                      <td>
+                        <strong>{k.name}</strong>
+                      </td>
+                      <td>
+                        <code style={{ fontSize: ".82rem" }}>{k.key}</code>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {k.scopes.slice(0, 2).map((s) => (
+                            <span
+                              key={s}
+                              className="badge badge-gray"
+                              style={{ fontSize: ".7rem" }}
+                            >
+                              {s}
+                            </span>
+                          ))}
+                          {k.scopes.length > 2 && (
+                            <span className="badge badge-gray" style={{ fontSize: ".7rem" }}>
+                              +{k.scopes.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>{k.lastUsed ? new Date(k.lastUsed).toLocaleDateString() : "Never"}</td>
+                      <td>
+                        <span className={`badge ${k.active ? "badge-green" : "badge-gray"}`}>
+                          {k.active ? "Active" : "Revoked"}
+                        </span>
+                      </td>
+                      <td>
+                        {k.active && (
+                          <button
+                            className="btn btn-ghost btn-sm btn-danger-icon"
+                            onClick={() => revokeKey(k.id)}
+                            title="Revoke key"
+                          >
+                            <Icon name="close" size={13} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {tab === "webhooks" && (
         <div>
-          {loading ? <div className="adm-loading"><Icon name="spinner" size={24} className="is-spinning" /></div>
-            : webhookLog.length === 0
-              ? <EmptyState icon="zap" title="No Webhook Events" message="Webhook delivery attempts will appear here." />
-              : (
-                <div className="card" style={{ overflow: "hidden" }}>
-                  <table className="adm-table">
-                    <thead><tr><th>Event</th><th>URL</th><th>Status</th><th>Date</th></tr></thead>
-                    <tbody>
-                      {webhookLog.map(w => (
-                        <tr key={w.id}>
-                          <td><code style={{ fontSize: ".82rem" }}>{w.event}</code></td>
-                          <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.url}</td>
-                          <td><span className={`badge ${w.status >= 200 && w.status < 300 ? "badge-green" : "badge-red"}`}>{w.status}</span></td>
-                          <td>{new Date(w.createdAt).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          {loading ? (
+            <div className="adm-loading">
+              <Icon name="spinner" size={24} className="is-spinning" />
+            </div>
+          ) : webhookLog.length === 0 ? (
+            <EmptyState
+              icon="zap"
+              title="No Webhook Events"
+              message="Webhook delivery attempts will appear here."
+            />
+          ) : (
+            <div className="card" style={{ overflow: "hidden" }}>
+              <table className="adm-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>URL</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {webhookLog.map((w) => (
+                    <tr key={w.id}>
+                      <td>
+                        <code style={{ fontSize: ".82rem" }}>{w.event}</code>
+                      </td>
+                      <td
+                        style={{
+                          maxWidth: 200,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {w.url}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${w.status >= 200 && w.status < 300 ? "badge-green" : "badge-red"}`}
+                        >
+                          {w.status}
+                        </span>
+                      </td>
+                      <td>{new Date(w.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

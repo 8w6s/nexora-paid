@@ -3,9 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useCart } from "./CartContext";
 import { useConfig } from "./ConfigContext";
+import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { Dropdown } from "./Dropdown";
 
 export const Navbar: React.FC = () => {
   const { cart, setIsCartOpen } = useCart();
@@ -15,12 +15,17 @@ export const Navbar: React.FC = () => {
   const [path, setPath] = useState("/");
   useEffect(() => setPath(window.location.pathname), []);
 
-  const accountOptions = useMemo(() => [
-    ...(user?.role === "admin" ? [{ value: "admin", label: "Admin Panel", icon: "key" as const }] : []),
-    { value: "orders", label: "My Orders", icon: "receipt" as const },
-    ...(isOn("tickets") ? [{ value: "support", label: "Support", icon: "ticket" as const }] : []),
-    { value: "logout", label: "Sign out", icon: "close" as const },
-  ], [isOn, user]);
+  const accountOptions = useMemo(
+    () => [
+      ...(user?.role === "admin"
+        ? [{ value: "admin", label: "Admin Panel", icon: "key" as const }]
+        : []),
+      { value: "orders", label: "My Orders", icon: "receipt" as const },
+      ...(isOn("tickets") ? [{ value: "support", label: "Support", icon: "ticket" as const }] : []),
+      { value: "logout", label: "Sign out", icon: "close" as const },
+    ],
+    [isOn, user],
+  );
 
   const handleAccountChange = (val: string) => {
     if (val === "admin") {

@@ -56,6 +56,7 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
 
   // 1. License gate (build-wide; per-plugin signing comes in Phase 2).
   const lic = await verifyLicense();
+  (globalThis as any).__nexora_license = lic;
   if (!lic.valid) {
     for (const p of plugins)
       records.push({

@@ -1,30 +1,30 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { AdminAbandonedCheckouts } from "./admin/AdminAbandonedCheckouts";
 import { AdminActivity } from "./admin/AdminActivity";
+import { AdminAddons } from "./admin/AdminAddons";
+import { AdminBlacklist } from "./admin/AdminBlacklist";
+import { AdminBlog } from "./admin/AdminBlog";
+import { AdminBundleOffers } from "./admin/AdminBundleOffers";
 import { AdminCategories } from "./admin/AdminCategories";
 import { AdminCoupons } from "./admin/AdminCoupons";
 import { AdminCustomers } from "./admin/AdminCustomers";
+import { AdminDevelopers } from "./admin/AdminDevelopers";
 import { AdminFeatures } from "./admin/AdminFeatures";
+import { AdminGroups } from "./admin/AdminGroups";
+import { AdminImport } from "./admin/AdminImport";
 import { AdminLogin } from "./admin/AdminLogin";
+import { AdminNotifications } from "./admin/AdminNotifications";
 import { AdminOrders } from "./admin/AdminOrders";
 import { AdminOverview } from "./admin/AdminOverview";
 import { AdminPayments } from "./admin/AdminPayments";
 import { AdminProducts } from "./admin/AdminProducts";
+import { AdminQuantityDeals } from "./admin/AdminQuantityDeals";
 import { AdminReviews } from "./admin/AdminReviews";
 import { AdminSettings } from "./admin/AdminSettings";
-import { AdminTickets } from "./admin/AdminTickets";
-import { AdminGroups } from "./admin/AdminGroups";
-import { AdminAddons } from "./admin/AdminAddons";
-import { AdminQuantityDeals } from "./admin/AdminQuantityDeals";
-import { AdminBundleOffers } from "./admin/AdminBundleOffers";
-import { AdminAbandonedCheckouts } from "./admin/AdminAbandonedCheckouts";
-import { AdminBlog } from "./admin/AdminBlog";
-import { AdminNotifications } from "./admin/AdminNotifications";
-import { AdminBlacklist } from "./admin/AdminBlacklist";
-import { AdminImport } from "./admin/AdminImport";
 import { AdminTeam } from "./admin/AdminTeam";
-import { AdminDevelopers } from "./admin/AdminDevelopers";
+import { AdminTickets } from "./admin/AdminTickets";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -54,7 +54,10 @@ type Tab =
   | "developers"
   | "settings";
 
-const NAV_GROUPS: { title?: string; items: { key: Tab; label: string; icon: any; badge?: string }[] }[] = [
+const NAV_GROUPS: {
+  title?: string;
+  items: { key: Tab; label: string; icon: any; badge?: string }[];
+}[] = [
   { items: [{ key: "overview", label: "Dashboard", icon: "home" }] },
   {
     title: "Catalog",
@@ -109,12 +112,15 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
   const { user, loading, logout } = useAuth();
   const { config, theme } = useConfig();
   const [tab, setTab] = useState<Tab>(() => {
-    if (activeTabPath) return activeTabPath as Tab;
+    // URL slug → Tab key mapping for paths whose label/URL differs from internal tab key.
+    // The admin sidebar shows e.g. "Configure" / "Invoices" but the underlying tab keys
+    // are "settings" / "orders" (legacy naming kept to avoid touching every component).
+    const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders" };
+    if (activeTabPath) return (urlToTab[activeTabPath] ?? activeTabPath) as Tab;
     if (typeof window !== "undefined") {
       const parts = window.location.pathname.split("/").filter(Boolean);
-      // Format /admin/tab -> parts: ['admin', 'tab']
       if (parts[0] === "admin" && parts[1]) {
-        return parts[1] as Tab;
+        return (urlToTab[parts[1]] ?? parts[1]) as Tab;
       }
     }
     return "overview";
@@ -126,7 +132,8 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     const handlePopState = () => {
       const parts = window.location.pathname.split("/").filter(Boolean);
       if (parts[0] === "admin" && parts[1]) {
-        setTab(parts[1] as Tab);
+        const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders" };
+        setTab((urlToTab[parts[1]] ?? parts[1]) as Tab);
       } else {
         setTab("overview");
       }
@@ -139,7 +146,10 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     setTab(newTab);
     setNavOpen(false);
     if (typeof window !== "undefined") {
-      const path = newTab === "overview" ? "/admin" : `/admin/${newTab}`;
+      // Reverse map: tab key → URL slug (so users see /admin/configure not /admin/settings)
+      const tabToUrl: Record<string, string> = { settings: "configure", orders: "invoices" };
+      const slug = tabToUrl[newTab] ?? newTab;
+      const path = newTab === "overview" ? "/admin" : `/admin/${slug}`;
       window.history.pushState(null, "", path);
     }
   };

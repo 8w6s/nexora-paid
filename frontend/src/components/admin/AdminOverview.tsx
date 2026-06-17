@@ -1,10 +1,10 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
+import { Chart } from "../Chart";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
-import { Chart } from "../Chart";
 
 interface RecentOrder {
   id: string;
@@ -129,7 +129,8 @@ export const AdminOverview: React.FC = () => {
         <div className="chart-head">
           <div className="chart-title-group">
             <span className="section-title">
-              <Icon name={isRevenue ? "zap" : "receipt"} size={15} /> {isRevenue ? "Revenue" : "Orders"}
+              <Icon name={isRevenue ? "zap" : "receipt"} size={15} />{" "}
+              {isRevenue ? "Revenue" : "Orders"}
             </span>
             <div className="metric-chips">
               <button
@@ -165,9 +166,7 @@ export const AdminOverview: React.FC = () => {
             data={series.map((d) => ({
               label: d.day,
               value: isRevenue ? d.revenueUsd : d.orders,
-              hoverLabel: isRevenue
-                ? `${d.orders} order${d.orders === 1 ? "" : "s"}`
-                : undefined,
+              hoverLabel: isRevenue ? `${d.orders} order${d.orders === 1 ? "" : "s"}` : undefined,
             }))}
             isCurrency={isRevenue}
           />

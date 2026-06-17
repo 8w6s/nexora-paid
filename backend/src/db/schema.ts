@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  customType,
   index,
   integer,
   primaryKey,
@@ -7,9 +8,8 @@ import {
   sqliteTable,
   text,
   uniqueIndex,
-  customType,
 } from "drizzle-orm/sqlite-core";
-import { encrypt, decrypt } from "../lib/encryption.ts";
+import { decrypt, encrypt } from "../lib/encryption.ts";
 
 const encryptedText = customType<{ data: string; driverData: string }>({
   dataType() {

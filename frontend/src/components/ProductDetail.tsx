@@ -58,9 +58,23 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
   return (
     <div className="pd container">
       <nav className="crumbs" aria-label="Breadcrumb">
-        <span style={{ cursor: "pointer" }} onClick={() => { window.location.href = "/"; }}>Home</span>
+        <span
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            window.location.href = "/";
+          }}
+        >
+          Home
+        </span>
         <span>/</span>
-        <span style={{ cursor: "pointer" }} onClick={() => { window.location.href = `/?category=${encodeURIComponent(product.category)}`; }}>{product.category}</span>
+        <span
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            window.location.href = `/?category=${encodeURIComponent(product.category)}`;
+          }}
+        >
+          {product.category}
+        </span>
         <span>/</span>
         <span aria-current="page">{product.name}</span>
       </nav>
@@ -70,8 +84,17 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
           {hasImage ? (
             <img src={product.image} alt={product.name} />
           ) : (
-            <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)' }}>
-              <Icon name="package" size={64} style={{ opacity: 0.3, color: 'var(--ink-soft)' }} />
+            <div
+              style={{
+                width: "100%",
+                aspectRatio: "1",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "var(--surface-2)",
+              }}
+            >
+              <Icon name="package" size={64} style={{ opacity: 0.3, color: "var(--ink-soft)" }} />
             </div>
           )}
           {activeOut && <span className="pd-soldout">Out of stock</span>}

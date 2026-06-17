@@ -23,7 +23,11 @@ export const EmptyState: React.FC<{
     {(cta || action) && (
       <div className="es-cta">
         {cta}
-        {action && <button className="btn btn-outline" onClick={action.onClick}>{action.label}</button>}
+        {action && (
+          <button className="btn btn-outline" onClick={action.onClick}>
+            {action.label}
+          </button>
+        )}
       </div>
     )}
     <style>{`

@@ -1,8 +1,8 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { Icon } from "../Icon";
 import { EmptyState } from "../EmptyState";
+import { Icon } from "../Icon";
 
 interface AbandonedCheckout {
   id: string;
@@ -22,18 +22,26 @@ export const AdminAbandonedCheckouts: React.FC = () => {
 
   const load = () => {
     setLoading(true);
-    api.get<AbandonedCheckout[]>("/api/admin/abandoned-checkouts").catch(() => [] as AbandonedCheckout[]).then(setCheckouts).finally(() => setLoading(false));
+    api
+      .get<AbandonedCheckout[]>("/api/admin/abandoned-checkouts")
+      .catch(() => [] as AbandonedCheckout[])
+      .then(setCheckouts)
+      .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const sendRecovery = async (id: string) => {
     setSending(id);
     try {
       await api.post(`/api/admin/abandoned-checkouts/${id}/recover`, {});
       load();
-    } catch {}
-    finally { setSending(null); }
+    } catch {
+    } finally {
+      setSending(null);
+    }
   };
 
   const fmtDate = (d: string) => new Date(d).toLocaleString();
@@ -45,7 +53,9 @@ export const AdminAbandonedCheckouts: React.FC = () => {
           <h2>Abandoned Checkouts</h2>
           <p className="muted">Track and recover abandoned checkout sessions.</p>
         </div>
-        <button className="btn btn-ghost" onClick={load}><Icon name="spinner" size={14} /> Refresh</button>
+        <button className="btn btn-ghost" onClick={load}>
+          <Icon name="spinner" size={14} /> Refresh
+        </button>
       </div>
 
       <div className="adm-stats-row">
@@ -55,18 +65,28 @@ export const AdminAbandonedCheckouts: React.FC = () => {
         </div>
         <div className="adm-stat-card card">
           <span className="adm-stat-label">Recovered</span>
-          <span className="adm-stat-value" style={{ color: "var(--success)" }}>{checkouts.filter(c => c.status === "recovered").length}</span>
+          <span className="adm-stat-value" style={{ color: "var(--success)" }}>
+            {checkouts.filter((c) => c.status === "recovered").length}
+          </span>
         </div>
         <div className="adm-stat-card card">
           <span className="adm-stat-label">Recovery Emails Sent</span>
-          <span className="adm-stat-value">{checkouts.filter(c => c.recoveryEmailSent).length}</span>
+          <span className="adm-stat-value">
+            {checkouts.filter((c) => c.recoveryEmailSent).length}
+          </span>
         </div>
       </div>
 
       {loading ? (
-        <div className="adm-loading"><Icon name="spinner" size={24} className="is-spinning" /></div>
+        <div className="adm-loading">
+          <Icon name="spinner" size={24} className="is-spinning" />
+        </div>
       ) : checkouts.length === 0 ? (
-        <EmptyState icon="receipt" title="No Abandoned Checkouts" message="When customers start checkout and don't complete it, they'll appear here." />
+        <EmptyState
+          icon="receipt"
+          title="No Abandoned Checkouts"
+          message="When customers start checkout and don't complete it, they'll appear here."
+        />
       ) : (
         <div className="card" style={{ overflow: "hidden" }}>
           <table className="adm-table">
@@ -81,14 +101,18 @@ export const AdminAbandonedCheckouts: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {checkouts.map(c => (
+              {checkouts.map((c) => (
                 <tr key={c.id}>
                   <td>{c.email}</td>
                   <td>{c.productName}</td>
-                  <td>{c.currency} {c.amount.toFixed(2)}</td>
+                  <td>
+                    {c.currency} {c.amount.toFixed(2)}
+                  </td>
                   <td>{fmtDate(c.createdAt)}</td>
                   <td>
-                    <span className={`badge ${c.status === "recovered" ? "badge-green" : "badge-yellow"}`}>
+                    <span
+                      className={`badge ${c.status === "recovered" ? "badge-green" : "badge-yellow"}`}
+                    >
                       {c.status}
                     </span>
                   </td>
@@ -98,13 +122,25 @@ export const AdminAbandonedCheckouts: React.FC = () => {
                         className="btn btn-outline btn-sm"
                         onClick={() => sendRecovery(c.id)}
                         disabled={sending === c.id || c.recoveryEmailSent}
-                        title={c.recoveryEmailSent ? "Recovery email already sent" : "Send recovery email"}
+                        title={
+                          c.recoveryEmailSent
+                            ? "Recovery email already sent"
+                            : "Send recovery email"
+                        }
                       >
-                        {sending === c.id
-                          ? <><Icon name="spinner" size={12} className="is-spinning" /> Sending…</>
-                          : c.recoveryEmailSent
-                            ? <><Icon name="check" size={12} /> Sent</>
-                            : <><Icon name="receipt" size={12} /> Send Recovery</>}
+                        {sending === c.id ? (
+                          <>
+                            <Icon name="spinner" size={12} className="is-spinning" /> Sending…
+                          </>
+                        ) : c.recoveryEmailSent ? (
+                          <>
+                            <Icon name="check" size={12} /> Sent
+                          </>
+                        ) : (
+                          <>
+                            <Icon name="receipt" size={12} /> Send Recovery
+                          </>
+                        )}
                       </button>
                     )}
                   </td>

@@ -44,14 +44,17 @@ export const AdminTickets: React.FC = () => {
     load();
   }, [load]);
 
-  const open = useCallback(async (id: string) => {
-    try {
-      const details = await api.get<TicketDetail>(`/api/tickets/${id}`);
-      setActive(details);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load ticket details");
-    }
-  }, [toast]);
+  const open = useCallback(
+    async (id: string) => {
+      try {
+        const details = await api.get<TicketDetail>(`/api/tickets/${id}`);
+        setActive(details);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to load ticket details");
+      }
+    },
+    [toast],
+  );
 
   const sendReply = async (e: React.FormEvent) => {
     e.preventDefault();

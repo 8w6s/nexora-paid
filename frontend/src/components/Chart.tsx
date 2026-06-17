@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import { fmtUsd } from "../lib/api";
 
 export interface ChartDataPoint {
@@ -35,13 +35,15 @@ export const Chart: React.FC<ChartProps> = ({ data, isCurrency = false }) => {
     return { x, y, val: d.value, label: d.label, hoverLabel: d.hoverLabel };
   });
 
-  const linePath = points.length > 0
-    ? points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ")
-    : "";
+  const linePath =
+    points.length > 0
+      ? points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ")
+      : "";
 
-  const areaPath = points.length > 0
-    ? `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${(topPad + plotH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(topPad + plotH).toFixed(1)} Z`
-    : "";
+  const areaPath =
+    points.length > 0
+      ? `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${(topPad + plotH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(topPad + plotH).toFixed(1)} Z`
+      : "";
 
   const gridTicks = [0, 0.25, 0.5, 0.75, 1];
 
@@ -161,9 +163,7 @@ export const Chart: React.FC<ChartProps> = ({ data, isCurrency = false }) => {
             <div className="tooltip-value">
               {isCurrency ? fmtUsd(activePoint.val) : activePoint.val}
             </div>
-            {activePoint.hoverLabel && (
-              <div className="tooltip-sub">{activePoint.hoverLabel}</div>
-            )}
+            {activePoint.hoverLabel && <div className="tooltip-sub">{activePoint.hoverLabel}</div>}
           </div>
         )}
       </div>

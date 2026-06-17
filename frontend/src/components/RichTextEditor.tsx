@@ -26,7 +26,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const isSyncing = useRef(false);
   const [align, setAlign] = useState<Align>("left");
   const [heading, setHeading] = useState<Heading>("p");
-  const [formats, setFormats] = useState({ bold: false, italic: false, underline: false, strikeThrough: false });
+  const [formats, setFormats] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    strikeThrough: false,
+  });
   const [focused, setFocused] = useState(false);
 
   // Sync value → DOM only when not focused (external change)
@@ -89,7 +94,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const applyAlign = (a: Align) => {
     setAlign(a);
-    const cmd = { left: "justifyLeft", center: "justifyCenter", right: "justifyRight", justify: "justifyFull" }[a];
+    const cmd = {
+      left: "justifyLeft",
+      center: "justifyCenter",
+      right: "justifyRight",
+      justify: "justifyFull",
+    }[a];
     exec(cmd);
   };
 
@@ -119,39 +129,84 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         <div className="rte-divider" />
 
         {/* Inline formatting */}
-        <button type="button" className={`rte-btn ${formats.bold ? "on" : ""}`} onClick={() => exec("bold")} title="Bold (Ctrl+B)">
+        <button
+          type="button"
+          className={`rte-btn ${formats.bold ? "on" : ""}`}
+          onClick={() => exec("bold")}
+          title="Bold (Ctrl+B)"
+        >
           <strong>B</strong>
         </button>
-        <button type="button" className={`rte-btn ${formats.italic ? "on" : ""}`} onClick={() => exec("italic")} title="Italic (Ctrl+I)">
+        <button
+          type="button"
+          className={`rte-btn ${formats.italic ? "on" : ""}`}
+          onClick={() => exec("italic")}
+          title="Italic (Ctrl+I)"
+        >
           <em>I</em>
         </button>
-        <button type="button" className={`rte-btn ${formats.underline ? "on" : ""}`} onClick={() => exec("underline")} title="Underline (Ctrl+U)">
+        <button
+          type="button"
+          className={`rte-btn ${formats.underline ? "on" : ""}`}
+          onClick={() => exec("underline")}
+          title="Underline (Ctrl+U)"
+        >
           <u>U</u>
         </button>
-        <button type="button" className={`rte-btn ${formats.strikeThrough ? "on" : ""}`} onClick={() => exec("strikeThrough")} title="Strikethrough">
+        <button
+          type="button"
+          className={`rte-btn ${formats.strikeThrough ? "on" : ""}`}
+          onClick={() => exec("strikeThrough")}
+          title="Strikethrough"
+        >
           <s>S</s>
         </button>
 
         <div className="rte-divider" />
 
         {/* Lists */}
-        <button type="button" className="rte-btn" onClick={() => exec("insertUnorderedList")} title="Bullet list">
+        <button
+          type="button"
+          className="rte-btn"
+          onClick={() => exec("insertUnorderedList")}
+          title="Bullet list"
+        >
           <Icon name="menu" size={13} />
         </button>
-        <button type="button" className="rte-btn" onClick={() => exec("insertOrderedList")} title="Numbered list">
+        <button
+          type="button"
+          className="rte-btn"
+          onClick={() => exec("insertOrderedList")}
+          title="Numbered list"
+        >
           <span className="rte-ol-icon">1.</span>
         </button>
 
         <div className="rte-divider" />
 
         {/* Alignment */}
-        <button type="button" className={`rte-btn ${align === "left" ? "on" : ""}`} onClick={() => applyAlign("left")} title="Align left">
+        <button
+          type="button"
+          className={`rte-btn ${align === "left" ? "on" : ""}`}
+          onClick={() => applyAlign("left")}
+          title="Align left"
+        >
           <Icon name="arrow-left" size={12} />
         </button>
-        <button type="button" className={`rte-btn ${align === "center" ? "on" : ""}`} onClick={() => applyAlign("center")} title="Align center">
+        <button
+          type="button"
+          className={`rte-btn ${align === "center" ? "on" : ""}`}
+          onClick={() => applyAlign("center")}
+          title="Align center"
+        >
           <span className="rte-center-icon">≡</span>
         </button>
-        <button type="button" className={`rte-btn ${align === "right" ? "on" : ""}`} onClick={() => applyAlign("right")} title="Align right">
+        <button
+          type="button"
+          className={`rte-btn ${align === "right" ? "on" : ""}`}
+          onClick={() => applyAlign("right")}
+          title="Align right"
+        >
           <Icon name="arrow-right" size={12} />
         </button>
 
@@ -161,7 +216,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         <button type="button" className="rte-btn" onClick={insertLink} title="Insert link">
           <Icon name="copy" size={12} />
         </button>
-        <button type="button" className="rte-btn" onClick={() => exec("insertHTML", "<code></code>")} title="Inline code">
+        <button
+          type="button"
+          className="rte-btn"
+          onClick={() => exec("insertHTML", "<code></code>")}
+          title="Inline code"
+        >
           <code style={{ fontSize: "10px" }}>{"</>"}</code>
         </button>
 
@@ -185,7 +245,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={() => setFocused(true)}
-          onBlur={() => { setFocused(false); refreshState(); }}
+          onBlur={() => {
+            setFocused(false);
+            refreshState();
+          }}
           onMouseUp={refreshState}
           onKeyUp={refreshState}
           style={{ minHeight: minH }}

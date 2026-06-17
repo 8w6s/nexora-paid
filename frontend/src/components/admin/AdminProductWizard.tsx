@@ -185,7 +185,7 @@ export const AdminProductWizard: React.FC<{ onDone: () => void; onCancel: () => 
                   autoFocus
                 />
               </label>
-              
+
               <label className="pw-l">
                 <span>Short description</span>
                 <textarea
@@ -207,7 +207,7 @@ export const AdminProductWizard: React.FC<{ onDone: () => void; onCancel: () => 
                 />
               </label>
             </div>
-            
+
             <div className="pw-nav">
               <button className="btn btn-ghost" onClick={() => setStep(1)}>
                 Back

@@ -3,8 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
-import { ToggleSwitch } from "../ToggleSwitch";
 import { useToast } from "../Toast";
+import { ToggleSwitch } from "../ToggleSwitch";
 
 interface SettingsView {
   store_name?: string | null;
@@ -37,7 +37,7 @@ interface SettingsView {
   show_terms?: string | boolean | null;
   precheck_terms?: string | boolean | null;
   show_newsletter?: string | boolean | null;
-  
+
   enable_tax_calculation?: string | boolean | null;
   tax_rate?: string | null;
   send_invoice_pdfs?: string | boolean | null;
@@ -45,42 +45,42 @@ interface SettingsView {
   invoice_pdf_header?: string | null;
   invoice_pdf_notes?: string | null;
   invoice_pdf_footer?: string | null;
-  
+
   enable_automatic_feedbacks?: string | boolean | null;
-  
+
   enable_affiliate_program?: string | boolean | null;
   make_affiliate_program_public?: string | boolean | null;
   allow_customers_edit_affiliate_code?: string | boolean | null;
   affiliate_percentage?: string | null;
-  
+
   enable_tickets?: string | boolean | null;
-  
+
   terms_of_service?: string | null;
   privacy_policy?: string | null;
   refund_policy?: string | null;
-  
+
   google_analytics?: string | null;
   crisp?: string | null;
   tawk_to?: string | null;
   trustpilot?: string | null;
-  
+
   discord_client_id?: string | null;
   discord_client_secret?: string | boolean | null;
   discord_bot_token?: string | boolean | null;
-  
+
   // New properties
   meta_title?: string | null;
   meta_description?: string | null;
   meta_twitter_card?: string | null;
   checkout_color_scheme?: string | null;
-  
+
   redirect_custom_domain?: string | boolean | null;
   hide_out_of_stock?: string | boolean | null;
   refund_out_of_stock_to_balance?: string | boolean | null;
   maintenance_password?: string | null;
-  
+
   custom_domain_name?: string | null;
-  
+
   maintenance_mode?: string | boolean | null;
   custom_header_script?: string | null;
 }
@@ -111,7 +111,9 @@ export const AdminSettings: React.FC = () => {
   const [storeName, setStoreName] = useState("Nexora");
   const [subdomain, setSubdomain] = useState("protonservices");
   const [currency, setCurrency] = useState("USD");
-  const [description, setDescription] = useState("Premium digital goods storefront powered by Nexora.");
+  const [description, setDescription] = useState(
+    "Premium digital goods storefront powered by Nexora.",
+  );
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
   const [metaTwitterCard, setMetaTwitterCard] = useState("summary_large_image");
@@ -193,98 +195,169 @@ export const AdminSettings: React.FC = () => {
   const [refundOutOfStockToBalance, setRefundOutOfStockToBalance] = useState(false);
   const [customHeaderScript, setCustomHeaderScript] = useState("");
 
-  const load = useCallback(() =>
-    api
-      .get<SettingsView>("/api/admin/settings")
-      .then((d) => {
-        setS(d);
-        setStoreName(d.store_name ?? "Nexora");
-        setConf(String(d.required_confirmations ?? 2));
-        setWindowMin(String(d.payment_window_minutes ?? 15));
-        
-        // Load custom settings
-        if (d.subdomain !== undefined && d.subdomain !== null) setSubdomain(d.subdomain);
-        if (d.currency !== undefined && d.currency !== null) setCurrency(d.currency);
-        if (d.description !== undefined && d.description !== null) setDescription(d.description);
-        
-        if (d.discord !== undefined && d.discord !== null) setDiscord(d.discord);
-        if (d.youtube !== undefined && d.youtube !== null) setYoutube(d.youtube);
-        if (d.telegram !== undefined && d.telegram !== null) setTelegram(d.telegram);
-        if (d.tiktok !== undefined && d.tiktok !== null) setTiktok(d.tiktok);
-        if (d.instagram !== undefined && d.instagram !== null) setInstagram(d.instagram);
+  const load = useCallback(
+    () =>
+      api
+        .get<SettingsView>("/api/admin/settings")
+        .then((d) => {
+          setS(d);
+          setStoreName(d.store_name ?? "Nexora");
+          setConf(String(d.required_confirmations ?? 2));
+          setWindowMin(String(d.payment_window_minutes ?? 15));
 
-        setAllowChangeTheme(d.allow_change_theme === "true" || d.allow_change_theme === true || d.allow_change_theme === undefined || d.allow_change_theme === null);
-        setCollectBilling(d.collect_billing === "true" || d.collect_billing === true);
-        setShowCoupon(d.show_coupon === "true" || d.show_coupon === true || d.show_coupon === undefined || d.show_coupon === null);
-        setShowTerms(d.show_terms === "true" || d.show_terms === true || d.show_terms === undefined || d.show_terms === null);
-        setPrecheckTerms(d.precheck_terms === "true" || d.precheck_terms === true);
-        setShowNewsletter(d.show_newsletter === "true" || d.show_newsletter === true || d.show_newsletter === undefined || d.show_newsletter === null);
+          // Load custom settings
+          if (d.subdomain !== undefined && d.subdomain !== null) setSubdomain(d.subdomain);
+          if (d.currency !== undefined && d.currency !== null) setCurrency(d.currency);
+          if (d.description !== undefined && d.description !== null) setDescription(d.description);
 
-        // Invoices & Tax
-        setEnableTaxCalculation(d.enable_tax_calculation === "true" || d.enable_tax_calculation === true);
-        if (d.tax_rate !== undefined && d.tax_rate !== null) setTaxRate(d.tax_rate);
-        setSendInvoicePdfs(d.send_invoice_pdfs === "true" || d.send_invoice_pdfs === true);
-        setShowInvoicePdfLink(d.show_invoice_pdf_link === "true" || d.show_invoice_pdf_link === true);
-        if (d.invoice_pdf_header !== undefined && d.invoice_pdf_header !== null) setInvoicePdfHeader(d.invoice_pdf_header);
-        if (d.invoice_pdf_notes !== undefined && d.invoice_pdf_notes !== null) setInvoicePdfNotes(d.invoice_pdf_notes);
-        if (d.invoice_pdf_footer !== undefined && d.invoice_pdf_footer !== null) setInvoicePdfFooter(d.invoice_pdf_footer);
+          if (d.discord !== undefined && d.discord !== null) setDiscord(d.discord);
+          if (d.youtube !== undefined && d.youtube !== null) setYoutube(d.youtube);
+          if (d.telegram !== undefined && d.telegram !== null) setTelegram(d.telegram);
+          if (d.tiktok !== undefined && d.tiktok !== null) setTiktok(d.tiktok);
+          if (d.instagram !== undefined && d.instagram !== null) setInstagram(d.instagram);
 
-        // Feedbacks
-        setEnableAutomaticFeedbacks(d.enable_automatic_feedbacks === "true" || d.enable_automatic_feedbacks === true || d.enable_automatic_feedbacks === undefined || d.enable_automatic_feedbacks === null);
+          setAllowChangeTheme(
+            d.allow_change_theme === "true" ||
+              d.allow_change_theme === true ||
+              d.allow_change_theme === undefined ||
+              d.allow_change_theme === null,
+          );
+          setCollectBilling(d.collect_billing === "true" || d.collect_billing === true);
+          setShowCoupon(
+            d.show_coupon === "true" ||
+              d.show_coupon === true ||
+              d.show_coupon === undefined ||
+              d.show_coupon === null,
+          );
+          setShowTerms(
+            d.show_terms === "true" ||
+              d.show_terms === true ||
+              d.show_terms === undefined ||
+              d.show_terms === null,
+          );
+          setPrecheckTerms(d.precheck_terms === "true" || d.precheck_terms === true);
+          setShowNewsletter(
+            d.show_newsletter === "true" ||
+              d.show_newsletter === true ||
+              d.show_newsletter === undefined ||
+              d.show_newsletter === null,
+          );
 
-        // Affiliate Program
-        setEnableAffiliateProgram(d.enable_affiliate_program === "true" || d.enable_affiliate_program === true);
-        setMakeAffiliateProgramPublic(d.make_affiliate_program_public === "true" || d.make_affiliate_program_public === true || d.make_affiliate_program_public === undefined || d.make_affiliate_program_public === null);
-        setAllowCustomersEditAffiliateCode(d.allow_customers_edit_affiliate_code === "true" || d.allow_customers_edit_affiliate_code === true);
-        if (d.affiliate_percentage !== undefined && d.affiliate_percentage !== null) setAffiliatePercentage(d.affiliate_percentage);
+          // Invoices & Tax
+          setEnableTaxCalculation(
+            d.enable_tax_calculation === "true" || d.enable_tax_calculation === true,
+          );
+          if (d.tax_rate !== undefined && d.tax_rate !== null) setTaxRate(d.tax_rate);
+          setSendInvoicePdfs(d.send_invoice_pdfs === "true" || d.send_invoice_pdfs === true);
+          setShowInvoicePdfLink(
+            d.show_invoice_pdf_link === "true" || d.show_invoice_pdf_link === true,
+          );
+          if (d.invoice_pdf_header !== undefined && d.invoice_pdf_header !== null)
+            setInvoicePdfHeader(d.invoice_pdf_header);
+          if (d.invoice_pdf_notes !== undefined && d.invoice_pdf_notes !== null)
+            setInvoicePdfNotes(d.invoice_pdf_notes);
+          if (d.invoice_pdf_footer !== undefined && d.invoice_pdf_footer !== null)
+            setInvoicePdfFooter(d.invoice_pdf_footer);
 
-        // Tickets
-        setEnableTickets(d.enable_tickets === "true" || d.enable_tickets === true || d.enable_tickets === undefined || d.enable_tickets === null);
+          // Feedbacks
+          setEnableAutomaticFeedbacks(
+            d.enable_automatic_feedbacks === "true" ||
+              d.enable_automatic_feedbacks === true ||
+              d.enable_automatic_feedbacks === undefined ||
+              d.enable_automatic_feedbacks === null,
+          );
 
-        // Legal Pages
-        if (d.terms_of_service !== undefined && d.terms_of_service !== null) setTermsOfService(d.terms_of_service);
-        if (d.privacy_policy !== undefined && d.privacy_policy !== null) setPrivacyPolicy(d.privacy_policy);
-        if (d.refund_policy !== undefined && d.refund_policy !== null) setRefundPolicy(d.refund_policy);
+          // Affiliate Program
+          setEnableAffiliateProgram(
+            d.enable_affiliate_program === "true" || d.enable_affiliate_program === true,
+          );
+          setMakeAffiliateProgramPublic(
+            d.make_affiliate_program_public === "true" ||
+              d.make_affiliate_program_public === true ||
+              d.make_affiliate_program_public === undefined ||
+              d.make_affiliate_program_public === null,
+          );
+          setAllowCustomersEditAffiliateCode(
+            d.allow_customers_edit_affiliate_code === "true" ||
+              d.allow_customers_edit_affiliate_code === true,
+          );
+          if (d.affiliate_percentage !== undefined && d.affiliate_percentage !== null)
+            setAffiliatePercentage(d.affiliate_percentage);
 
-        // Integrations
-        if (d.google_analytics !== undefined && d.google_analytics !== null) setGoogleAnalytics(d.google_analytics);
-        if (d.crisp !== undefined && d.crisp !== null) setCrisp(d.crisp);
-        if (d.tawk_to !== undefined && d.tawk_to !== null) setTawkTo(d.tawk_to);
-        if (d.trustpilot !== undefined && d.trustpilot !== null) setTrustpilot(d.trustpilot);
+          // Tickets
+          setEnableTickets(
+            d.enable_tickets === "true" ||
+              d.enable_tickets === true ||
+              d.enable_tickets === undefined ||
+              d.enable_tickets === null,
+          );
 
-        // Discord Bot
-        if (d.discord_client_id !== undefined && d.discord_client_id !== null) setDiscordClientId(d.discord_client_id);
-        setDiscordClientSecret(typeof d.discord_client_secret === "string" ? d.discord_client_secret : "");
-        setDiscordBotToken(typeof d.discord_bot_token === "string" ? d.discord_bot_token : "");
+          // Legal Pages
+          if (d.terms_of_service !== undefined && d.terms_of_service !== null)
+            setTermsOfService(d.terms_of_service);
+          if (d.privacy_policy !== undefined && d.privacy_policy !== null)
+            setPrivacyPolicy(d.privacy_policy);
+          if (d.refund_policy !== undefined && d.refund_policy !== null)
+            setRefundPolicy(d.refund_policy);
 
-        // SEO/Meta & Checkout Scheme & Domain
-        if (d.meta_title !== undefined && d.meta_title !== null) setMetaTitle(d.meta_title);
-        if (d.meta_description !== undefined && d.meta_description !== null) setMetaDescription(d.meta_description);
-        if (d.meta_twitter_card !== undefined && d.meta_twitter_card !== null) setMetaTwitterCard(d.meta_twitter_card);
-        if (d.checkout_color_scheme !== undefined && d.checkout_color_scheme !== null) setCheckoutColorScheme(d.checkout_color_scheme);
-        
-        setRedirectCustomDomain(d.redirect_custom_domain === "true" || d.redirect_custom_domain === true || d.redirect_custom_domain === undefined || d.redirect_custom_domain === null);
-        setHideOutOfStock(d.hide_out_of_stock === "true" || d.hide_out_of_stock === true);
-        setRefundOutOfStockToBalance(d.refund_out_of_stock_to_balance === "true" || d.refund_out_of_stock_to_balance === true);
-        if (d.maintenance_password !== undefined && d.maintenance_password !== null) setMaintenancePassword(d.maintenance_password);
-        if (d.custom_domain_name !== undefined && d.custom_domain_name !== null) setCustomDomainName(d.custom_domain_name);
+          // Integrations
+          if (d.google_analytics !== undefined && d.google_analytics !== null)
+            setGoogleAnalytics(d.google_analytics);
+          if (d.crisp !== undefined && d.crisp !== null) setCrisp(d.crisp);
+          if (d.tawk_to !== undefined && d.tawk_to !== null) setTawkTo(d.tawk_to);
+          if (d.trustpilot !== undefined && d.trustpilot !== null) setTrustpilot(d.trustpilot);
 
-        setMaintenanceMode(d.maintenance_mode === "true" || d.maintenance_mode === true);
-        if (d.custom_header_script !== undefined && d.custom_header_script !== null) setCustomHeaderScript(d.custom_header_script);
+          // Discord Bot
+          if (d.discord_client_id !== undefined && d.discord_client_id !== null)
+            setDiscordClientId(d.discord_client_id);
+          setDiscordClientSecret(
+            typeof d.discord_client_secret === "string" ? d.discord_client_secret : "",
+          );
+          setDiscordBotToken(typeof d.discord_bot_token === "string" ? d.discord_bot_token : "");
 
-        // Email Server load
-        setEmailEnabled(d.email_enabled === "true" || d.email_enabled === true);
-        setEmailProvider((d.email_provider as "resend" | "smtp") ?? "resend");
-        setEmailFrom(d.email_from ?? "noreply@nexora.shop");
-        setResendApiKey(typeof d.resend_api_key === "string" ? d.resend_api_key : "");
-        setSmtpHost(d.smtp_host ?? "");
-        setSmtpPort(String(d.smtp_port ?? "587"));
-        setSmtpSecure(d.smtp_secure === "true" || d.smtp_secure === true);
-        setSmtpUser(d.smtp_user ?? "");
-        setSmtpPass(typeof d.smtp_pass === "string" ? d.smtp_pass : "");
-      })
-      .catch(() => {})
-  , []);
+          // SEO/Meta & Checkout Scheme & Domain
+          if (d.meta_title !== undefined && d.meta_title !== null) setMetaTitle(d.meta_title);
+          if (d.meta_description !== undefined && d.meta_description !== null)
+            setMetaDescription(d.meta_description);
+          if (d.meta_twitter_card !== undefined && d.meta_twitter_card !== null)
+            setMetaTwitterCard(d.meta_twitter_card);
+          if (d.checkout_color_scheme !== undefined && d.checkout_color_scheme !== null)
+            setCheckoutColorScheme(d.checkout_color_scheme);
+
+          setRedirectCustomDomain(
+            d.redirect_custom_domain === "true" ||
+              d.redirect_custom_domain === true ||
+              d.redirect_custom_domain === undefined ||
+              d.redirect_custom_domain === null,
+          );
+          setHideOutOfStock(d.hide_out_of_stock === "true" || d.hide_out_of_stock === true);
+          setRefundOutOfStockToBalance(
+            d.refund_out_of_stock_to_balance === "true" ||
+              d.refund_out_of_stock_to_balance === true,
+          );
+          if (d.maintenance_password !== undefined && d.maintenance_password !== null)
+            setMaintenancePassword(d.maintenance_password);
+          if (d.custom_domain_name !== undefined && d.custom_domain_name !== null)
+            setCustomDomainName(d.custom_domain_name);
+
+          setMaintenanceMode(d.maintenance_mode === "true" || d.maintenance_mode === true);
+          if (d.custom_header_script !== undefined && d.custom_header_script !== null)
+            setCustomHeaderScript(d.custom_header_script);
+
+          // Email Server load
+          setEmailEnabled(d.email_enabled === "true" || d.email_enabled === true);
+          setEmailProvider((d.email_provider as "resend" | "smtp") ?? "resend");
+          setEmailFrom(d.email_from ?? "noreply@nexora.shop");
+          setResendApiKey(typeof d.resend_api_key === "string" ? d.resend_api_key : "");
+          setSmtpHost(d.smtp_host ?? "");
+          setSmtpPort(String(d.smtp_port ?? "587"));
+          setSmtpSecure(d.smtp_secure === "true" || d.smtp_secure === true);
+          setSmtpUser(d.smtp_user ?? "");
+          setSmtpPass(typeof d.smtp_pass === "string" ? d.smtp_pass : "");
+        })
+        .catch(() => {}),
+    [],
+  );
 
   useEffect(() => {
     load();
@@ -312,7 +385,7 @@ export const AdminSettings: React.FC = () => {
         show_terms: showTerms,
         precheck_terms: precheckTerms,
         show_newsletter: showNewsletter,
-        
+
         enable_tax_calculation: enableTaxCalculation,
         tax_rate: Number(taxRate) || 0,
         send_invoice_pdfs: sendInvoicePdfs,
@@ -320,42 +393,43 @@ export const AdminSettings: React.FC = () => {
         invoice_pdf_header: invoicePdfHeader,
         invoice_pdf_notes: invoicePdfNotes,
         invoice_pdf_footer: invoicePdfFooter,
-        
+
         enable_automatic_feedbacks: enableAutomaticFeedbacks,
-        
+
         enable_affiliate_program: enableAffiliateProgram,
         make_affiliate_program_public: makeAffiliateProgramPublic,
         allow_customers_edit_affiliate_code: allowCustomersEditAffiliateCode,
         affiliate_percentage: Number(affiliatePercentage) || 0,
-        
+
         enable_tickets: enableTickets,
-        
+
         terms_of_service: termsOfService,
         privacy_policy: privacyPolicy,
         refund_policy: refundPolicy,
-        
+
         google_analytics: googleAnalytics,
         crisp: crisp,
         tawk_to: tawkTo,
         trustpilot: trustpilot,
-        
+
         discord_client_id: discordClientId,
         meta_title: metaTitle,
         meta_description: metaDescription,
         meta_twitter_card: metaTwitterCard,
         checkout_color_scheme: checkoutColorScheme,
-        
+
         redirect_custom_domain: redirectCustomDomain,
         hide_out_of_stock: hideOutOfStock,
         refund_out_of_stock_to_balance: refundOutOfStockToBalance,
         maintenance_password: maintenancePassword,
-        
+
         custom_domain_name: customDomainName,
-        
+
         maintenance_mode: maintenanceMode,
         custom_header_script: customHeaderScript,
       };
-      if (discordClientSecret.trim()) generalBody.discord_client_secret = discordClientSecret.trim();
+      if (discordClientSecret.trim())
+        generalBody.discord_client_secret = discordClientSecret.trim();
       if (discordBotToken.trim()) generalBody.discord_bot_token = discordBotToken.trim();
 
       await api.put("/api/admin/settings", generalBody);
@@ -413,7 +487,9 @@ export const AdminSettings: React.FC = () => {
                     onChange={(e) => setStoreName(e.target.value)}
                     placeholder="My Store"
                   />
-                  <small className="pay-hint-text">Displayed all over your website and in emails.</small>
+                  <small className="pay-hint-text">
+                    Displayed all over your website and in emails.
+                  </small>
                 </label>
                 <label className="set-label">
                   <span>Subdomain</span>
@@ -423,18 +499,26 @@ export const AdminSettings: React.FC = () => {
                     onChange={(e) => setSubdomain(e.target.value)}
                     placeholder="mysubdomain"
                   />
-                  <small className="pay-hint-text">The URL of your shop. It may only contain letters and numbers.</small>
+                  <small className="pay-hint-text">
+                    The URL of your shop. It may only contain letters and numbers.
+                  </small>
                 </label>
               </div>
               <label className="set-label">
                 <span>Currency</span>
-                <select className="input select-input" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                <select
+                  className="input select-input"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                >
                   <option value="USD">USD - US Dollar ($)</option>
                   <option value="EUR">EUR - Euro (€)</option>
                   <option value="GBP">GBP - British Pound (£)</option>
                   <option value="VND">VND - Vietnam Dong (₫)</option>
                 </select>
-                <small className="pay-hint-text">Default currency in which product prices are displayed.</small>
+                <small className="pay-hint-text">
+                  Default currency in which product prices are displayed.
+                </small>
               </label>
             </div>
 
@@ -480,7 +564,9 @@ export const AdminSettings: React.FC = () => {
                   rows={4}
                   placeholder="Tell customers about your shop..."
                 />
-                <small className="pay-hint-text">Displayed on your shop homepage depending on the active theme.</small>
+                <small className="pay-hint-text">
+                  Displayed on your shop homepage depending on the active theme.
+                </small>
               </label>
             </div>
 
@@ -496,7 +582,9 @@ export const AdminSettings: React.FC = () => {
                   onChange={(e) => setMetaTitle(e.target.value)}
                   placeholder="Proton — Digital goods Store"
                 />
-                <small className="pay-hint-text">Displayed in the browser tab and search engines.</small>
+                <small className="pay-hint-text">
+                  Displayed in the browser tab and search engines.
+                </small>
               </label>
 
               <label className="set-label">
@@ -521,7 +609,11 @@ export const AdminSettings: React.FC = () => {
 
               <label className="set-label">
                 <span>Meta Twitter Card Type</span>
-                <select className="input select-input" value={metaTwitterCard} onChange={(e) => setMetaTwitterCard(e.target.value)}>
+                <select
+                  className="input select-input"
+                  value={metaTwitterCard}
+                  onChange={(e) => setMetaTwitterCard(e.target.value)}
+                >
                   <option value="summary_large_image">Large Image Card</option>
                   <option value="summary">Small Image Card</option>
                 </select>
@@ -536,8 +628,10 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="users" size={16} /> Social media accounts
               </span>
-              <p className="section-subtitle">Link your social media to display icons on your storefront.</p>
-              
+              <p className="section-subtitle">
+                Link your social media to display icons on your storefront.
+              </p>
+
               <label className="set-label">
                 <span>Discord Invitation Link</span>
                 <input
@@ -547,7 +641,7 @@ export const AdminSettings: React.FC = () => {
                   placeholder="https://discord.gg/yourserver"
                 />
               </label>
-              
+
               <label className="set-label">
                 <span>YouTube Channel URL</span>
                 <input
@@ -557,7 +651,7 @@ export const AdminSettings: React.FC = () => {
                   placeholder="https://youtube.com/@channel"
                 />
               </label>
-              
+
               <label className="set-label">
                 <span>Telegram Username/Group</span>
                 <input
@@ -567,7 +661,7 @@ export const AdminSettings: React.FC = () => {
                   placeholder="https://t.me/username"
                 />
               </label>
-              
+
               <label className="set-label">
                 <span>TikTok Username</span>
                 <input
@@ -601,7 +695,9 @@ export const AdminSettings: React.FC = () => {
                 <label className="set-label">
                   <span>Required confirmations</span>
                   <NumberInput min={1} max={12} value={conf} onChange={setConf} />
-                  <small className="pay-hint-text">Confirmations on block explorer to unlock keys.</small>
+                  <small className="pay-hint-text">
+                    Confirmations on block explorer to unlock keys.
+                  </small>
                 </label>
                 <label className="set-label">
                   <span>Payment window (minutes)</span>
@@ -615,10 +711,14 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="settings" size={16} /> Checkout layout options
               </span>
-              
+
               <label className="set-label" style={{ marginBottom: "12px" }}>
                 <span>Checkout Default Color Scheme</span>
-                <select className="input select-input" value={checkoutColorScheme} onChange={(e) => setCheckoutColorScheme(e.target.value)}>
+                <select
+                  className="input select-input"
+                  value={checkoutColorScheme}
+                  onChange={(e) => setCheckoutColorScheme(e.target.value)}
+                >
                   <option value="system">Follow System Preferences</option>
                   <option value="light">Always Light Mode</option>
                   <option value="dark">Always Dark Mode</option>
@@ -631,7 +731,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Allow Customer to Change Color Scheme</strong>
                     <span>Customers can switch between light/dark mode on checkout.</span>
                   </div>
-                  <ToggleSwitch checked={allowChangeTheme} onChange={() => setAllowChangeTheme(!allowChangeTheme)} label="Allow Theme Switch" />
+                  <ToggleSwitch
+                    checked={allowChangeTheme}
+                    onChange={() => setAllowChangeTheme(!allowChangeTheme)}
+                    label="Allow Theme Switch"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
@@ -639,7 +743,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Collect Billing Address</strong>
                     <span>Ask customer for full name & billing address during card checkout.</span>
                   </div>
-                  <ToggleSwitch checked={collectBilling} onChange={() => setCollectBilling(!collectBilling)} label="Collect Billing" />
+                  <ToggleSwitch
+                    checked={collectBilling}
+                    onChange={() => setCollectBilling(!collectBilling)}
+                    label="Collect Billing"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
@@ -647,7 +755,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Show Coupon Code Textbox</strong>
                     <span>Display the promo/coupon code textbox on review screen.</span>
                   </div>
-                  <ToggleSwitch checked={showCoupon} onChange={() => setShowCoupon(!showCoupon)} label="Show Coupon Box" />
+                  <ToggleSwitch
+                    checked={showCoupon}
+                    onChange={() => setShowCoupon(!showCoupon)}
+                    label="Show Coupon Box"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
@@ -655,7 +767,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Require Terms Consent</strong>
                     <span>Show mandatory Terms of Service checkbox at checkout.</span>
                   </div>
-                  <ToggleSwitch checked={showTerms} onChange={() => setShowTerms(!showTerms)} label="Show Terms Checkbox" />
+                  <ToggleSwitch
+                    checked={showTerms}
+                    onChange={() => setShowTerms(!showTerms)}
+                    label="Show Terms Checkbox"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
@@ -663,7 +779,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Pre-check Terms Consent</strong>
                     <span>Have the terms agreement checkbox pre-checked by default.</span>
                   </div>
-                  <ToggleSwitch checked={precheckTerms} onChange={() => setPrecheckTerms(!precheckTerms)} label="Precheck Terms" />
+                  <ToggleSwitch
+                    checked={precheckTerms}
+                    onChange={() => setPrecheckTerms(!precheckTerms)}
+                    label="Precheck Terms"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
@@ -671,7 +791,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Show Newsletter Opt-in</strong>
                     <span>Offer customers to join your mailing list for updates.</span>
                   </div>
-                  <ToggleSwitch checked={showNewsletter} onChange={() => setShowNewsletter(!showNewsletter)} label="Show Newsletter Opt-in" />
+                  <ToggleSwitch
+                    checked={showNewsletter}
+                    onChange={() => setShowNewsletter(!showNewsletter)}
+                    label="Show Newsletter Opt-in"
+                  />
                 </div>
               </div>
             </div>
@@ -690,7 +814,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Enable Tax Calculation</strong>
                     <span>If enabled, tax rates will be calculated and appended at checkout.</span>
                   </div>
-                  <ToggleSwitch checked={enableTaxCalculation} onChange={() => setEnableTaxCalculation(!enableTaxCalculation)} label="Enable Tax" />
+                  <ToggleSwitch
+                    checked={enableTaxCalculation}
+                    onChange={() => setEnableTaxCalculation(!enableTaxCalculation)}
+                    label="Enable Tax"
+                  />
                 </div>
               </div>
 
@@ -716,17 +844,29 @@ export const AdminSettings: React.FC = () => {
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Send Invoice PDFs to Customers</strong>
-                    <span>Automatically generate and send a PDF receipt on successful payment.</span>
+                    <span>
+                      Automatically generate and send a PDF receipt on successful payment.
+                    </span>
                   </div>
-                  <ToggleSwitch checked={sendInvoicePdfs} onChange={() => setSendInvoicePdfs(!sendInvoicePdfs)} label="Send PDFs" />
+                  <ToggleSwitch
+                    checked={sendInvoicePdfs}
+                    onChange={() => setSendInvoicePdfs(!sendInvoicePdfs)}
+                    label="Send PDFs"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Show Invoice PDF Link on Checkout</strong>
-                    <span>Let customers download the PDF directly from the order success page.</span>
+                    <span>
+                      Let customers download the PDF directly from the order success page.
+                    </span>
                   </div>
-                  <ToggleSwitch checked={showInvoicePdfLink} onChange={() => setShowInvoicePdfLink(!showInvoicePdfLink)} label="Show Link" />
+                  <ToggleSwitch
+                    checked={showInvoicePdfLink}
+                    onChange={() => setShowInvoicePdfLink(!showInvoicePdfLink)}
+                    label="Show Link"
+                  />
                 </div>
               </div>
 
@@ -772,15 +912,24 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="star" size={16} /> Customer Feedbacks
               </span>
-              <p className="section-subtitle">Configure how reviews and feedback are handled on your storefront.</p>
-              
+              <p className="section-subtitle">
+                Configure how reviews and feedback are handled on your storefront.
+              </p>
+
               <div className="switches-grid">
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Enable Automatic 5-Star Feedbacks</strong>
-                    <span>If a buyer does not leave feedback within 7 days, a 5-star review is automatically logged.</span>
+                    <span>
+                      If a buyer does not leave feedback within 7 days, a 5-star review is
+                      automatically logged.
+                    </span>
                   </div>
-                  <ToggleSwitch checked={enableAutomaticFeedbacks} onChange={() => setEnableAutomaticFeedbacks(!enableAutomaticFeedbacks)} label="Auto Feedbacks" />
+                  <ToggleSwitch
+                    checked={enableAutomaticFeedbacks}
+                    onChange={() => setEnableAutomaticFeedbacks(!enableAutomaticFeedbacks)}
+                    label="Auto Feedbacks"
+                  />
                 </div>
               </div>
             </div>
@@ -793,15 +942,23 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="tag" size={16} /> Affiliate Program
               </span>
-              <p className="section-subtitle">Reward users for referring customers to your storefront.</p>
-              
+              <p className="section-subtitle">
+                Reward users for referring customers to your storefront.
+              </p>
+
               <div className="switches-grid">
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Enable Affiliate Program</strong>
-                    <span>Allow affiliates to generate links and earn commissions on referred sales.</span>
+                    <span>
+                      Allow affiliates to generate links and earn commissions on referred sales.
+                    </span>
                   </div>
-                  <ToggleSwitch checked={enableAffiliateProgram} onChange={() => setEnableAffiliateProgram(!enableAffiliateProgram)} label="Enable Affiliate" />
+                  <ToggleSwitch
+                    checked={enableAffiliateProgram}
+                    onChange={() => setEnableAffiliateProgram(!enableAffiliateProgram)}
+                    label="Enable Affiliate"
+                  />
                 </div>
               </div>
 
@@ -811,9 +968,15 @@ export const AdminSettings: React.FC = () => {
                     <div className="setting-switch-row">
                       <div className="switch-info">
                         <strong>Make Affiliate Program Public</strong>
-                        <span>Auto-generate referral codes for all registered customers by default.</span>
+                        <span>
+                          Auto-generate referral codes for all registered customers by default.
+                        </span>
                       </div>
-                      <ToggleSwitch checked={makeAffiliateProgramPublic} onChange={() => setMakeAffiliateProgramPublic(!makeAffiliateProgramPublic)} label="Public Affiliate" />
+                      <ToggleSwitch
+                        checked={makeAffiliateProgramPublic}
+                        onChange={() => setMakeAffiliateProgramPublic(!makeAffiliateProgramPublic)}
+                        label="Public Affiliate"
+                      />
                     </div>
 
                     <div className="setting-switch-row">
@@ -821,7 +984,13 @@ export const AdminSettings: React.FC = () => {
                         <strong>Allow Customers to Edit Codes</strong>
                         <span>Let affiliates customize their custom referral coupon codes.</span>
                       </div>
-                      <ToggleSwitch checked={allowCustomersEditAffiliateCode} onChange={() => setAllowCustomersEditAffiliateCode(!allowCustomersEditAffiliateCode)} label="Edit Codes" />
+                      <ToggleSwitch
+                        checked={allowCustomersEditAffiliateCode}
+                        onChange={() =>
+                          setAllowCustomersEditAffiliateCode(!allowCustomersEditAffiliateCode)
+                        }
+                        label="Edit Codes"
+                      />
                     </div>
                   </div>
 
@@ -834,7 +1003,9 @@ export const AdminSettings: React.FC = () => {
                       onChange={(e) => setAffiliatePercentage(e.target.value)}
                       placeholder="10"
                     />
-                    <small className="pay-hint-text">Percentage of purchase value credited to affiliate balance.</small>
+                    <small className="pay-hint-text">
+                      Percentage of purchase value credited to affiliate balance.
+                    </small>
                   </label>
                 </>
               )}
@@ -849,14 +1020,18 @@ export const AdminSettings: React.FC = () => {
                 <Icon name="ticket" size={16} /> Customer Support Tickets
               </span>
               <p className="section-subtitle">Toggle self-hosted client ticketing integrations.</p>
-              
+
               <div className="switches-grid">
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Enable Tickets System</strong>
                     <span>Allow storefront visitors and customers to open support tickets.</span>
                   </div>
-                  <ToggleSwitch checked={enableTickets} onChange={() => setEnableTickets(!enableTickets)} label="Enable Tickets" />
+                  <ToggleSwitch
+                    checked={enableTickets}
+                    onChange={() => setEnableTickets(!enableTickets)}
+                    label="Enable Tickets"
+                  />
                 </div>
               </div>
             </div>
@@ -869,8 +1044,10 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="shield" size={16} /> Legal & Storefront Policies
               </span>
-              <p className="section-subtitle">These pages are displayed in your shop footer to set customer expectations.</p>
-              
+              <p className="section-subtitle">
+                These pages are displayed in your shop footer to set customer expectations.
+              </p>
+
               <label className="set-label">
                 <span>Terms of Service</span>
                 <textarea
@@ -913,8 +1090,10 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="zap" size={16} /> Third-Party Integrations
               </span>
-              <p className="section-subtitle">Configure external tracking scripts, metrics, and live chat helpers.</p>
-              
+              <p className="section-subtitle">
+                Configure external tracking scripts, metrics, and live chat helpers.
+              </p>
+
               <label className="set-label">
                 <span>Google Analytics Measurement ID</span>
                 <input
@@ -965,9 +1144,15 @@ export const AdminSettings: React.FC = () => {
                 <span className="section-title">
                   <Icon name="mail" size={16} /> E-mail Notifications
                 </span>
-                <ToggleSwitch checked={emailEnabled} onChange={() => setEmailEnabled(!emailEnabled)} label="Enable Email Server" />
+                <ToggleSwitch
+                  checked={emailEnabled}
+                  onChange={() => setEmailEnabled(!emailEnabled)}
+                  label="Enable Email Server"
+                />
               </div>
-              <p className="section-subtitle">Send order keys and receipts to customer emails automatically.</p>
+              <p className="section-subtitle">
+                Send order keys and receipts to customer emails automatically.
+              </p>
             </div>
 
             {emailEnabled && (
@@ -1006,13 +1191,17 @@ export const AdminSettings: React.FC = () => {
 
                   {emailProvider === "resend" ? (
                     <label className="set-label">
-                      <span>Resend API Key {s.resend_api_key === true && !resendApiKey ? "— saved" : ""}</span>
+                      <span>
+                        Resend API Key {s.resend_api_key === true && !resendApiKey ? "— saved" : ""}
+                      </span>
                       <input
                         className="input"
                         type="password"
                         value={resendApiKey}
                         onChange={(e) => setResendApiKey(e.target.value)}
-                        placeholder={s.resend_api_key === true ? "•••••••••••• (leave blank to keep)" : "re_…"}
+                        placeholder={
+                          s.resend_api_key === true ? "•••••••••••• (leave blank to keep)" : "re_…"
+                        }
                       />
                     </label>
                   ) : (
@@ -1048,22 +1237,37 @@ export const AdminSettings: React.FC = () => {
                           />
                         </label>
                         <label className="set-label">
-                          <span>SMTP Password {s.smtp_pass === true && !smtpPass ? "— saved" : ""}</span>
+                          <span>
+                            SMTP Password {s.smtp_pass === true && !smtpPass ? "— saved" : ""}
+                          </span>
                           <input
                             className="input"
                             type="password"
                             value={smtpPass}
                             onChange={(e) => setSmtpPass(e.target.value)}
-                            placeholder={s.smtp_pass === true ? "•••••••••••• (leave blank to keep)" : ""}
+                            placeholder={
+                              s.smtp_pass === true ? "•••••••••••• (leave blank to keep)" : ""
+                            }
                           />
                         </label>
                       </div>
-                      <div className="setting-switch-row" style={{ borderTop: "1px solid var(--line-strong)", paddingTop: "12px", marginTop: "6px" }}>
+                      <div
+                        className="setting-switch-row"
+                        style={{
+                          borderTop: "1px solid var(--line-strong)",
+                          paddingTop: "12px",
+                          marginTop: "6px",
+                        }}
+                      >
                         <div className="switch-info">
                           <strong>SMTP Secure / TLS</strong>
                           <span>Turn on TLS encryption for email delivery.</span>
                         </div>
-                        <ToggleSwitch checked={smtpSecure} onChange={() => setSmtpSecure(!smtpSecure)} label="SMTP Secure" />
+                        <ToggleSwitch
+                          checked={smtpSecure}
+                          onChange={() => setSmtpSecure(!smtpSecure)}
+                          label="SMTP Secure"
+                        />
                       </div>
                     </div>
                   )}
@@ -1079,8 +1283,10 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="bolt" size={16} /> Discord Bot Integration
               </span>
-              <p className="section-subtitle">Automate server invites and role assignments on purchase.</p>
-              
+              <p className="section-subtitle">
+                Automate server invites and role assignments on purchase.
+              </p>
+
               <label className="set-label">
                 <span>Discord Client ID</span>
                 <input
@@ -1092,28 +1298,42 @@ export const AdminSettings: React.FC = () => {
               </label>
 
               <label className="set-label">
-                <span>Discord Client Secret {s.discord_client_secret === true && !discordClientSecret ? "— saved" : ""}</span>
+                <span>
+                  Discord Client Secret{" "}
+                  {s.discord_client_secret === true && !discordClientSecret ? "— saved" : ""}
+                </span>
                 <input
                   className="input"
                   type="password"
                   value={discordClientSecret}
                   onChange={(e) => setDiscordClientSecret(e.target.value)}
-                  placeholder={s.discord_client_secret === true ? "•••••••••••• (leave blank to keep)" : ""}
+                  placeholder={
+                    s.discord_client_secret === true ? "•••••••••••• (leave blank to keep)" : ""
+                  }
                 />
               </label>
 
               <label className="set-label">
-                <span>Discord Bot Token {s.discord_bot_token === true && !discordBotToken ? "— saved" : ""}</span>
+                <span>
+                  Discord Bot Token{" "}
+                  {s.discord_bot_token === true && !discordBotToken ? "— saved" : ""}
+                </span>
                 <input
                   className="input"
                   type="password"
                   value={discordBotToken}
                   onChange={(e) => setDiscordBotToken(e.target.value)}
-                  placeholder={s.discord_bot_token === true ? "•••••••••••• (leave blank to keep)" : ""}
+                  placeholder={
+                    s.discord_bot_token === true ? "•••••••••••• (leave blank to keep)" : ""
+                  }
                 />
               </label>
 
-              <button className="btn btn-secondary" style={{ alignSelf: "flex-start", marginTop: "8px" }} type="button">
+              <button
+                className="btn btn-secondary"
+                style={{ alignSelf: "flex-start", marginTop: "8px" }}
+                type="button"
+              >
                 <Icon name="bolt" size={14} /> Invite Bot to Server
               </button>
             </div>
@@ -1126,8 +1346,10 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="globe" size={16} /> Custom Domain Config
               </span>
-              <p className="section-subtitle">Connect your own custom domain (e.g. shop.mydomain.com) to your storefront.</p>
-              
+              <p className="section-subtitle">
+                Connect your own custom domain (e.g. shop.mydomain.com) to your storefront.
+              </p>
+
               <label className="set-label">
                 <span>Domain Name</span>
                 <input
@@ -1140,31 +1362,75 @@ export const AdminSettings: React.FC = () => {
 
               {customDomainName && (
                 <div style={{ marginTop: "12px" }}>
-                  <span className="section-title" style={{ fontSize: "0.86rem", marginBottom: "8px" }}>DNS Setup Instructions</span>
-                  <p className="section-subtitle" style={{ fontSize: "0.78rem" }}>Configure the following DNS records with your registrar:</p>
-                  
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", marginTop: "8px", border: "1px solid var(--line-strong)" }}>
+                  <span
+                    className="section-title"
+                    style={{ fontSize: "0.86rem", marginBottom: "8px" }}
+                  >
+                    DNS Setup Instructions
+                  </span>
+                  <p className="section-subtitle" style={{ fontSize: "0.78rem" }}>
+                    Configure the following DNS records with your registrar:
+                  </p>
+
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: "0.8rem",
+                      marginTop: "8px",
+                      border: "1px solid var(--line-strong)",
+                    }}
+                  >
                     <thead>
-                      <tr style={{ background: "var(--surface-2)", borderBottom: "1px solid var(--line-strong)" }}>
-                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>Type</th>
-                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>Host</th>
-                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>Value</th>
-                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>Status</th>
+                      <tr
+                        style={{
+                          background: "var(--surface-2)",
+                          borderBottom: "1px solid var(--line-strong)",
+                        }}
+                      >
+                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>
+                          Type
+                        </th>
+                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>
+                          Host
+                        </th>
+                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>
+                          Value
+                        </th>
+                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>
+                          Status
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr style={{ borderBottom: "1px solid var(--line)" }}>
-                        <td style={{ padding: "8px" }}><code>CNAME</code></td>
-                        <td style={{ padding: "8px" }}><code>{customDomainName.split(".")[0]}</code></td>
-                        <td style={{ padding: "8px" }}><code>domains.sellauth.com</code></td>
-                        <td style={{ padding: "8px", color: "var(--auto, #137333)", fontWeight: "700" }}>Active</td>
+                        <td style={{ padding: "8px" }}>
+                          <code>CNAME</code>
+                        </td>
+                        <td style={{ padding: "8px" }}>
+                          <code>{customDomainName.split(".")[0]}</code>
+                        </td>
+                        <td style={{ padding: "8px" }}>
+                          <code>domains.sellauth.com</code>
+                        </td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            color: "var(--auto, #137333)",
+                            fontWeight: "700",
+                          }}
+                        >
+                          Active
+                        </td>
                       </tr>
                     </tbody>
                   </table>
-                  
+
                   <div className="xpub-status ok" style={{ marginTop: "12px" }}>
                     <Icon name="check" size={14} />
-                    <span>SSL Certificate successfully generated. Your custom domain is fully online.</span>
+                    <span>
+                      SSL Certificate successfully generated. Your custom domain is fully online.
+                    </span>
                   </div>
                 </div>
               )}
@@ -1179,22 +1445,69 @@ export const AdminSettings: React.FC = () => {
                 <Icon name="credit-card" size={16} /> Plan Billing & Subscription
               </span>
               <p className="section-subtitle">Manage your SellAuth merchant subscription plan.</p>
-              
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", background: "var(--brand-soft, rgba(79, 70, 229, 0.06))", borderRadius: "var(--radius-sm)", border: "1px solid var(--brand)" }}>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "16px",
+                  background: "var(--brand-soft, rgba(79, 70, 229, 0.06))",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--brand)",
+                }}
+              >
                 <div>
-                  <strong style={{ color: "var(--brand)", fontSize: "1.1rem" }}>Business Plan</strong>
-                  <div className="muted" style={{ fontSize: "0.8rem", marginTop: "2px" }}>Next billing date: July 15, 2026 ($19.00/month)</div>
+                  <strong style={{ color: "var(--brand)", fontSize: "1.1rem" }}>
+                    Business Plan
+                  </strong>
+                  <div className="muted" style={{ fontSize: "0.8rem", marginTop: "2px" }}>
+                    Next billing date: July 15, 2026 ($19.00/month)
+                  </div>
                 </div>
-                <button className="btn btn-save" style={{ background: "var(--brand)" }} type="button">Change Plan</button>
+                <button
+                  className="btn btn-save"
+                  style={{ background: "var(--brand)" }}
+                  type="button"
+                >
+                  Change Plan
+                </button>
               </div>
 
               <div style={{ marginTop: "12px" }}>
-                <span className="section-title" style={{ fontSize: "0.86rem", marginBottom: "8px" }}>Plan Features</span>
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "0.82rem", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><Icon name="check" size={14} className="auto" /> 0% Transaction Fees (SellAuth fee)</li>
-                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><Icon name="check" size={14} className="auto" /> Custom Domain & Custom Email Servers</li>
-                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><Icon name="check" size={14} className="auto" /> Advanced Discord Bot integration</li>
-                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}><Icon name="check" size={14} className="auto" /> File deliverables upload size up to 2GB</li>
+                <span
+                  className="section-title"
+                  style={{ fontSize: "0.86rem", marginBottom: "8px" }}
+                >
+                  Plan Features
+                </span>
+                <ul
+                  style={{
+                    listStyle: "none",
+                    padding: 0,
+                    margin: 0,
+                    fontSize: "0.82rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Icon name="check" size={14} className="auto" /> 0% Transaction Fees (SellAuth
+                    fee)
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Icon name="check" size={14} className="auto" /> Custom Domain & Custom Email
+                    Servers
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Icon name="check" size={14} className="auto" /> Advanced Discord Bot
+                    integration
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Icon name="check" size={14} className="auto" /> File deliverables upload size
+                    up to 2GB
+                  </li>
                 </ul>
               </div>
             </div>
@@ -1207,30 +1520,50 @@ export const AdminSettings: React.FC = () => {
               <span className="section-title">
                 <Icon name="settings" size={16} /> Miscellaneous settings
               </span>
-              
+
               <div className="switches-grid">
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Redirect mysellauth.com to Custom Domain</strong>
-                    <span>If enabled, visitors accessing your default subdomain will redirect to your custom domain.</span>
+                    <span>
+                      If enabled, visitors accessing your default subdomain will redirect to your
+                      custom domain.
+                    </span>
                   </div>
-                  <ToggleSwitch checked={redirectCustomDomain} onChange={() => setRedirectCustomDomain(!redirectCustomDomain)} label="Redirect Subdomain" />
+                  <ToggleSwitch
+                    checked={redirectCustomDomain}
+                    onChange={() => setRedirectCustomDomain(!redirectCustomDomain)}
+                    label="Redirect Subdomain"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Hide Out of Stock Products</strong>
-                    <span>Automatically hide products from your storefront when stock reaches 0.</span>
+                    <span>
+                      Automatically hide products from your storefront when stock reaches 0.
+                    </span>
                   </div>
-                  <ToggleSwitch checked={hideOutOfStock} onChange={() => setHideOutOfStock(!hideOutOfStock)} label="Hide Stockout" />
+                  <ToggleSwitch
+                    checked={hideOutOfStock}
+                    onChange={() => setHideOutOfStock(!hideOutOfStock)}
+                    label="Hide Stockout"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
                   <div className="switch-info">
                     <strong>Refund Out of Stock Items to Balance</strong>
-                    <span>Refund customers automatically if the variant goes out of stock during checkouts.</span>
+                    <span>
+                      Refund customers automatically if the variant goes out of stock during
+                      checkouts.
+                    </span>
                   </div>
-                  <ToggleSwitch checked={refundOutOfStockToBalance} onChange={() => setRefundOutOfStockToBalance(!refundOutOfStockToBalance)} label="Refund to Balance" />
+                  <ToggleSwitch
+                    checked={refundOutOfStockToBalance}
+                    onChange={() => setRefundOutOfStockToBalance(!refundOutOfStockToBalance)}
+                    label="Refund to Balance"
+                  />
                 </div>
 
                 <div className="setting-switch-row">
@@ -1238,7 +1571,11 @@ export const AdminSettings: React.FC = () => {
                     <strong>Enable Maintenance Mode</strong>
                     <span>Show a custom banner and disable buying for storefront visitors.</span>
                   </div>
-                  <ToggleSwitch checked={maintenanceMode} onChange={() => setMaintenanceMode(!maintenanceMode)} label="Maintenance Mode" />
+                  <ToggleSwitch
+                    checked={maintenanceMode}
+                    onChange={() => setMaintenanceMode(!maintenanceMode)}
+                    label="Maintenance Mode"
+                  />
                 </div>
               </div>
 
@@ -1252,7 +1589,9 @@ export const AdminSettings: React.FC = () => {
                     onChange={(e) => setMaintenancePassword(e.target.value)}
                     placeholder="Enter store password bypass..."
                   />
-                  <small className="pay-hint-text">Allows you to bypass the maintenance screen to test checkout.</small>
+                  <small className="pay-hint-text">
+                    Allows you to bypass the maintenance screen to test checkout.
+                  </small>
                 </label>
               )}
 
@@ -1265,7 +1604,9 @@ export const AdminSettings: React.FC = () => {
                   rows={4}
                   placeholder="<!-- Google Analytics, Custom CSS etc -->"
                 />
-                <small className="pay-hint-text">Will be injected at the bottom of the &lt;head&gt; tag on storefront pages.</small>
+                <small className="pay-hint-text">
+                  Will be injected at the bottom of the &lt;head&gt; tag on storefront pages.
+                </small>
               </label>
             </div>
           </div>
@@ -1413,9 +1754,7 @@ export const AdminSettings: React.FC = () => {
         </div>
 
         {/* Right side settings pane */}
-        <div className="settings-content-wrapper">
-          {renderTabContent()}
-        </div>
+        <div className="settings-content-wrapper">{renderTabContent()}</div>
       </div>
 
       <style>{`
