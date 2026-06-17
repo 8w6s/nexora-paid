@@ -166,7 +166,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     // URL slug → Tab key mapping for paths whose label/URL differs from internal tab key.
     // The admin sidebar shows e.g. "Configure" / "Invoices" but the underlying tab keys
     // are "settings" / "orders" (legacy naming kept to avoid touching every component).
-    const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders" };
+    const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders", feedbacks: "reviews" };
     if (activeTabPath) return (urlToTab[activeTabPath] ?? activeTabPath) as Tab;
     if (typeof window !== "undefined") {
       const parts = window.location.pathname.split("/").filter(Boolean);
@@ -183,7 +183,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     const handlePopState = () => {
       const parts = window.location.pathname.split("/").filter(Boolean);
       if (parts[0] === "admin" && parts[1]) {
-        const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders" };
+        const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders", feedbacks: "reviews" };
         setTab((urlToTab[parts[1]] ?? parts[1]) as Tab);
       } else {
         setTab("overview");
@@ -198,7 +198,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     setNavOpen(false);
     if (typeof window !== "undefined") {
       // Reverse map: tab key → URL slug (so users see /admin/configure not /admin/settings)
-      const tabToUrl: Record<string, string> = { settings: "configure", orders: "invoices" };
+      const tabToUrl: Record<string, string> = { settings: "configure", orders: "invoices", reviews: "feedbacks" };
       const slug = tabToUrl[newTab] ?? newTab;
       const path = newTab === "overview" ? "/admin" : `/admin/${slug}`;
       window.history.pushState(null, "", path);
