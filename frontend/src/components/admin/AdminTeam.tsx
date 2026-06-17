@@ -29,6 +29,185 @@ const ROLE_COLORS: Record<TeamRole, string> = {
   viewer: "badge-gray",
 };
 
+/**
+ * Self-service password rotation card. Lives on the Team tab so an admin
+ * who lands here to manage access also sees their own credential controls
+ * in the same place — same SOC2 / ISO 27001 baseline most enterprise
+ * self-host buyers expect.
+ *
+ * Hits POST /api/admin/account/password which:
+ *   - verifies the supplied current password against the stored argon2id hash,
+ *   - rotates the hash,
+ *   - revokes every OTHER session for this admin so a stolen cookie minted
+ *     before the rotation cannot outlive the change,
+ *   - audit-logs the rotation (or the failure) under account.password.{rotate,fail}.
+ *
+ * The actor's current session survives so they aren't logged out mid-flow.
+ */
+const AdminAccountCard: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+
+  const submit = async () => {
+    setErr(null);
+    setOkMsg(null);
+    if (next.length < 12) {
+      setErr("New password must be at least 12 characters.");
+      return;
+    }
+    if (next !== confirm) {
+      setErr("New password confirmation does not match.");
+      return;
+    }
+    if (next === cur) {
+      setErr("New password must differ from current.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api.post<{ ok: boolean; revokedSessions: number }>(
+        "/api/admin/account/password",
+        { currentPassword: cur, newPassword: next },
+      );
+      const revoked = res?.revokedSessions ?? 0;
+      setOkMsg(
+        revoked > 0
+          ? `Password rotated. Revoked ${revoked} other session${revoked === 1 ? "" : "s"}.`
+          : "Password rotated.",
+      );
+      setCur("");
+      setNext("");
+      setConfirm("");
+      setOpen(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to rotate password");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, fontSize: ".95rem" }}>Your password</div>
+          <div className="muted" style={{ fontSize: ".82rem", marginTop: 2 }}>
+            Rotate your admin password. All other sessions for your account will be revoked.
+          </div>
+        </div>
+        {!open && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              setOpen(true);
+              setErr(null);
+              setOkMsg(null);
+            }}
+          >
+            <Icon name="key" size={14} /> Change password
+          </button>
+        )}
+      </div>
+
+      {okMsg && (
+        <div className="team-success" style={{ marginTop: 14 }}>
+          <Icon name="check" size={15} />
+          <span>{okMsg}</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setOkMsg(null)}
+          >
+            <Icon name="close" size={13} />
+          </button>
+        </div>
+      )}
+
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+          {err && <div className="pe-err">{err}</div>}
+          <label className="pe-field-label">
+            Current password
+            <input
+              className="input"
+              type="password"
+              autoComplete="current-password"
+              value={cur}
+              onChange={(e) => setCur(e.target.value)}
+            />
+          </label>
+          <label className="pe-field-label">
+            New password
+            <input
+              className="input"
+              type="password"
+              autoComplete="new-password"
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+            />
+            <span className="muted" style={{ fontSize: ".75rem" }}>
+              At least 12 characters.
+            </span>
+          </label>
+          <label className="pe-field-label">
+            Confirm new password
+            <input
+              className="input"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </label>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button
+              className="btn btn-ghost"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                setCur("");
+                setNext("");
+                setConfirm("");
+                setErr(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={submit}
+              disabled={busy || !cur || !next || !confirm}
+            >
+              {busy ? (
+                <>
+                  <Icon name="spinner" size={14} className="is-spinning" /> Rotating…
+                </>
+              ) : (
+                "Rotate password"
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const AdminTeam: React.FC = () => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +262,7 @@ export const AdminTeam: React.FC = () => {
 
   return (
     <div className="adm-section">
+      <AdminAccountCard />
       <div className="adm-sec-head">
         <div>
           <h2>Team</h2>
