@@ -402,7 +402,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   /* ───────── Key inventory ───────── */
   .post(
     "/products/:id/keys",
-    async ({ params: { id }, body, set }) => {
+    async ({ params: { id }, body, set, adminEmail }) => {
       const product = (await db.select().from(products).where(eq(products.id, id)))[0];
       if (!product) {
         set.status = 404;
@@ -448,6 +448,17 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             keyType: body.keyType ?? "code",
             status: "available" as const,
           })),
+        );
+        // Inventory uploads must be audited: a compromised admin (or malicious
+        // team member) could otherwise replace inventory with attacker-controlled
+        // codes (Steam keys redeemed first, license codes that phone home) and
+        // the operator would have no record of the swap.
+        await logAdminAction(
+          adminEmail,
+          "keys.upload",
+          `${product.name}: +${fresh.length} (${body.keyType ?? "code"})${
+            body.variantId ? ` variant=${body.variantId.slice(0, 8)}` : ""
+          }`,
         );
       }
       set.status = 201;
