@@ -117,45 +117,77 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
 
   useEffect(() => {
     let alive = true;
+    const ac = new AbortController();
     const queryStr = token ? `?token=${token}` : "";
+    const startedAt = Date.now();
+
     api
-      .get<OrderDetail>(`/api/orders/${orderId}${queryStr}`)
+      .get<OrderDetail>(`/api/orders/${orderId}${queryStr}`, { signal: ac.signal })
       .then((d) => alive && setDetail(d))
       .catch((e) => {
-        if (!alive) return;
+        if (!alive || (e instanceof DOMException && e.name === "AbortError")) return;
         if (isAccessDenied(e)) {
           goTo404();
           return;
         }
         setErr(e.message);
       });
+
+    // Inflight guard: visibilitychange + the 5s interval can both fire
+    // simultaneously when the tab regains focus, double-firing the GET
+    // and racing setSt() callbacks. One poll at a time, max.
+    let inflight = false;
     const poll = async () => {
+      if (inflight) return;
+      inflight = true;
       try {
-        const s = await api.get<OrderStatus>(`/api/orders/${orderId}/status${queryStr}`);
+        const s = await api.get<OrderStatus>(
+          `/api/orders/${orderId}/status${queryStr}`,
+          { signal: ac.signal },
+        );
         if (!alive) return;
         setSt(s);
         if (s.status === "paid" || s.status === "completed") {
-          const d = await api.get<OrderDetail>(`/api/orders/${orderId}${queryStr}`);
+          const d = await api.get<OrderDetail>(
+            `/api/orders/${orderId}${queryStr}`,
+            { signal: ac.signal },
+          );
           if (alive) setDetail(d);
         }
       } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         if (alive && isAccessDenied(e)) goTo404();
+      } finally {
+        inflight = false;
       }
     };
     poll();
-    // Poll every 5s while the tab is visible — pause when backgrounded so an
-    // abandoned checkout tab doesn't burn requests for the full payment window.
-    // On visibility return, fire one immediate poll so the badge catches up.
-    const t = setInterval(() => {
+
+    // Adaptive backoff: 5s for the first minute (most checkouts complete
+    // here), 10s up to 5 min, 20s after that. A long-abandoned tab on
+    // 5s polling for the full 15 min payment window burns 180 requests
+    // for nothing.
+    const tick = () => {
       if (!document.hidden) poll();
-    }, 5000);
+    };
+    let interval = setInterval(tick, 5_000);
+    const reschedule = () => {
+      const elapsed = Date.now() - startedAt;
+      const next = elapsed > 5 * 60_000 ? 20_000 : elapsed > 60_000 ? 10_000 : 5_000;
+      clearInterval(interval);
+      interval = setInterval(tick, next);
+    };
+    const escalation = setInterval(reschedule, 30_000);
+
     const onVis = () => {
       if (!document.hidden) poll();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       alive = false;
-      clearInterval(t);
+      ac.abort();
+      clearInterval(interval);
+      clearInterval(escalation);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [orderId, token]);
