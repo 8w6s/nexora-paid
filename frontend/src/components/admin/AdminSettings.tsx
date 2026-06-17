@@ -434,14 +434,23 @@ export const AdminSettings: React.FC = () => {
 
       await api.put("/api/admin/settings", generalBody);
 
-      // 2. Save email settings
+      // 2. Save email settings.
+      // Re-auth gate: rotating resend_api_key or smtp.pass turns every
+      // future order receipt + password-reset link into an attacker-
+      // controlled message if a stolen cookie does it. Same pattern as
+      // the wallet rotation flow — prompt for password BEFORE submitting
+      // so an empty/cancelled prompt never reaches the server.
       const emailBody: Record<string, unknown> = {
         enabled: emailEnabled,
         provider: emailProvider,
         from: emailFrom,
       };
+      let emailRotatesSecret = false;
       if (emailProvider === "resend") {
-        if (resendApiKey.trim()) emailBody.resendApiKey = resendApiKey.trim();
+        if (resendApiKey.trim()) {
+          emailBody.resendApiKey = resendApiKey.trim();
+          emailRotatesSecret = true;
+        }
       } else {
         emailBody.smtp = {
           host: smtpHost.trim(),
@@ -449,7 +458,21 @@ export const AdminSettings: React.FC = () => {
           secure: smtpSecure,
           user: smtpUser.trim(),
         };
-        if (smtpPass.trim()) (emailBody.smtp as any).pass = smtpPass.trim();
+        if (smtpPass.trim()) {
+          (emailBody.smtp as any).pass = smtpPass.trim();
+          emailRotatesSecret = true;
+        }
+      }
+      if (emailRotatesSecret) {
+        const pw = window.prompt(
+          "Confirm your admin password to rotate email credentials — every future receipt and password-reset link will route through this provider.",
+        );
+        if (pw == null || pw === "") {
+          toast.error("Email credential rotation cancelled. Other settings still saved.");
+          load();
+          return;
+        }
+        emailBody.currentPassword = pw;
       }
       await api.put("/api/admin/settings/email", emailBody);
 

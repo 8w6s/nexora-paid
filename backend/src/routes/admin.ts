@@ -1038,7 +1038,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   /* ───────── Email settings (optional) ───────── */
   .put(
     "/settings/email",
-    async ({ body, adminEmail }) => {
+    async ({ body, set, adminId, adminEmail }) => {
       // Track which fields changed (especially secret-bearing ones) so the
       // audit log records the rotation without leaking the values themselves.
       // A compromised admin can swap the email API key/SMTP password to
@@ -1046,6 +1046,37 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       // operator has no record of the swap. Mirror the payment.config pattern.
       const changedFields: string[] = [];
       const secretFields: string[] = [];
+
+      // Re-auth gate for the email outbound. A stolen cookie that swaps
+      // resend_api_key or smtp.pass to attacker-controlled credentials
+      // turns every future order receipt + password-reset link into an
+      // attacker-controlled message — full account-takeover surface for
+      // every customer. Sellauth gates the equivalent in its email
+      // settings; we match that. The currentPassword field is stripped
+      // before the schema-driven setSetting loop so it can't accidentally
+      // get persisted.
+      const touchingSecret = !!body.resendApiKey || !!body.smtp?.pass;
+      if (touchingSecret) {
+        const cur = typeof body.currentPassword === "string" ? body.currentPassword : "";
+        if (!cur) {
+          set.status = 401;
+          return {
+            error: "Current password required to rotate email credentials",
+            code: "REAUTH_REQUIRED",
+          };
+        }
+        const u = (await db.select().from(users).where(eq(users.id, adminId)))[0];
+        const ok = u ? await verifyPassword(cur, u.passwordHash) : false;
+        if (!ok) {
+          await logAdminAction(
+            adminEmail,
+            "settings.email.fail",
+            "current password mismatch on email credential rotation",
+          );
+          set.status = 401;
+          return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+        }
+      }
 
       await setSetting("email_enabled", body.enabled ? "true" : "false");
       changedFields.push("enabled");
@@ -1097,6 +1128,10 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             pass: t.Optional(t.String()),
           }),
         ),
+        // Re-auth field for credential rotation (resend_api_key, smtp.pass).
+        // Required when either of those is present in the body; ignored
+        // for cosmetic field updates (enabled / provider / from).
+        currentPassword: t.Optional(t.String({ maxLength: 200 })),
       }),
     },
   )
