@@ -11,12 +11,14 @@ interface Action {
   createdAt: number;
 }
 
-// Map action keys to a human label + tone.
+// Map action keys to a human label + tone. Anything not listed here
+// renders the raw key with neutral tone — better to fall through than
+// silently hide a security-sensitive action because nobody added a label.
 const META: Record<string, { label: string; tone: string }> = {
   "product.create": { label: "Created product", tone: "good" },
   "product.deactivate": { label: "Deactivated product", tone: "warn" },
-  // Cluster F bulk + export actions land here so the activity log
-  // shows real labels instead of raw "product.bulk_deactivate" keys.
+  // Bulk + export actions land here so the activity log shows real labels
+  // instead of raw "product.bulk_deactivate" keys.
   "product.bulk_activate": { label: "Bulk-activated products", tone: "good" },
   "product.bulk_deactivate": { label: "Bulk-deactivated products", tone: "warn" },
   "orders.csv_export": { label: "Exported orders CSV", tone: "neutral" },
@@ -29,6 +31,29 @@ const META: Record<string, { label: string; tone: string }> = {
   "review.delete": { label: "Deleted review", tone: "bad" },
   "ticket.close": { label: "Closed ticket", tone: "warn" },
   "ticket.reopen": { label: "Reopened ticket", tone: "good" },
+  // Settings / configuration. settings.update fires on the catch-all
+  // schema-driven PUT; the wallet-specific labels distinguish a financial-
+  // key change from a cosmetic one so an operator scanning the log can
+  // tell at a glance which writes mattered.
+  "settings.update": { label: "Updated settings", tone: "neutral" },
+  "settings.email.update": { label: "Updated email settings", tone: "neutral" },
+  "settings.wallet.fail": { label: "Wallet rotation refused (bad password)", tone: "bad" },
+  "payment.config": { label: "Updated payment provider", tone: "neutral" },
+  "payment.wallet.fail": { label: "Wallet rotation refused (bad password)", tone: "bad" },
+  "keys.upload": { label: "Uploaded inventory keys", tone: "good" },
+  // Account & session management. Each is rendered with the strongest
+  // tone matching its blast radius — a forced rotation is "bad" because
+  // it bypasses the in-app flow and silently re-keys the admin.
+  "account.password.rotate": { label: "Rotated own password", tone: "warn" },
+  "account.password.fail": { label: "Password rotation refused (bad current)", tone: "bad" },
+  "account.sessions.revoke_others": { label: "Revoked other sessions", tone: "warn" },
+  "account.sessions.revoke_one": { label: "Revoked one session", tone: "warn" },
+  "admin.bootstrap_force": { label: "Forced admin password rotation", tone: "bad" },
+  // 2FA enrollment lifecycle. Disable / recover are "warn" because they
+  // weaken the auth state; enable is "good".
+  "2fa.enable": { label: "Enabled 2FA", tone: "good" },
+  "2fa.disable": { label: "Disabled 2FA", tone: "warn" },
+  "2fa.recover": { label: "Used 2FA backup code", tone: "warn" },
 };
 
 export const AdminActivity: React.FC = () => {
