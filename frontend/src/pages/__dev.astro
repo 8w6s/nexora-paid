@@ -1,0 +1,308 @@
+---
+// __dev.astro — Web-based dev dashboard (Kun-inspired design)
+// Shows service status, real-time logs, and quick controls.
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nexora · dev</title>
+    <style>
+      /* ── Reset + Design Tokens (Kun-inspired) ── */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      :root {
+        --bg-main: #0d0d12;
+        --bg-card: #14141b;
+        --bg-surface: #1a1a24;
+        --bg-hover: #22222e;
+        --border: #2a2a38;
+        --border-muted: #1e1e2a;
+        --text: #e4e4ec;
+        --text-muted: #8888a0;
+        --text-faint: #55556a;
+        --accent: #22c55e;
+        --accent-soft: #22c55e22;
+        --cyan: #06b6d4;
+        --cyan-soft: #06b6d422;
+        --magenta: #d946ef;
+        --magenta-soft: #d946ef22;
+        --warn: #eab308;
+        --error: #ef4444;
+        --error-soft: #ef444422;
+        --radius: 10px;
+        --font: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+      }
+      html { background: var(--bg-main); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+      body { display: flex; flex-direction: column; min-height: 100dvh; padding: 16px; }
+
+      /* ── Layout ── */
+      .page { max-width: 1200px; margin: 0 auto; width: 100%; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+
+      /* ── Header ── */
+      .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); }
+      .header-left { display: flex; align-items: center; gap: 8px; }
+      .header-left h1 { font-size: 16px; font-weight: 700; color: var(--cyan); }
+      .header-left .sep { color: var(--text-faint); }
+      .header-left .sub { color: var(--text-muted); font-size: 13px; }
+      .header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+      .status-badge { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+      .status-badge.on { background: var(--accent-soft); color: var(--accent); }
+      .status-badge.off { background: var(--error-soft); color: var(--error); }
+      .status-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+      .status-badge.on .dot { background: var(--accent); }
+      .status-badge.off .dot { background: var(--error); }
+
+      /* ── Service Cards ── */
+      .services { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 700px) { .services { grid-template-columns: 1fr; } }
+      .service-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+      .service-card h2 { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+      .service-card .url { color: var(--text-muted); font-size: 12px; margin-bottom: 12px; word-break: break-all; }
+      .service-card .url a { color: var(--text); text-decoration: none; }
+      .service-card .url a:hover { color: var(--cyan); text-decoration: underline; }
+      .service-card .info-row { display: flex; gap: 16px; font-size: 12px; color: var(--text-faint); }
+      .service-card .info-row strong { color: var(--text-muted); font-weight: 500; }
+      .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--text-faint); border-top-color: var(--cyan); border-radius: 50%; animation: spin .6s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ── Log Panel ── */
+      .log-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; min-height: 200px; }
+      .log-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg-surface); }
+      .log-header h3 { font-size: 13px; font-weight: 600; }
+      .log-controls { display: flex; gap: 8px; align-items: center; }
+      .log-controls select { background: var(--bg-hover); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 12px; font-family: var(--font); cursor: pointer; }
+      .log-controls select:focus { outline: 1px solid var(--cyan); }
+      .log-controls .count { color: var(--text-faint); font-size: 12px; }
+      .log-body { flex: 1; overflow-y: auto; padding: 8px 0; font-size: 12px; line-height: 1.6; }
+      .log-body .empty { color: var(--text-faint); text-align: center; padding: 40px 16px; }
+      .log-entry { padding: 1px 16px; display: flex; gap: 8px; }
+      .log-entry:hover { background: var(--bg-hover); }
+      .log-entry .ts { color: var(--text-faint); flex-shrink: 0; min-width: 70px; }
+      .log-entry .source { flex-shrink: 0; min-width: 40px; font-weight: 500; }
+      .log-entry .source.api { color: var(--cyan); }
+      .log-entry .source.web { color: var(--magenta); }
+      .log-entry .level { flex-shrink: 0; min-width: 40px; font-weight: 600; }
+      .log-entry .level.info { color: var(--text-muted); }
+      .log-entry .level.warn { color: var(--warn); }
+      .log-entry .level.error { color: var(--error); }
+      .log-entry .level.ready { color: var(--accent); }
+      .log-entry .level.debug { color: var(--text-faint); }
+      .log-entry .msg { color: var(--text); word-break: break-word; }
+
+      /* ── Footer ── */
+      .footer { padding: 8px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); text-align: center; color: var(--text-faint); font-size: 11px; }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+    </style>
+  </head>
+  <body>
+    <div class="page" id="app">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <h1>nexora</h1>
+          <span class="sep">·</span>
+          <span class="sub">dev dashboard</span>
+        </div>
+        <div class="header-right">
+          <span id="uptime" style="color:var(--text-faint)">—</span>
+          <span id="clock" style="color:var(--text-muted)">—</span>
+        </div>
+      </header>
+
+      <!-- Service Cards -->
+      <div class="services">
+        <div class="service-card" id="api-card">
+          <h2>
+            <span class="status-badge off" id="api-status"><span class="dot"></span><span>checking…</span></span>
+            <span style="color:var(--cyan)">API</span>
+          </h2>
+          <div class="url"><a href="http://localhost:3000" target="_blank">http://localhost:3000</a></div>
+          <div class="info-row">
+            <span><strong>uptime:</strong> <span id="api-uptime">—</span></span>
+            <span><strong>version:</strong> <span id="api-version">—</span></span>
+          </div>
+        </div>
+        <div class="service-card" id="web-card">
+          <h2>
+            <span class="status-badge off" id="web-status"><span class="dot"></span><span>checking…</span></span>
+            <span style="color:var(--magenta)">WEB</span>
+          </h2>
+          <div class="url"><a href="http://localhost:4321" target="_blank">http://localhost:4321</a></div>
+          <div class="info-row">
+            <span><strong>status:</strong> <span id="web-status-text">—</span></span>
+            <span><strong>method:</strong> GET</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Panel -->
+      <div class="log-panel">
+        <div class="log-header">
+          <h3>Live Logs</h3>
+          <div class="log-controls">
+            <select id="log-filter">
+              <option value="all">all</option>
+              <option value="api">api</option>
+              <option value="web">web</option>
+            </select>
+            <span class="count" id="log-count">0 lines</span>
+          </div>
+        </div>
+        <div class="log-body" id="log-body">
+          <div class="empty">Waiting for logs…</div>
+        </div>
+      </div>
+
+      <footer class="footer">
+        nexora dev dashboard &middot; auto-updates every 3s &middot; ⌘R to restart
+      </footer>
+    </div>
+
+    <script>
+      (() => {
+        const BACKEND = "http://localhost:3000";
+        const $ = (id) => document.getElementById(id);
+
+        // ── Clock ──
+        const updateClock = () => {
+          const now = new Date();
+          $("clock").textContent = now.toLocaleTimeString();
+        };
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // ── Service Health ──
+        const startTime = Date.now();
+        const updateUptime = () => {
+          const sec = Math.floor((Date.now() - startTime) / 1000);
+          if (sec < 60) $("uptime").textContent = `↑ ${sec}s`;
+          else $("uptime").textContent = `↑ ${Math.floor(sec / 60)}m ${sec % 60}s`;
+        };
+        updateUptime();
+        setInterval(updateUptime, 1000);
+
+        const checkHealth = async () => {
+          // Backend
+          try {
+            const r = await fetch(`${BACKEND}/api/config`, { signal: AbortSignal.timeout(3000) });
+            if (r.ok) {
+              $("api-status").className = "status-badge on";
+              $("api-status").querySelector("span").textContent = "online";
+              const data = await r.json();
+              $("api-version").textContent = data.storeName || "—";
+              $("api-uptime").textContent = "live";
+            } else {
+              throw new Error("not ok");
+            }
+          } catch {
+            $("api-status").className = "status-badge off";
+            $("api-status").querySelector("span").textContent = "offline";
+            $("api-version").textContent = "—";
+            $("api-uptime").textContent = "—";
+          }
+
+          // Frontend (just check if it responds)
+          try {
+            const r = await fetch("/", { signal: AbortSignal.timeout(3000) });
+            if (r.ok) {
+              $("web-status").className = "status-badge on";
+              $("web-status").querySelector("span").textContent = "online";
+              $("web-status-text").textContent = "serving";
+            } else {
+              throw new Error("not ok");
+            }
+          } catch {
+            $("web-status").className = "status-badge off";
+            $("web-status").querySelector("span").textContent = "offline";
+            $("web-status-text").textContent = "—";
+          }
+        };
+        checkHealth();
+        setInterval(checkHealth, 5000);
+
+        // ── SSE Log Stream ──
+        const logBody = $("log-body");
+        const logCount = $("log-count");
+        const logFilter = $("log-filter");
+        const MAX_LOG_LINES = 500;
+        let logs = [];
+
+        const renderLogs = () => {
+          const filter = logFilter.value;
+          const filtered = filter === "all" ? logs : logs.filter(l => l.source === filter);
+          
+          if (filtered.length === 0) {
+            logBody.innerHTML = '<div class="empty">No logs yet…</div>';
+            logCount.textContent = "0 lines";
+            return;
+          }
+
+          logCount.textContent = `${filtered.length} lines`;
+          // Only re-render visible + last entries for perf
+          let html = "";
+          const start = Math.max(0, filtered.length - 200);
+          for (let i = start; i < filtered.length; i++) {
+            const l = filtered[i];
+            const ts = l.ts ? l.ts.slice(11, 19) : "--:--:--";
+            html += `<div class="log-entry">
+              <span class="ts">${ts}</span>
+              <span class="source ${l.source}">${l.source}</span>
+              <span class="level ${l.level}">${l.level.toUpperCase()}</span>
+              <span class="msg">${escapeHtml(l.message)}</span>
+            </div>`;
+          }
+          logBody.innerHTML = html;
+          logBody.scrollTop = logBody.scrollHeight;
+        };
+
+        const escapeHtml = (s) => {
+          const d = document.createElement("div");
+          d.textContent = s;
+          return d.innerHTML;
+        };
+
+        let sseReconnect = 0;
+
+        const connectSSE = () => {
+          // Use /api/__dev/logs so the path-scoped admin session cookie
+          // (path=/api) is sent. withCredentials forwards the cookie
+          // cross-origin in dev where frontend (4321) and backend (3001)
+          // run on different ports.
+          const es = new EventSource(`${BACKEND}/api/__dev/logs`, { withCredentials: true });
+          
+          es.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === "heartbeat") return;
+              if (data.type === "log") {
+                logs.push({ ts: data.ts, source: data.source || "api", level: data.level || "info", message: data.message || "" });
+                if (logs.length > MAX_LOG_LINES) logs = logs.slice(-MAX_LOG_LINES);
+                renderLogs();
+              }
+            } catch {}
+          };
+
+          es.onerror = () => {
+            es.close();
+            sseReconnect = Math.min(sseReconnect + 1000, 10000);
+            setTimeout(connectSSE, sseReconnect);
+          };
+
+          es.onopen = () => {
+            sseReconnect = 0;
+          };
+        };
+
+        logFilter.addEventListener("change", renderLogs);
+        connectSSE();
+      })();
+    </script>
+  </body>
+</html>
