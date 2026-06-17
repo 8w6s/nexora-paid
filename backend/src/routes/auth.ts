@@ -3,12 +3,13 @@ import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
-import { logAuthEvent } from "../lib/audit.ts";
+import { logAdminAction, logAuthEvent } from "../lib/audit.ts";
 import {
   createSession,
   destroySession,
   hashPassword,
   normalizeEmail,
+  revokeOtherSessions,
   SESSION_COOKIE,
   sessionCookieOptions,
   validateSession,
@@ -223,6 +224,18 @@ export async function bootstrapAdmin() {
     return;
   }
   (globalThis as any).__nexora_admin_email = email;
+
+  // Production refuses plaintext ADMIN_PASSWORD: a CI secret leak, container
+  // image scan, or environment dump must not expose anything more than an
+  // argon2id hash. Local dev is exempt so first-run setup stays trivial.
+  const isProd = Bun.env.NODE_ENV === "production";
+  if (isProd && !Bun.env.ADMIN_PASSWORD_HASH && Bun.env.ADMIN_PASSWORD) {
+    console.error(
+      "[boot] FATAL: ADMIN_PASSWORD is plaintext in production. Set ADMIN_PASSWORD_HASH to an argon2id hash and unset ADMIN_PASSWORD.",
+    );
+    process.exit(1);
+  }
+
   let passwordHash = Bun.env.ADMIN_PASSWORD_HASH ?? null;
   if (!passwordHash && Bun.env.ADMIN_PASSWORD) {
     passwordHash = await hashPassword(Bun.env.ADMIN_PASSWORD);
@@ -234,18 +247,65 @@ export async function bootstrapAdmin() {
   if (existing) {
     // Previously: every boot rewrote passwordHash + role from env, which
     // (a) silently reverted any in-app password rotation on next deploy,
-    // and (b) let anyone who could edit env elevate an arbitrary
-    // pre-existing customer email to admin just by setting ADMIN_EMAIL
-    // to that address. Now we only ESCALATE/ROTATE under an explicit
-    // ADMIN_BOOTSTRAP_FORCE=true override.
+    // (b) let anyone who could edit env elevate an arbitrary pre-existing
+    // customer email to admin just by setting ADMIN_EMAIL to that address,
+    // (c) ran with no audit trail and no session invalidation, so a leaked
+    // post-rotation cookie could outlive the password change indefinitely.
+    // Now we only ESCALATE/ROTATE under an explicit ADMIN_BOOTSTRAP_FORCE=true
+    // override, and the rotation is logged + every existing session is dropped.
     const force = (Bun.env.ADMIN_BOOTSTRAP_FORCE ?? "").toLowerCase() === "true";
     if (force) {
+      // Refuse to silently disable 2FA: if the existing admin has TOTP enabled,
+      // a force-rotation that ignores it would let an env-editor bypass 2FA on
+      // the next deploy. Operator must explicitly clear 2FA via the admin API
+      // before forcing a password rotation, OR set ADMIN_BOOTSTRAP_FORCE_2FA
+      // to acknowledge that recovery requires re-enrollment.
+      const allow2faReset =
+        (Bun.env.ADMIN_BOOTSTRAP_FORCE_2FA ?? "").toLowerCase() === "true";
+      if (existing.totpEnabled && !allow2faReset) {
+        console.error(
+          `[boot] FATAL: ADMIN_BOOTSTRAP_FORCE=true but ${email} has 2FA enabled. ` +
+            `Set ADMIN_BOOTSTRAP_FORCE_2FA=true to acknowledge that 2FA will be cleared and require re-enrollment after this boot.`,
+        );
+        process.exit(1);
+      }
       await db
         .update(users)
-        .set({ passwordHash, role: "admin" })
+        .set({
+          passwordHash,
+          role: "admin",
+          // Clear 2FA when explicitly acknowledged — a forced rotation should
+          // never leave a stale TOTP secret bound to the previous credential.
+          ...(existing.totpEnabled && allow2faReset
+            ? {
+                totpEnabled: false,
+                totpSecret: null,
+                totpBackupCodes: null,
+                lastTotpCounter: -1,
+              }
+            : {}),
+        })
         .where(eq(users.id, existing.id));
+
+      // Drop every live session for this user so a cookie minted before the
+      // rotation can't outlive it. revokeOtherSessions(userId, undefined)
+      // clears them all including any concurrent flows.
+      const revoked = await revokeOtherSessions(existing.id, undefined);
+
+      // Audit trail: this is one of the most security-sensitive operations
+      // the system performs (silent admin password rotation), so log it
+      // even though it ran under the operator's environment, not a request.
+      await logAdminAction(
+        email,
+        "admin.bootstrap_force",
+        `Forced password rotation${
+          existing.totpEnabled && allow2faReset ? " + 2FA cleared" : ""
+        } (revoked ${revoked} session${revoked === 1 ? "" : "s"})`,
+      );
       console.warn(
-        `[boot] ADMIN_BOOTSTRAP_FORCE: overwrote passwordHash + role for ${email}`,
+        `[boot] ADMIN_BOOTSTRAP_FORCE: rotated ${email} (revoked ${revoked} session${revoked === 1 ? "" : "s"}${
+          existing.totpEnabled && allow2faReset ? ", cleared 2FA" : ""
+        })`,
       );
     } else if (existing.role !== "admin") {
       console.warn(
