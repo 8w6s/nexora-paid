@@ -137,7 +137,24 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
   { key: "redirect_custom_domain", type: "boolean" },
   { key: "hide_out_of_stock", type: "boolean" },
   { key: "refund_out_of_stock_to_balance", type: "boolean" },
-  { key: "maintenance_password", type: "string", maxLength: 200 },
+  {
+    key: "maintenance_password",
+    type: "string",
+    maxLength: 200,
+    // The maintenance gate is the ONLY thing standing between the public
+    // internet and a half-deployed shop during cutovers. A 4-character
+    // password (which the prior schema accepted) is bruteable in seconds
+    // over a single keep-alive connection. Empty value clears the gate;
+    // any non-empty value must be ≥12 chars so the entropy is at least
+    // close to a single argon2id hash's worth of work.
+    validate: (v) => {
+      if (typeof v !== "string" || v.length === 0) return { ok: true }; // empty clears
+      if (v.length < 12) {
+        return { ok: false, error: "Maintenance password must be at least 12 characters" };
+      }
+      return { ok: true };
+    },
+  },
   { key: "custom_domain_name", type: "string", maxLength: 253 },
   { key: "maintenance_mode", type: "boolean" },
   {
