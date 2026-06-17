@@ -776,10 +776,14 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
   // Resend email with keys to the customer (admin).
   .post("/orders/:id/resend-email", async ({ params: { id }, set, adminEmail }) => {
-    // Per-order cooldown: 1 resend / 5 min. Without this a malicious or
-    // sloppy admin could mail-bomb a customer (60 admin-mutate per minute
-    // global cap × N admins). Spam reports tank deliverability for the
-    // whole shop, so the cap is per orderId not per admin.
+    // Two-tier rate limit:
+    // 1. Per-order cooldown 1 / 5 min — prevents the simple "spam reload"
+    //    accident or attack against a single order.
+    // 2. Per-recipient daily cap 5 / 24h — prevents a compromised admin
+    //    cookie from iterating over a customer's N orders (visible via
+    //    /admin/customers/:id) and mail-bombing them. Spam reports tank
+    //    deliverability for the whole shop, so this cap is critical even
+    //    when only one admin is compromised.
     const rl = rateLimitCheck(`resend-email:${id}`, 1, 5 * 60_000);
     if (!rl.allowed) {
       set.status = 429;
@@ -798,6 +802,21 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     if (o.status !== "paid" && o.status !== "completed") {
       set.status = 400;
       return { error: "Only paid or completed orders can have keys resent", code: "BAD_STATUS" };
+    }
+
+    // Per-recipient daily cap. Lowercase the email so case variations don't
+    // create separate buckets. 5/day is enough headroom for legitimate
+    // re-sends across multiple orders, ruinous for a mail-bomb.
+    const recipientKey = `resend-email-recipient:${o.email.toLowerCase()}`;
+    const recipientRl = rateLimitCheck(recipientKey, 5, 24 * 60 * 60_000);
+    if (!recipientRl.allowed) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(Math.ceil(recipientRl.resetMs / 1000));
+      return {
+        error: "Daily resend limit reached for this recipient",
+        code: "RECIPIENT_RATE_LIMITED",
+        retryAfterMs: recipientRl.resetMs,
+      };
     }
 
     const keys = await db
