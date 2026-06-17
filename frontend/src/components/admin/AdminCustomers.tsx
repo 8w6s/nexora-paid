@@ -158,8 +158,9 @@ export const AdminCustomers: React.FC = () => {
         .badge { padding: 4px 11px; border-radius: 100px; font-size: .72rem; font-weight: 600; }
         .badge.active { color: var(--auto,#137333); background: var(--auto-soft,#e6f4ea); }
         .badge.banned { color: var(--price); background: var(--price-soft); }
-        .lnk { background: none; border: none; color: var(--brand); cursor: pointer; font-weight: 600; font-size: .82rem; }
-        .lnk:disabled { opacity: .5; }
+        .lnk { background: none; border: 1px solid transparent; color: var(--brand); cursor: pointer; font-weight: 600; font-size: .82rem; padding: 6px 12px; min-height: 30px; border-radius: var(--radius-sm); transition: background .12s, border-color .12s; }
+        .lnk:hover { background: var(--brand-soft); }
+        .lnk:disabled { opacity: .5; cursor: not-allowed; }
       `}</style>
     </div>
   );

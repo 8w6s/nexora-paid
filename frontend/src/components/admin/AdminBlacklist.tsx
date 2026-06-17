@@ -436,8 +436,8 @@ export const AdminBlacklist: React.FC = () => {
         .bl-mode-switch { display: flex; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; }
         .bl-mode-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--surface-2); border: none; color: var(--ink-soft); font-weight: 600; font-size: .85rem; cursor: pointer; font-family: var(--font-sans); transition: all .15s; }
         .bl-mode-btn.on { background: var(--brand); color: #fff; }
-        .bl-add-row { display: grid; grid-template-columns: 130px 1fr 1fr auto; gap: 10px; align-items: flex-start; }
-        @media (max-width: 640px) { .bl-add-row { grid-template-columns: 1fr; } }
+        .bl-add-row { display: grid; grid-template-columns: 140px minmax(220px, 1.4fr) minmax(180px, 1fr) auto; gap: 10px; align-items: flex-start; max-width: 920px; }
+        @media (max-width: 640px) { .bl-add-row { grid-template-columns: 1fr; max-width: none; } }
       `}</style>
     </div>
   );
