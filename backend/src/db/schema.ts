@@ -245,6 +245,12 @@ export const orders = sqliteTable(
     statusIdx: index("orders_status_idx").on(t.status),
     userIdx: index("orders_user_idx").on(t.userId),
     expiresIdx: index("orders_expires_idx").on(t.expiresAt),
+    // Perf: admin orders/stats sort by createdAt desc; customer "my orders"
+    // filters by (userId, createdAt). Without these, a 100k-row orders table
+    // forces a full scan + filesort on every admin and customer view.
+    createdIdx: index("orders_created_idx").on(t.createdAt),
+    emailIdx: index("orders_email_idx").on(t.email),
+    userCreatedIdx: index("orders_user_created_idx").on(t.userId, t.createdAt),
     ltcAddressUnique: uniqueIndex("orders_ltc_address_unique").on(t.ltcAddress),
     addressIndexUnique: uniqueIndex("orders_address_index_unique").on(t.addressIndex),
   }),
