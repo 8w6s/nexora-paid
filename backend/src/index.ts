@@ -61,6 +61,12 @@ if (Bun.env.NODE_ENV === "production") {
 const TRUST_PROXY = (Bun.env.TRUST_PROXY ?? "").toLowerCase() === "true";
 (globalThis as any).__nexora_trust_proxy = TRUST_PROXY;
 
+// Active SSE streams per concurrency key (userId for authed, IP for guests).
+// Capped per-key in the /api/orders/:id/events handler so one client cannot
+// open hundreds of streams (each holding a deliverHook subscription + a 30s
+// heartbeat interval). Module-scoped Map so all SSE handlers share state.
+const sseConnections = new Map<string, number>();
+
 // Free-tier app: every route in the Free baseline is chained here. Paid
 // modules are loaded right before `.listen()` via `loadPaidModules()` so a
 // Free build (with an empty registry) is byte-identical to "no Paid wiring".
@@ -255,6 +261,13 @@ const baseApp = new Elysia()
   .get(
     "/api/orders/:id/events",
     async ({ params: { id }, query, cookie, set, status, request }) => {
+      // Per-key SSE concurrency cap. Without this a single hostile (or buggy)
+      // client could open thousands of streams against orders it owns —
+      // exhausting file descriptors AND ballooning watcher.deliverHooks[]
+      // (each open stream = one DeliverHook subscription) which makes every
+      // paid-order delivery iterate at O(N) over a huge list. 5/key is far
+      // above legitimate usage (a few open tabs at most).
+      const SSE_KEY_CAP = 5;
       // Auth: must be the order owner OR present a valid order token. Without
       // this gate any caller could subscribe to deliveries for any guessable
       // orderId, turning the stream into a delivery side-channel oracle.
@@ -265,6 +278,17 @@ const baseApp = new Elysia()
       if (!o || (!isOwner && !isTokenValid)) {
         return status(404, { error: "Not found", code: "NOT_FOUND" });
       }
+
+      // Concurrency key: prefer userId for authed callers, fall back to
+      // IP for token-only guests so one guest browser cannot fan out either.
+      const sseKey = u ? `u:${u.id}` : `ip:${clientIp(request)}`;
+      const current = sseConnections.get(sseKey) ?? 0;
+      if (current >= SSE_KEY_CAP) {
+        set.status = 429;
+        set.headers["Retry-After"] = "30";
+        return { error: "Too many open streams", code: "SSE_LIMIT" };
+      }
+      sseConnections.set(sseKey, current + 1);
 
       set.headers["content-type"] = "text/event-stream";
       set.headers["cache-control"] = "no-cache";
@@ -308,6 +332,9 @@ const baseApp = new Elysia()
           if (heartbeat) clearInterval(heartbeat);
           cleanup = null;
           heartbeat = null;
+          const c = sseConnections.get(sseKey) ?? 0;
+          if (c <= 1) sseConnections.delete(sseKey);
+          else sseConnections.set(sseKey, c - 1);
         },
       });
     },

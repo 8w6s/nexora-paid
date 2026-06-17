@@ -21,8 +21,22 @@ const POLL_INTERVAL_MS = 30_000;
 const TICK_CONCURRENCY = 5;
 
 type DeliverHook = (orderId: string, email: string, keys: { name: string; code: string }[]) => void;
+// Hard cap: ~1k subscribers is far above any plausible legitimate need
+// (each SSE client + a handful of plugin hooks). If we ever exceed this
+// we have either a leak in unsubscribe or a misuse — fail loud and refuse
+// to grow the array further so onOrderDelivered iteration stays O(N) at
+// a bounded N rather than degrading silently to seconds-per-delivery.
+const DELIVER_HOOKS_MAX = 1000;
 const deliverHooks: DeliverHook[] = [];
 export function onOrderDelivered(hook: DeliverHook) {
+  if (deliverHooks.length >= DELIVER_HOOKS_MAX) {
+    console.warn(
+      `[watcher] deliverHooks at cap (${DELIVER_HOOKS_MAX}); refusing new subscriber to bound delivery latency`,
+    );
+    return () => {
+      // No-op unsubscribe — we never registered.
+    };
+  }
   deliverHooks.push(hook);
   return () => {
     const i = deliverHooks.indexOf(hook);
