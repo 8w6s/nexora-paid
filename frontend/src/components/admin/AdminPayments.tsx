@@ -279,9 +279,33 @@ export const AdminPayments: React.FC = () => {
   };
 
   const saveConfig = async (p: Provider) => {
-    const config = draft[p.id] ?? {};
+    const config = { ...(draft[p.id] ?? {}) };
+    // Re-auth gate: crypto-native providers (LTC/BTC/ETH self-hosted)
+    // require the admin's current password before rotating the receiving
+    // xpub. Without this any stolen admin cookie could redirect every
+    // customer's crypto deposit to an attacker wallet — same pattern
+    // Sellauth uses on its Profile page wallet-rotation flow. Strip the
+    // currentPassword key from `config` so it isn't sent as a provider
+    // field; pass it as a sibling instead.
+    let currentPassword: string | undefined;
+    const isCryptoNative = p.kind === "crypto-native";
+    const touchingWallet =
+      isCryptoNative && "xpub" in config && String(config.xpub ?? "").trim() !== "";
+    if (touchingWallet) {
+      const pw = window.prompt(
+        "Confirm your admin password to rotate the receiving wallet — every future payment will route to the new xpub.",
+      );
+      if (pw == null || pw === "") {
+        toast.error("Wallet rotation cancelled.");
+        return;
+      }
+      currentPassword = pw;
+    }
     try {
-      await api.put(`/api/admin/payments/${p.id}/config`, { config });
+      await api.put(`/api/admin/payments/${p.id}/config`, {
+        config,
+        ...(currentPassword !== undefined ? { currentPassword } : {}),
+      });
       setDraft((d) => ({ ...d, [p.id]: {} }));
       toast.success(`${p.label} settings saved.`);
       setExpandedProvider(null);

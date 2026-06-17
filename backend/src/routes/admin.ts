@@ -1189,11 +1189,48 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   )
   .put(
     "/payments/:id/config",
-    async ({ params: { id }, body, set, adminEmail }) => {
+    async ({ params: { id }, body, set, adminId, adminEmail }) => {
       const def = PROVIDER_BY_ID[id];
       if (!def) {
         set.status = 400;
         return { error: "Unknown provider", code: "BAD_PROVIDER" };
+      }
+      // Force re-auth for the receiving wallet — same blast radius as
+      // PUT /settings's ltc_xpub gate, but here the provider may be BTC
+      // or ETH instead of LTC. crypto-native providers route customer
+      // deposits straight to the configured xpub; a stolen cookie that
+      // can swap this redirects every subsequent payment to an attacker
+      // wallet. Sellauth gates the equivalent change behind an inline
+      // current-password field; we match that. The currentPassword field
+      // is a sibling of `config` in the body (NOT inside config) so it
+      // can never be persisted as a provider field — the loop below
+      // only iterates def.fields.
+      if (def.kind === "crypto-native") {
+        const fieldsTouched = Object.keys(body.config ?? {}).filter((k) =>
+          def.fields.some((f) => f.key === k),
+        );
+        const touchingWallet = fieldsTouched.some((k) => k === "xpub");
+        if (touchingWallet) {
+          const cur = typeof body.currentPassword === "string" ? body.currentPassword : "";
+          if (!cur) {
+            set.status = 401;
+            return {
+              error: "Current password required to rotate the receiving wallet",
+              code: "REAUTH_REQUIRED",
+            };
+          }
+          const u = (await db.select().from(users).where(eq(users.id, adminId)))[0];
+          const ok = u ? await verifyPassword(cur, u.passwordHash) : false;
+          if (!ok) {
+            await logAdminAction(
+              adminEmail,
+              "payment.wallet.fail",
+              `${id}: current password mismatch on xpub rotation`,
+            );
+            set.status = 401;
+            return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+          }
+        }
       }
       // Only persist known fields; skip empty secret values so we don't wipe a saved secret.
       const changedNonSecret: string[] = [];
@@ -1230,7 +1267,15 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }
       return { ok: true, id };
     },
-    { body: t.Object({ config: t.Record(t.String(), t.String()) }) },
+    {
+      body: t.Object({
+        config: t.Record(t.String(), t.String()),
+        // Re-auth field for crypto-native xpub rotation. Optional in the
+        // schema (most provider types don't need it); enforced at handler
+        // level for crypto-native providers.
+        currentPassword: t.Optional(t.String({ maxLength: 200 })),
+      }),
+    },
   )
 
   /* ───────── Customers ───────── */
