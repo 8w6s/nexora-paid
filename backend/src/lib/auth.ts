@@ -74,6 +74,31 @@ export async function destroySession(token: string | undefined): Promise<void> {
   await db.delete(sessions).where(eq(sessions.token, sha256hex(token)));
 }
 
+/**
+ * Evict every session for `userId` EXCEPT the one belonging to `currentToken`.
+ * Used after sensitive state changes (password rotate, 2FA enable/disable/recover,
+ * admin role grant) so a stolen cookie issued before the change can't outlive
+ * it. The current session survives so the actor doesn't log themselves out
+ * mid-flow. Pass `currentToken=undefined` to revoke ALL sessions including the
+ * current one.
+ */
+export async function revokeOtherSessions(
+  userId: string,
+  currentToken: string | undefined,
+): Promise<number> {
+  const all = await db.select().from(sessions).where(eq(sessions.userId, userId));
+  const currentId = currentToken ? sha256hex(currentToken) : null;
+  const toDrop = all.filter((s) => s.token !== currentId).map((s) => s.token);
+  if (toDrop.length === 0) return 0;
+  // Drizzle/SQLite doesn't have a clean "in array" delete via this builder
+  // pattern in all versions, so loop. Sessions tables are small (admin only
+  // has a handful of devices) so per-row delete is fine.
+  for (const id of toDrop) {
+    await db.delete(sessions).where(eq(sessions.token, id));
+  }
+  return toDrop.length;
+}
+
 export function sessionCookieOptions(expires: Date) {
   return {
     httpOnly: true,

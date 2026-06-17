@@ -14,6 +14,7 @@ import { EmailService } from "./lib/email.ts";
 import { loadPlugins } from "./lib/plugin/loader.ts";
 import { clientIp, rateLimitCheck } from "./lib/rate-limit.ts";
 import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watcher.ts";
+import { admin2faRoutes } from "./routes/admin-2fa.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
 import { categoryRoutes } from "./routes/categories.ts";
@@ -357,6 +358,7 @@ const baseApp = new Elysia()
 
   // ───── Admin routes ─────
   .use(adminRoutes)
+  .use(admin2faRoutes)
   .use(adminTicketRoutes)
 
   // ───── Checkout + setup ─────

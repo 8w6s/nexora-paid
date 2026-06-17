@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
+import { revokeOtherSessions } from "../lib/auth.ts";
 import { logAdminAction } from "../lib/audit.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { rateLimitCheck } from "../lib/rate-limit.ts";
@@ -59,8 +60,9 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
     return;
   })
   .derive(async ({ cookie }) => {
-    const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
-    return { adminUser: user! };
+    const token = cookie[SESSION_COOKIE]?.value as string | undefined;
+    const user = await validateSession(token);
+    return { adminUser: user!, currentToken: token };
   })
   .get("/status", async ({ adminUser }) => {
     const u = (await db.select().from(users).where(eq(users.id, adminUser.id)))[0];
@@ -99,7 +101,7 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
   })
   .post(
     "/enable",
-    async ({ adminUser, body, set }) => {
+    async ({ adminUser, body, set, currentToken }) => {
       const rl = rateLimitCheck(`totp-verify:${adminUser.id}`, TOTP_VERIFY_MAX, TOTP_VERIFY_WINDOW_MS);
       if (!rl.allowed) {
         set.status = 429;
@@ -134,8 +136,17 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
 
       candidates.delete(adminUser.id);
 
-      await logAdminAction(adminUser.email, "2fa.enable", "Enabled 2FA TOTP");
-      return { ok: true };
+      // Evict any session minted before 2FA was enabled — a stolen cookie
+      // captured during the pre-2FA window must not survive enrollment.
+      // Keep the current session so the admin doesn't log themselves out.
+      const revoked = await revokeOtherSessions(adminUser.id, currentToken);
+
+      await logAdminAction(
+        adminUser.email,
+        "2fa.enable",
+        `Enabled 2FA TOTP (revoked ${revoked} other session${revoked === 1 ? "" : "s"})`,
+      );
+      return { ok: true, revokedSessions: revoked };
     },
     {
       body: t.Object({
@@ -145,7 +156,7 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
   )
   .post(
     "/disable",
-    async ({ adminUser, body, set }) => {
+    async ({ adminUser, body, set, currentToken }) => {
       const rl = rateLimitCheck(`totp-verify:${adminUser.id}`, TOTP_VERIFY_MAX, TOTP_VERIFY_WINDOW_MS);
       if (!rl.allowed) {
         set.status = 429;
@@ -174,8 +185,17 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
         })
         .where(eq(users.id, adminUser.id));
 
-      await logAdminAction(adminUser.email, "2fa.disable", "Disabled 2FA TOTP");
-      return { ok: true };
+      // Evict every other session: disabling 2FA weakens the auth state, so
+      // any cookie that exists alongside the actor's must be re-issued via
+      // a fresh login flow.
+      const revoked = await revokeOtherSessions(adminUser.id, currentToken);
+
+      await logAdminAction(
+        adminUser.email,
+        "2fa.disable",
+        `Disabled 2FA TOTP (revoked ${revoked} other session${revoked === 1 ? "" : "s"})`,
+      );
+      return { ok: true, revokedSessions: revoked };
     },
     {
       body: t.Object({
@@ -192,7 +212,7 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
    */
   .post(
     "/recover",
-    async ({ adminUser, body, set }) => {
+    async ({ adminUser, body, set, currentToken }) => {
       const rl = rateLimitCheck(
         `totp-verify:${adminUser.id}`,
         TOTP_VERIFY_MAX,
@@ -237,12 +257,18 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
         })
         .where(eq(users.id, adminUser.id));
 
+      // Most dangerous flow: a backup code can fully bypass the second
+      // factor, so we must purge every other live session for this admin
+      // to evict any cookie that was operating with the (now-revoked) 2FA
+      // assumption. The current cookie survives so the actor can re-enroll.
+      const revoked = await revokeOtherSessions(adminUser.id, currentToken);
+
       await logAdminAction(
         adminUser.email,
         "2fa.recover",
-        `Used backup code; ${res.remaining.length} remaining (now disabled, must re-enroll)`,
+        `Used backup code; ${res.remaining.length} remaining (disabled, must re-enroll, revoked ${revoked} session${revoked === 1 ? "" : "s"})`,
       );
-      return { ok: true, remaining: res.remaining.length };
+      return { ok: true, remaining: res.remaining.length, revokedSessions: revoked };
     },
     {
       body: t.Object({
