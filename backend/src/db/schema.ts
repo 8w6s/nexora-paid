@@ -92,10 +92,17 @@ export const sessions = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
+    // Idle timeout tracking. Updated on each validateSession() call so a stolen
+    // cookie that is never used drops out faster than the absolute expiresAt.
+    // Migration 0005 backfills existing rows from createdAt.
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
   (t) => ({
     userIdx: index("sessions_user_idx").on(t.userId),
     expiryIdx: index("sessions_expiry_idx").on(t.expiresAt),
+    lastSeenIdx: index("sessions_last_seen_idx").on(t.lastSeenAt),
   }),
 );
 

@@ -32,18 +32,45 @@ export async function verifyLogin(
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
-/* ───────────────────────── opaque DB-backed sessions ───────────────────────── */
+/* ───────────────────────── opaque DB-backed sessions ─────────────── */
 // Raw token lives in the cookie; only SHA-256(token) is stored, so a DB leak can't mint sessions.
+// Two ceilings + an idle floor:
+// - THIRTY_DAYS_MS: absolute customer cookie lifetime (signed-in convenience).
+// - ADMIN_ABSOLUTE_MAX_MS: hard cap for admin sessions. SOC2 / ISO 27001
+//   compliance regimes typically require admin re-auth at ≤8h.
+// - CUSTOMER_IDLE_MAX_MS / ADMIN_IDLE_MAX_MS: idle eviction. Without this
+//   a stolen cookie remains valid up to the absolute cap regardless of activity.
+//   Updated on each validateSession() call.
+//
+// Throttle the per-call lastSeenAt write with LAST_SEEN_REFRESH_MS so we don't
+// turn every API request into a write — only update when the gap is larger
+// than the throttle, which still bounds idle-eviction to that granularity.
 const THIRTY_DAYS_MS = 1000 * 60 * 60 * 24 * 30;
+const ADMIN_ABSOLUTE_MAX_MS = 1000 * 60 * 60 * 8; // 8h hard cap for admin sessions
+const CUSTOMER_IDLE_MAX_MS = 1000 * 60 * 60 * 24; // 24h idle for customers
+const ADMIN_IDLE_MAX_MS = 1000 * 60; // 1h idle for admins
+const LAST_SEEN_REFRESH_MS = 1000 * 60; // throttle: only update lastSeenAt every 60s
 export const SESSION_COOKIE = "sid";
 
 const sha256hex = (s: string) => createHash("sha256").update(s).digest("hex");
 
-export async function createSession(userId: string): Promise<{ token: string; expiresAt: number }> {
+export async function createSession(
+  userId: string,
+  role: "customer" | "admin" = "customer",
+): Promise<{ token: string; expiresAt: number }> {
   const token = randomBytes(32).toString("hex"); // 256-bit
   const id = sha256hex(token);
-  const expiresAt = Date.now() + THIRTY_DAYS_MS;
-  await db.insert(sessions).values({ token: id, userId, expiresAt: new Date(expiresAt) });
+  // Admin sessions get the 8h hard cap regardless of role at validate time
+  // — keeps this consistent with the per-request idle ceiling.
+  const lifetimeMs = role === "admin" ? ADMIN_ABSOLUTE_MAX_MS : THIRTY_DAYS_MS;
+  const expiresAt = Date.now() + lifetimeMs;
+  const now = new Date();
+  await db.insert(sessions).values({
+    token: id,
+    userId,
+    expiresAt: new Date(expiresAt),
+    lastSeenAt: now,
+  });
   return { token, expiresAt };
 }
 
@@ -55,10 +82,14 @@ export async function validateSession(token: string | undefined): Promise<Sessio
   const rows = await db.select().from(sessions).where(eq(sessions.token, id));
   const row = rows[0];
   if (!row) return null;
-  if (Date.now() > new Date(row.expiresAt).getTime()) {
+
+  const now = Date.now();
+  // Absolute expiry: hard ceiling regardless of activity.
+  if (now > new Date(row.expiresAt).getTime()) {
     await db.delete(sessions).where(eq(sessions.token, id));
     return null;
   }
+
   const u = (await db.select().from(users).where(eq(users.id, row.userId)))[0];
   if (!u) return null;
   // Refuse banned customers even if their session row hasn't been swept yet.
@@ -66,6 +97,26 @@ export async function validateSession(token: string | undefined): Promise<Sessio
     await db.delete(sessions).where(eq(sessions.token, id));
     return null;
   }
+
+  // Idle eviction: stricter for admins. A stolen cookie that the legitimate
+  // user never notices drops out via this path long before the absolute cap.
+  const idleMs = u.role === "admin" ? ADMIN_IDLE_MAX_MS : CUSTOMER_IDLE_MAX_MS;
+  const lastSeenMs = new Date(row.lastSeenAt).getTime();
+  if (now - lastSeenMs > idleMs) {
+    await db.delete(sessions).where(eq(sessions.token, id));
+    return null;
+  }
+
+  // Touch lastSeenAt at most once per LAST_SEEN_REFRESH_MS — keeps writes cheap
+  // (high-traffic users would otherwise write on every request) while still
+  // bounding the idle-eviction granularity.
+  if (now - lastSeenMs > LAST_SEEN_REFRESH_MS) {
+    await db
+      .update(sessions)
+      .set({ lastSeenAt: new Date(now) })
+      .where(eq(sessions.token, id));
+  }
+
   return { id: u.id, email: u.email, role: u.role };
 }
 

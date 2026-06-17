@@ -178,7 +178,9 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
           .where(eq(users.id, user.id));
       }
       lockoutReset(lockKey);
-      const { token, expiresAt } = await createSession(user.id);
+      // Pass role so admin sessions get the 8h hard cap rather than the
+      // 30d customer ceiling. SOC2 / ISO 27001 baseline for admin re-auth.
+      const { token, expiresAt } = await createSession(user.id, user.role);
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       void logAuthEvent(email, "login.ok", ip, user.role === "admin" ? "(admin)" : undefined);
       return { id: user.id, email: user.email, role: user.role };
