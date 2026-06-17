@@ -265,7 +265,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
           <span className="adm-store-icon">
             <Icon name="box" size={14} />
           </span>
-          <span className="adm-store-name">{config.storeName ?? "Store"}</span>
+          <span className="adm-store-name">View storefront</span>
           <span className="adm-store-link">
             <Icon name="arrow-right" size={12} />
           </span>

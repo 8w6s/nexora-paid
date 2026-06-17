@@ -293,7 +293,10 @@ export const AdminOverview: React.FC = () => {
         .range-chip:hover { color: var(--ink); }
         .range-chip.on { background: var(--surface); color: var(--brand); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
         .recent-list { display: flex; flex-direction: column; gap: 4px; }
-        .recent-row { display: grid; grid-template-columns: 90px 1fr auto auto auto; gap: 12px; align-items: center; padding: 9px 12px; border-radius: var(--radius-sm); color: var(--ink); font-size: .84rem; transition: background .15s; }
+        .recent-row { display: grid; grid-template-columns: 90px minmax(0,1fr) 96px 80px 150px; gap: 12px; align-items: center; padding: 9px 12px; border-radius: var(--radius-sm); color: var(--ink); font-size: .84rem; transition: background .15s; }
+        .recent-row .badge { justify-self: start; }
+        .recent-row .recent-amt { justify-self: end; }
+        .recent-row .recent-when { justify-self: end; }
         .recent-row:hover { background: var(--surface-2); }
         .recent-id { font-family: monospace; font-size: .78rem; color: var(--ink-faint); }
         .recent-email { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
