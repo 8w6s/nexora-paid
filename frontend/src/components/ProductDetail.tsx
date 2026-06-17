@@ -7,6 +7,28 @@ import { Icon } from "./Icon";
 import { ProductCard } from "./ProductCard";
 import { ProductReviews } from "./ProductReviews";
 
+// AdminProductEditor saves HTML markup into product.description; the
+// storefront paragraph rendered it as text, displaying literal
+// '<b>foo</b>' to visitors. Strip tags and decode the small entity set
+// the editor produces. Decode & LAST so < doesn't double-decode.
+// If styled descriptions are wanted later, swap this for DOMPurify +
+// dangerouslySetInnerHTML.
+function stripHtml(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*/?>/gi, " ")
+    .replace(/</(p|div|h[1-6]|li|tr)\s*>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/ /g, " ")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, '"')
+    .replace(/'/g, "'")
+    .replace(/&/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Product is fetched server-side and passed in as a prop (SSR -> good SEO + no client flash).
 export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
   const { addToCart } = useCart();
@@ -118,7 +140,7 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
               </>
             )}
           </div>
-          <p className="pd-desc">{product.description}</p>
+          <p className="pd-desc">{stripHtml(product.description)}</p>
 
           <div
             className="pd-price-row"
