@@ -68,10 +68,17 @@ function log(level: Level, msg: string, ctx?: Record<string, unknown>): void {
     msg,
     ...ctx,
   };
-  const _line = formatEntry(entry);
+  // Route per level so log aggregators that consume stderr separately
+  // (e.g. PM2, Docker, Vercel) classify warn/error/fatal as non-stdout.
+  // Previously these branches were empty, silently dropping every entry —
+  // the worst kind of dead logger because callers think they logged.
+  const line = formatEntry(entry);
   if (level === "error" || level === "fatal") {
+    console.error(line);
   } else if (level === "warn") {
+    console.warn(line);
   } else {
+    console.log(line);
   }
 }
 
