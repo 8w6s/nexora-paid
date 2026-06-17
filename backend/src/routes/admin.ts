@@ -70,6 +70,21 @@ const ORDER_STATUSES = new Set([
 ]);
 const KEY_STATUSES = new Set(["available", "reserved", "delivered"]);
 
+// Image URL allowlist for admin-pasted URLs that end up in img src on the
+// storefront. Pre-audit only PATCH /products/:id had this check inline;
+// POST /products and POST/PATCH /categories silently accepted javascript:,
+// data:, vbscript:, file:, etc. Returns true when safe; otherwise an error
+// string the route handler surfaces verbatim.
+function assertSafeImageUrl(value: unknown): true | string {
+  if (typeof value !== "string") return "Image must be a string";
+  const t = value.trim();
+  if (t === "") return true;
+  if (t.startsWith("//")) return "Protocol-relative URLs not allowed";
+  if (t.startsWith("/")) return true;
+  if (t.startsWith("https://")) return true;
+  return "Image must be https:// or absolute /path";
+}
+
 /* key counts (available + delivered) per product */
 async function keyCounts(productIds: string[]) {
   const m: Record<string, { available: number; delivered: number }> = {};
@@ -198,6 +213,11 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .post(
     "/products",
     async ({ body, set, adminEmail }) => {
+      const imgErr = assertSafeImageUrl(body.image);
+      if (imgErr !== true) {
+        set.status = 400;
+        return { error: imgErr, code: "BAD_IMAGE" };
+      }
       const id = randomUUID();
       const slug = await uniqueSlug(body.slug || body.name);
       const row = {
@@ -269,19 +289,11 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         set.status = 404;
         return { error: "Product not found", code: "NOT_FOUND" };
       }
-      // Block javascript:/data: URIs in image — these would XSS storefront
-      // visitors when rendered as <img src> or background-image. Allow
-      // https://, /relative, and empty.
-      if (body.image !== undefined && body.image !== "") {
-        const trimmed = body.image.trim();
-        // Allow https://… or absolute /path. Block javascript:, data:, file:,
-        // ftp:, etc. — those would render as XSS or SSRF when admin pastes
-        // them into a product card or category banner.
-        const isHttps = trimmed.startsWith("https://");
-        const isAbsPath = trimmed.startsWith("/") && !trimmed.startsWith("//");
-        if (!isHttps && !isAbsPath) {
+      if (body.image !== undefined) {
+        const imgErr = assertSafeImageUrl(body.image);
+        if (imgErr !== true) {
           set.status = 400;
-          return { error: "Image must be https:// or absolute path", code: "BAD_IMAGE" };
+          return { error: imgErr, code: "BAD_IMAGE" };
         }
       }
       const updates: Record<string, unknown> = {};
@@ -443,7 +455,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     },
     {
       body: t.Object({
-        codes: t.Array(t.String(), { minItems: 1 }),
+        codes: t.Array(t.String({ maxLength: 1024 }), { minItems: 1, maxItems: 1000 }),
         variantId: t.Optional(t.Nullable(t.String())),
         keyType: t.Optional(
           t.Union([
@@ -1253,6 +1265,13 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .post(
     "/categories",
     async ({ body, set, adminEmail }) => {
+      if (body.image !== undefined) {
+        const imgErr = assertSafeImageUrl(body.image);
+        if (imgErr !== true) {
+          set.status = 400;
+          return { error: imgErr, code: "BAD_IMAGE" };
+        }
+      }
       // Slug uniqueness + parent depth check (max 4 levels deep).
       const slug = (body.slug?.trim() || body.name)
         .toLowerCase()
@@ -1321,6 +1340,13 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       if (!cat) {
         set.status = 404;
         return { error: "Not found", code: "NOT_FOUND" };
+      }
+      if (body.image !== undefined) {
+        const imgErr = assertSafeImageUrl(body.image);
+        if (imgErr !== true) {
+          set.status = 400;
+          return { error: imgErr, code: "BAD_IMAGE" };
+        }
       }
       const upd: Record<string, unknown> = {};
       if (body.name !== undefined) upd.name = body.name;
