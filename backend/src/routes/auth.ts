@@ -232,7 +232,28 @@ export async function bootstrapAdmin() {
   }
   const existing = (await db.select().from(users).where(eq(users.email, email)))[0];
   if (existing) {
-    await db.update(users).set({ passwordHash, role: "admin" }).where(eq(users.id, existing.id));
+    // Previously: every boot rewrote passwordHash + role from env, which
+    // (a) silently reverted any in-app password rotation on next deploy,
+    // and (b) let anyone who could edit env elevate an arbitrary
+    // pre-existing customer email to admin just by setting ADMIN_EMAIL
+    // to that address. Now we only ESCALATE/ROTATE under an explicit
+    // ADMIN_BOOTSTRAP_FORCE=true override.
+    const force = (Bun.env.ADMIN_BOOTSTRAP_FORCE ?? "").toLowerCase() === "true";
+    if (force) {
+      await db
+        .update(users)
+        .set({ passwordHash, role: "admin" })
+        .where(eq(users.id, existing.id));
+      console.warn(
+        `[boot] ADMIN_BOOTSTRAP_FORCE: overwrote passwordHash + role for ${email}`,
+      );
+    } else if (existing.role !== "admin") {
+      console.warn(
+        `[boot] ADMIN_EMAIL matches existing non-admin user ${email}; refusing to escalate without ADMIN_BOOTSTRAP_FORCE=true`,
+      );
+    }
+    // No-op when existing user is already admin and no force requested —
+    // this is the intended path for restarts.
   } else {
     await db.insert(users).values({ id: randomUUID(), email, passwordHash, role: "admin" });
   }
