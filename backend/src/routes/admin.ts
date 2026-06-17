@@ -559,16 +559,22 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       // hash it before persisting so a DB read (backup leak, future SQLi
       // somewhere else) doesn't surface a usable password. Hashing happens
       // BEFORE the generic loop so the loop's String() coercion can't store
-      // the plaintext by accident. Empty string clears the gate.
+      // the plaintext by accident. Empty string clears the gate. The 12-char
+      // floor matches SETTINGS_SCHEMA — the maintenance gate is the only
+      // thing protecting a half-deployed shop, so anything shorter is
+      // bruteable in seconds against a keep-alive connection.
       if (b.maintenance_password !== undefined) {
         const raw = String(b.maintenance_password);
         if (raw === "") {
           await setSetting("maintenance_password", "");
-        } else if (raw.length >= 6) {
+        } else if (raw.length >= 12) {
           await setSetting("maintenance_password", await hashPassword(raw));
         } else {
           set.status = 400;
-          return { error: "Maintenance password must be ≥6 chars", code: "BAD_PW" };
+          return {
+            error: "Maintenance password must be at least 12 characters",
+            code: "BAD_PW",
+          };
         }
         changedKeys.push("maintenance_password");
         delete b.maintenance_password; // skip the generic loop below
