@@ -99,10 +99,41 @@ export async function revokeOtherSessions(
   return toDrop.length;
 }
 
+/**
+ * Decide whether the session cookie must carry the Secure flag.
+ *
+ * Previously secure was tied to NODE_ENV=production, which meant a "soft launch"
+ * staging deploy without that env set would ship admin cookies over plaintext
+ * HTTP. The right invariant is: if PUBLIC_ORIGIN uses HTTPS, the cookie must be
+ * Secure; if PUBLIC_ORIGIN is non-localhost http://, refuse cookie auth entirely
+ * because there is no safe behaviour (Secure-flagged cookies would be dropped
+ * by the browser, non-Secure cookies leak the session id over the wire).
+ */
+function resolveCookieSecurity(): { secure: boolean; allowed: boolean } {
+  const origin = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
+  if (origin.startsWith("https://")) return { secure: true, allowed: true };
+  // Allow plaintext only on loopback — explicit allowlist, not just "is dev".
+  const isLoopback =
+    origin.startsWith("http://localhost") ||
+    origin.startsWith("http://127.0.0.1") ||
+    origin.startsWith("http://[::1]");
+  return { secure: false, allowed: isLoopback };
+}
+
 export function sessionCookieOptions(expires: Date) {
+  const { secure, allowed } = resolveCookieSecurity();
+  if (!allowed) {
+    // Hard fail: setting cookies in this state would leak the session over
+    // plaintext to a non-loopback origin. Caller should have validated this
+    // at boot, but we belt-and-braces here in case PUBLIC_ORIGIN changes
+    // mid-process or the boot guard was somehow bypassed.
+    throw new Error(
+      "Refusing to issue session cookie: PUBLIC_ORIGIN is non-loopback http:// — set HTTPS or restrict to localhost.",
+    );
+  }
   return {
     httpOnly: true,
-    secure: Bun.env.NODE_ENV === "production", // dev over http://localhost keeps the cookie
+    secure,
     sameSite: "strict" as const,
     path: "/api",
     expires,
