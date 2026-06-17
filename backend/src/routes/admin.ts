@@ -558,12 +558,44 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
   .put(
     "/settings",
-    async ({ body, set, adminEmail }) => {
-      // Schema-driven settings update: SETTINGS_SCHEMA declares every admin key.
-      // Special case: ltc_xpub validates xpub + mirrors to pay_crypto_ltc_xpub +
-      // sets hd_address_type. Everything else flows through the generic loop.
+    async ({ body, set, adminId, adminEmail }) => {
+      // Schema-driven sett
       const b = body as Record<string, any>;
       const changedKeys: string[] = [];
+
+      // Force re-auth for wallet rotation. Without this, ANY stolen admin
+      // cookie can swap the receiving xpub to an attacker wallet and silently
+      // redirect every customer's crypto deposit. Sellauth's Profile page
+      // gates the equivalent change behind an inline "Current Password" field
+      // — same pattern here. The currentPassword field is consumed and
+      // removed before the generic loop sees the body so it can't accidentally
+      // get persisted as a setting.
+      const FINANCIAL_KEYS = new Set(["ltc_xpub"]);
+      const touchingFinancial = Object.keys(b).some((k) => FINANCIAL_KEYS.has(k));
+      if (touchingFinancial) {
+        const cur = typeof b.currentPassword === "string" ? b.currentPassword : "";
+        if (!cur) {
+          set.status = 401;
+          return {
+            error: "Current password required to rotate the receiving wallet",
+            code: "REAUTH_REQUIRED",
+          };
+        }
+        const u = (await db.select().from(users).where(eq(users.id, adminId)))[0];
+        const ok = u ? await verifyPassword(cur, u.passwordHash) : false;
+        if (!ok) {
+          await logAdminAction(
+            adminEmail,
+            "settings.wallet.fail",
+            "current password mismatch on xpub rotation",
+          );
+          set.status = 401;
+          return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+        }
+      }
+      // Always strip currentPassword before the generic loop so it's never
+      // treated as a setting key.
+      delete b.currentPassword;
 
       if (b.ltc_xpub !== undefined && b.ltc_xpub !== "") {
         const v = validateXpub(b.ltc_xpub);
@@ -652,6 +684,10 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     },
     {
       body: t.Object({
+        // Inline re-auth field for financial-key rotation (ltc_xpub).
+        // Required when ltc_xpub is present; ignored otherwise. Stripped
+        // before the schema-driven loop so it can never be persisted.
+        currentPassword: t.Optional(t.String({ maxLength: 200 })),
         ltc_xpub: t.Optional(t.String()),
         required_confirmations: t.Optional(t.Integer({ minimum: 1, maximum: 12 })),
         payment_window_minutes: t.Optional(t.Integer({ minimum: 5, maximum: 120 })),
