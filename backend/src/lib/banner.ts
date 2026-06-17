@@ -1,6 +1,32 @@
 import { NEXORA_VERSION } from "./version.ts";
 
-export function printBootBanner(): void {
+export type LicenseInfo =
+  | { valid: true; email: string }
+  | { valid: false; reason: string };
+
+export type PluginRecord = {
+  id: string;
+  version: string;
+  description: string;
+  loaded: boolean;
+  reason?: string;
+};
+
+/**
+ * Pretty boot banner. Inputs are explicit args, not globalThis reads, so a
+ * future caller (test harness, alt bootstrap) can render the banner without
+ * a side-channel. Pre-audit the banner reached into `globalThis.__nexora_*`
+ * which forced load order coupling and made refactors silently break.
+ *
+ * In production the licensee email is redacted to `***@domain` before
+ * console.log so log aggregators (PM2, Docker, hosted log shippers) don't
+ * permanently capture a long-lived plaintext email next to your boot logs.
+ */
+export function printBootBanner(opts: {
+  license?: LicenseInfo | null;
+  plugins?: PluginRecord[];
+  adminEmail?: string | null;
+} = {}): void {
   const port = Bun.env.PORT ?? 3000;
   const origin = Bun.env.PUBLIC_ORIGIN ?? `http://localhost:${port}`;
 
@@ -12,27 +38,34 @@ export function printBootBanner(): void {
   const dim = "\x1b[90m";
   const reset = "\x1b[0m";
 
-  const license = (globalThis as any).__nexora_license;
-  const plugins = (globalThis as any).__nexora_plugins ?? [];
-  const adminEmail = (globalThis as any).__nexora_admin_email;
+  const license = opts.license ?? null;
+  const plugins = opts.plugins ?? [];
+  const adminEmail = opts.adminEmail ?? null;
+  const isProd = Bun.env.NODE_ENV === "production";
 
   let licenseLine = `${yellow}missing (Free Tier)${reset}`;
   if (license) {
     if (license.valid) {
-      licenseLine = `${green}valid (${license.email})${reset}`;
+      const display = isProd ? redactEmail(license.email) : license.email;
+      licenseLine = `${green}valid (${display})${reset}`;
     } else {
       licenseLine = `${red}invalid (${license.reason})${reset}`;
     }
   }
 
-  const loadedPlugins = plugins.filter((p: any) => p.loaded);
+  const loadedPlugins = plugins.filter((p) => p.loaded);
   let pluginsLine = `${dim}none${reset}`;
   if (loadedPlugins.length > 0) {
     pluginsLine = `${green}${loadedPlugins.length} loaded${reset}`;
   }
 
-  const adminLine = adminEmail
-    ? `${green}ready (${adminEmail})${reset}`
+  const adminDisplay = adminEmail
+    ? isProd
+      ? redactEmail(adminEmail)
+      : adminEmail
+    : null;
+  const adminLine = adminDisplay
+    ? `${green}ready (${adminDisplay})${reset}`
     : `${dim}not bootstrapped${reset}`;
 
   console.log("");
@@ -54,4 +87,10 @@ export function printBootBanner(): void {
   console.log(`  ${bold}👤 Admin:${reset}    ${adminLine}`);
   console.log(`  ${bold}👀 Watcher:${reset}  ${green}running${reset} ${dim}(30s interval)${reset}`);
   console.log("");
+}
+
+function redactEmail(e: string): string {
+  const at = e.indexOf("@");
+  if (at <= 0) return "***";
+  return `***@${e.slice(at + 1)}`;
 }

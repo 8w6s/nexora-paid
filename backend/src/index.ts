@@ -23,6 +23,7 @@ import { productRoutes } from "./routes/products.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { adminTicketRoutes, ticketRoutes } from "./routes/tickets.ts";
+import { devRoutes } from "./routes/dev.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 
@@ -333,7 +334,10 @@ const baseApp = new Elysia()
 
   // ───── Checkout + setup ─────
   .use(checkoutRoutes)
-  .use(setupRoutes);
+  .use(setupRoutes)
+
+  // ───── Dev routes (SSE log stream, health) — only in non-production ─────
+  .use(Bun.env.NODE_ENV === "production" ? new Elysia() : devRoutes);
 
 // Paid modules register here (gated by license). Empty registry = no-op.
 const app = await loadPlugins(baseApp);
@@ -364,6 +368,10 @@ startWatcher();
 
 app.listen(Number(Bun.env.PORT ?? 3000));
 
-printBootBanner();
+printBootBanner({
+  license: (globalThis as any).__nexora_license ?? null,
+  plugins: (globalThis as any).__nexora_plugins ?? [],
+  adminEmail: (globalThis as any).__nexora_admin_email ?? null,
+});
 
 export type App = typeof app;
