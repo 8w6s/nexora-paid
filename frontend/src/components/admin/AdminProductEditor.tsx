@@ -148,14 +148,26 @@ export const AdminProductEditor: React.FC<{
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
 
   useEffect(() => {
+    let alive = true;
+    const ac = new AbortController();
     api
-      .get<Category[]>("/api/admin/categories")
-      .then(setCats)
-      .catch(() => setCats([]));
+      .get<Category[]>("/api/admin/categories", { signal: ac.signal })
+      .then((d) => alive && setCats(d))
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        if (alive) setCats([]);
+      });
     api
-      .get<ProductAddon[]>("/api/admin/addons")
-      .then(setAvailableAddons)
-      .catch(() => {});
+      .get<ProductAddon[]>("/api/admin/addons", { signal: ac.signal })
+      .then((d) => alive && setAvailableAddons(d))
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        // ignore — addons are optional
+      });
+    return () => {
+      alive = false;
+      ac.abort();
+    };
   }, []);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -352,7 +364,27 @@ export const AdminProductEditor: React.FC<{
                   className="gallery-picker"
                   onClick={() => {
                     const url = prompt("Enter Image URL:");
-                    if (url) set("image", url);
+                    if (!url) return;
+                    // Validate scheme client-side: backend rejects too, but a
+                    // browser UX hint is friendlier than a 400 round-trip and
+                    // keeps the modern-storefront preview from briefly
+                    // rendering <img src="javascript:..."> (inert in modern
+                    // engines but still leaves a broken-image flicker).
+                    try {
+                      const trimmed = url.trim();
+                      if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+                        set("image", trimmed);
+                        return;
+                      }
+                      const u = new URL(trimmed);
+                      if (u.protocol !== "https:" && u.protocol !== "http:") {
+                        alert("Image URL must use http(s) or be an absolute /path");
+                        return;
+                      }
+                      set("image", trimmed);
+                    } catch {
+                      alert("Invalid image URL");
+                    }
                   }}
                 >
                   {form.image ? (
