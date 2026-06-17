@@ -54,9 +54,22 @@ export const SESSION_COOKIE = "sid";
 
 const sha256hex = (s: string) => createHash("sha256").update(s).digest("hex");
 
+/**
+ * Optional context passed to createSession()/validateSession() so the
+ * device-list UI can surface where each session came from. All fields
+ * are best-effort — clientIp() upstream already collapses an X-Forwarded-
+ * For chain to one address, and a missing User-Agent header just stores
+ * NULL.
+ */
+export type SessionContext = {
+  ip?: string | null;
+  userAgent?: string | null;
+};
+
 export async function createSession(
   userId: string,
   role: "customer" | "admin" = "customer",
+  ctx: SessionContext = {},
 ): Promise<{ token: string; expiresAt: number }> {
   const token = randomBytes(32).toString("hex"); // 256-bit
   const id = sha256hex(token);
@@ -65,18 +78,28 @@ export async function createSession(
   const lifetimeMs = role === "admin" ? ADMIN_ABSOLUTE_MAX_MS : THIRTY_DAYS_MS;
   const expiresAt = Date.now() + lifetimeMs;
   const now = new Date();
+  // Truncate the UA so a pathological 100KB header can't bloat a row.
+  // 500 chars covers every legitimate real-world UA with margin.
+  const ua = ctx.userAgent ? ctx.userAgent.slice(0, 500) : null;
+  const ip = ctx.ip ?? null;
   await db.insert(sessions).values({
     token: id,
     userId,
     expiresAt: new Date(expiresAt),
     lastSeenAt: now,
+    ipAddress: ip,
+    userAgent: ua,
+    lastIp: ip,
   });
   return { token, expiresAt };
 }
 
 export type SessionUser = { id: string; email: string; role: "customer" | "admin" };
 
-export async function validateSession(token: string | undefined): Promise<SessionUser | null> {
+export async function validateSession(
+  token: string | undefined,
+  ctx: { ip?: string | null } = {},
+): Promise<SessionUser | null> {
   if (!token) return null;
   const id = sha256hex(token);
   const rows = await db.select().from(sessions).where(eq(sessions.token, id));
@@ -107,13 +130,16 @@ export async function validateSession(token: string | undefined): Promise<Sessio
     return null;
   }
 
-  // Touch lastSeenAt at most once per LAST_SEEN_REFRESH_MS — keeps writes cheap
-  // (high-traffic users would otherwise write on every request) while still
-  // bounding the idle-eviction granularity.
+  // Touch lastSeenAt at most once per LAST_SEEN_REFRESH_MS — keeps writes
+  // cheap (high-traffic users would otherwise write on every request) while
+  // still bounding the idle-eviction granularity. Refresh lastIp at the
+  // same cadence so the device-list UI reflects roaming (mobile → wifi)
+  // without a write per request.
   if (now - lastSeenMs > LAST_SEEN_REFRESH_MS) {
+    const newIp = ctx.ip ?? row.lastIp ?? null;
     await db
       .update(sessions)
-      .set({ lastSeenAt: new Date(now) })
+      .set({ lastSeenAt: new Date(now), lastIp: newIp })
       .where(eq(sessions.token, id));
   }
 

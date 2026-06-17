@@ -104,8 +104,13 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
         }
       }
 
-      // 4) auto-login the new admin
-      const { token, expiresAt } = await createSession(created.id);
+      // 4) auto-login the new admin. Pass role so the session row gets the
+      // 8h admin cap (not 30d customer ceiling); capture IP+UA for the
+      // device-list UI.
+      const { token, expiresAt } = await createSession(created.id, "admin", {
+        ip,
+        userAgent: request.headers.get("user-agent"),
+      });
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       set.status = 201;
       return { ok: true, adminId: created.id, email: created.email };

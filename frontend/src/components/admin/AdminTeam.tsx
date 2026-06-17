@@ -34,7 +34,49 @@ interface AdminSession {
   createdAt: string;
   lastSeenAt: string;
   expiresAt: string;
+  // Migration 0007 surfaces these. NULL on pre-migration rows; the UI
+  // shows "Unknown" in that case rather than dropping the row.
+  ipAddress: string | null;
+  lastIp: string | null;
+  userAgent: string | null;
   current: boolean;
+}
+
+/**
+ * Squeeze a User-Agent string down to "<Browser> · <OS>" for the table
+ * cell. Real UAs are long and noisy ("Mozilla/5.0 (Windows NT 10.0;
+ * Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0
+ * Safari/537.36"); we want at-a-glance "Chrome · Windows" which is
+ * what Sellauth and Whop show.
+ */
+function summarizeUserAgent(ua: string | null): string {
+  if (!ua) return "Unknown";
+  // Order matters: Edg, OPR, and Firefox UAs all also contain "Chrome",
+  // so check the derivative-browser tokens first and only fall through
+  // to Chrome / Safari for the base case.
+  const browser = ua.includes("Edg/")
+    ? "Edge"
+    : ua.includes("OPR/")
+      ? "Opera"
+      : ua.includes("Firefox/")
+        ? "Firefox"
+        : ua.includes("Chrome/")
+          ? "Chrome"
+          : ua.includes("Safari/")
+            ? "Safari"
+            : "Browser";
+  const os = ua.includes("Windows NT")
+    ? "Windows"
+    : ua.includes("Mac OS X")
+      ? "macOS"
+      : ua.includes("Android")
+        ? "Android"
+        : /iPhone|iPad/.test(ua)
+          ? "iOS"
+          : ua.includes("Linux")
+            ? "Linux"
+            : "";
+  return os ? `${browser} · ${os}` : browser;
 }
 
 /**
@@ -159,9 +201,10 @@ const AdminSessionsCard: React.FC = () => {
           <thead>
             <tr>
               <th>Session</th>
+              <th>Device</th>
+              <th>IP</th>
               <th>Started</th>
               <th>Last seen</th>
-              <th>Expires</th>
               <th></th>
             </tr>
           </thead>
@@ -179,9 +222,23 @@ const AdminSessionsCard: React.FC = () => {
                     </span>
                   )}
                 </td>
-                <td>{new Date(s.createdAt).toLocaleString()}</td>
-                <td>{new Date(s.lastSeenAt).toLocaleString()}</td>
-                <td>{new Date(s.expiresAt).toLocaleString()}</td>
+                <td title={s.userAgent ?? ""} style={{ fontSize: ".82rem" }}>
+                  {summarizeUserAgent(s.userAgent)}
+                </td>
+                <td style={{ fontSize: ".82rem" }}>
+                  <code>{s.lastIp ?? s.ipAddress ?? "Unknown"}</code>
+                  {s.lastIp && s.ipAddress && s.lastIp !== s.ipAddress && (
+                    <div className="muted" style={{ fontSize: ".72rem", marginTop: 2 }}>
+                      started: <code>{s.ipAddress}</code>
+                    </div>
+                  )}
+                </td>
+                <td style={{ fontSize: ".82rem" }}>
+                  {new Date(s.createdAt).toLocaleString()}
+                </td>
+                <td style={{ fontSize: ".82rem" }}>
+                  {new Date(s.lastSeenAt).toLocaleString()}
+                </td>
                 <td style={{ textAlign: "right" }}>
                   {!s.current && (
                     <button

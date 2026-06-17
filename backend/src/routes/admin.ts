@@ -32,7 +32,7 @@ import {
   setProviderEnabled,
   setProviderField,
 } from "../lib/payments.ts";
-import { rateLimitCheck } from "../lib/rate-limit.ts";
+import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { getAllSettings, setSetting } from "../lib/settings.ts";
 import { SETTINGS_SCHEMA } from "../lib/settings-schema.ts";
 import { uniqueSlug } from "../lib/slug.ts";
@@ -142,7 +142,13 @@ async function variantKeyCounts(productIds: string[]) {
 // Every /api/admin/* route requires an admin session. Instance-level guard applies to all.
 export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .onBeforeHandle(async ({ cookie, status, request, set }) => {
-    const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
+    // Pass clientIp so the session's lastIp refresh tracks roaming — the
+    // device-list UI then surfaces a session that started on home wifi
+    // and resurfaced from a totally different country.
+    const user = await validateSession(
+      cookie[SESSION_COOKIE]?.value as string | undefined,
+      { ip: clientIp(request) },
+    );
     if (!user) return status(401, { error: "Authentication required", code: "UNAUTHENTICATED" });
     if (user.role !== "admin") return status(403, { error: "Admin only", code: "FORBIDDEN" });
     // Defense-in-depth: cap admin mutation rate per user id. GET reads remain
@@ -1719,6 +1725,14 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         createdAt: s.createdAt,
         lastSeenAt: s.lastSeenAt,
         expiresAt: s.expiresAt,
+        // IP + UA captured at createSession() (migration 0007). NULL for
+        // pre-migration rows; the UI displays "Unknown" for that case.
+        // lastIp can differ from ipAddress when the session roamed —
+        // surfacing both lets the operator spot a session that started on
+        // home wifi and resurfaced from a different country.
+        ipAddress: s.ipAddress,
+        lastIp: s.lastIp,
+        userAgent: s.userAgent,
         current: s.token === currentId,
       })),
     };

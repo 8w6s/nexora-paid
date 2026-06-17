@@ -80,7 +80,7 @@ export const coupons = sqliteTable(
   (t) => ({ codeUnique: uniqueIndex("coupons_code_unique").on(t.code) }),
 );
 
-/* ──────────────────────────── sessions ─────────────────────────── */
+/* ──────────────────────────── sessions ────────────────── */
 export const sessions = sqliteTable(
   "sessions",
   {
@@ -98,6 +98,16 @@ export const sessions = sqliteTable(
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
+    // Per-session metadata captured at createSession() so the admin Profile
+    // UI can render an accurate "logged in devices" list and let the operator
+    // revoke a single suspicious session knowing where it came from.
+    // Migration 0007 adds these as nullable so existing sessions keep
+    // validating; new sessions populate them up-front. lastIp refreshes
+    // alongside lastSeenAt to track session roaming (mobile → wifi, or —
+    // alarmingly — a different country).
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    lastIp: text("last_ip"),
   },
   (t) => ({
     userIdx: index("sessions_user_idx").on(t.userId),

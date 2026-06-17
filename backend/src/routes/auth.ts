@@ -100,7 +100,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       // Emit hook for plugins (welcome email, CRM sync, etc.)
       hookBus.emit("user.created", { userId: id, email }).catch(() => {});
 
-      const { token, expiresAt } = await createSession(id);
+      const { token, expiresAt } = await createSession(id, "customer", { ip, userAgent: request.headers.get("user-agent") });
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       void logAuthEvent(email, "register", ip);
       set.status = 201;
@@ -180,7 +180,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       lockoutReset(lockKey);
       // Pass role so admin sessions get the 8h hard cap rather than the
       // 30d customer ceiling. SOC2 / ISO 27001 baseline for admin re-auth.
-      const { token, expiresAt } = await createSession(user.id, user.role);
+      const { token, expiresAt } = await createSession(user.id, user.role, { ip, userAgent: request.headers.get("user-agent") });
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       void logAuthEvent(email, "login.ok", ip, user.role === "admin" ? "(admin)" : undefined);
       return { id: user.id, email: user.email, role: user.role };
