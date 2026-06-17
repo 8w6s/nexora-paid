@@ -12,6 +12,7 @@ import {
 import { printBootBanner } from "./lib/banner.ts";
 import { EmailService } from "./lib/email.ts";
 import { loadPlugins } from "./lib/plugin/loader.ts";
+import { clientIp, rateLimitCheck } from "./lib/rate-limit.ts";
 import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watcher.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
@@ -199,21 +200,46 @@ const baseApp = new Elysia()
 
   .get("/api/health", () => ({ ok: true }))
 
+  // Client error sink. Hardened post-audit:
+  //  1) Per-IP rate limit (30/min) so a hostile client can't drown the log
+  //     pipeline or waste disk.
+  //  2) All user-controlled strings are length-capped and stripped of ASCII
+  //     control chars (incl. ANSI escapes) BEFORE concatenation, so a
+  //     malicious payload can't hijack the operator's terminal or forge
+  //     fake "[SEVERITY:HIGH]" lines next to real alerts.
+  //  3) The body's `severity` is logged as advisory only; the line tag is
+  //     hard-coded CLIENT_REPORT so server-emitted [ERROR] alerts remain
+  //     distinguishable.
   .post(
     "/api/log-error",
-    ({ body }) => {
-      const { message, severity, stack, url } = body as any;
+    ({ body, request, set }) => {
+      const ip = clientIp(request);
+      const rl = rateLimitCheck(`log-error:${ip}`, 30, 60_000);
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return { error: "Too many requests", code: "RATE_LIMITED" };
+      }
+      const sanitize = (s: unknown, max: number): string =>
+        typeof s === "string"
+          ? s.replace(/[\x00-\x1F\x7F]/g, " ").slice(0, max)
+          : "";
+      const msg = sanitize(body.message, 2048) || "(empty)";
+      const stack = sanitize(body.stack, 2048);
+      const url = sanitize(body.url, 1024);
+      const sev =
+        body.severity === "HIGH" || body.severity === "MEDIUM" ? body.severity : "LOW";
       console.error(
-        `[ERROR] [SEVERITY:${severity || "LOW"}] \x1b[41m\x1b[97m CLIENT ERR \x1b[0m \x1b[31m${message || "Unknown error"} at ${url || "unknown"}${stack ? " - Stack: " + stack : ""}\x1b[0m`,
+        `[CLIENT_REPORT] [advisory:${sev}] [ip:${ip}] ${msg} | url=${url}${stack ? ` | stack=${stack}` : ""}`,
       );
       return { ok: true };
     },
     {
       body: t.Object({
-        message: t.String(),
+        message: t.String({ maxLength: 4096 }),
         severity: t.Optional(t.Union([t.Literal("LOW"), t.Literal("MEDIUM"), t.Literal("HIGH")])),
-        stack: t.Optional(t.String()),
-        url: t.Optional(t.String()),
+        stack: t.Optional(t.String({ maxLength: 4096 })),
+        url: t.Optional(t.String({ maxLength: 2048 })),
       }),
     },
   )
