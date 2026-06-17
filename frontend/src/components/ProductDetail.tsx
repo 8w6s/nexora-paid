@@ -16,8 +16,8 @@ import { ProductReviews } from "./ProductReviews";
 function stripHtml(html: string): string {
   if (!html) return "";
   return html
-    .replace(/<br\s*/?>/gi, " ")
-    .replace(/</(p|div|h[1-6]|li|tr)\s*>/gi, " ")
+    .replace(new RegExp("<br\\s*/?>", "gi"), " ")
+    .replace(new RegExp("</(p|div|h[1-6]|li|tr)\\s*>", "gi"), " ")
     .replace(/<[^>]*>/g, "")
     .replace(/ /g, " ")
     .replace(/</g, "<")
