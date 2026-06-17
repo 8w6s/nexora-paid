@@ -1740,4 +1740,51 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       );
     }
     return { ok: true, revokedSessions: revoked };
-  });
+  })
+
+  /* ───────── Account: revoke ONE specific session ─────────
+   * Lets the operator kill a single suspicious row from the device list
+   * without nuking every other cookie they own (the "Logout Other Devices"
+   * button is the nuclear option; this is the surgical one). The id param
+   * is the 12-char token prefix the GET endpoint returns — we filter rows
+   * by (userId == adminId) AND token starts with that prefix, which is
+   * unique enough across one admin's small session set to pin a single
+   * row. Refuses to revoke the actor's own current session — use logout
+   * for that.
+   */
+  .post(
+    "/account/sessions/:id/revoke",
+    async ({ params: { id }, set, adminId, adminEmail, currentToken }) => {
+      // Reject malformed prefixes up front so a typo can't accidentally
+      // delete-by-prefix-collision against another admin's session row.
+      if (typeof id !== "string" || id.length < 8 || !/^[0-9a-f]+$/.test(id)) {
+        set.status = 400;
+        return { error: "Invalid session id", code: "BAD_ID" };
+      }
+      const currentId = currentToken
+        ? createHash("sha256").update(currentToken).digest("hex")
+        : null;
+      // Load only this admin's sessions so we can never delete another
+      // user's row even if a prefix collision existed cross-account.
+      const own = await db.select().from(sessions).where(eq(sessions.userId, adminId));
+      const target = own.find((s) => s.token.startsWith(id));
+      if (!target) {
+        set.status = 404;
+        return { error: "Session not found", code: "NOT_FOUND" };
+      }
+      if (target.token === currentId) {
+        set.status = 400;
+        return {
+          error: "Refusing to revoke the current session — use logout instead",
+          code: "SELF_REVOKE",
+        };
+      }
+      await db.delete(sessions).where(eq(sessions.token, target.token));
+      await logAdminAction(
+        adminEmail,
+        "account.sessions.revoke_one",
+        `Revoked session ${id} from Profile`,
+      );
+      return { ok: true };
+    },
+  );
