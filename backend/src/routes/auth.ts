@@ -164,12 +164,17 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
           // the client just needs to re-submit with the code attached.
           return { error: "2FA code required", code: "TOTP_REQUIRED" };
         }
-        if (!verifyCode(user.totpSecret, code)) {
+        const totpResult = verifyCode(user.totpSecret, code, user.lastTotpCounter);
+        if (!totpResult.ok) {
           lockoutBump(lockKey, LOGIN_LOCKOUT_WINDOW_MS);
           set.status = 401;
           void logAuthEvent(email, "login.2fa_fail", ip);
           return { error: "Invalid 2FA code", code: "BAD_2FA" };
         }
+        await db
+          .update(users)
+          .set({ lastTotpCounter: totpResult.counter })
+          .where(eq(users.id, user.id));
       }
       lockoutReset(lockKey);
       const { token, expiresAt } = await createSession(user.id);

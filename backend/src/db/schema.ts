@@ -43,9 +43,16 @@ export const users = sqliteTable(
     passwordHash: text("password_hash").notNull(),
     role: text("role").$type<"customer" | "admin">().default("customer").notNull(),
     status: text("status").$type<"active" | "banned">().default("active").notNull(),
-    // TOTP 2FA
-    totpSecret: text("totp_secret"),
+    // TOTP 2FA. Secret stored AES-256-GCM-encrypted via the encryptedText
+    // custom type so a DB leak doesn't immediately yield live authenticator
+    // seeds for every admin. lastTotpCounter holds the most recent matched
+    // RFC-6238 step to block 60-90s replay; new rows start at -1 so the
+    // first verification always succeeds. totpBackupCodes is a JSON array
+    // of "saltHex:hashHex" (scrypt) entries; NULL when none enrolled.
+    totpSecret: encryptedText("totp_secret"),
     totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
+    lastTotpCounter: integer("last_totp_counter").notNull().default(-1),
+    totpBackupCodes: text("totp_backup_codes"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),

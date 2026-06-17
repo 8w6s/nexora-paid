@@ -30,6 +30,7 @@ export async function logAuthEvent(
     | "login.ok"
     | "login.fail"
     | "login.locked"
+    | "login.2fa_fail"
     | "register"
     | "logout"
     | "register.dup"
