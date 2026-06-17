@@ -147,6 +147,7 @@ export const AdminCustomers: React.FC = () => {
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; text-align: left; }
         th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+        td:last-child, th:last-child { text-align: right; }
         th { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); background: var(--surface-2); }
         .num { text-align: right; font-variant-numeric: tabular-nums; }
         .email { font-weight: 600; font-size: .88rem; }
