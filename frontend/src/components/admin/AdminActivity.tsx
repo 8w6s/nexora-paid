@@ -96,6 +96,17 @@ const META: Record<string, { label: string; tone: string }> = {
     label: "Customer change-password refused (bad current)",
     tone: "bad",
   },
+  // Customer self-service email change. The "ok" event renames the
+  // primary key on an account so it's "warn" — legitimate but worth
+  // surfacing. bad_current is "bad" (credential-stuffing signature),
+  // taken/same just record the rejection without a tone hit.
+  "change_email.ok": { label: "Customer changed email", tone: "warn" },
+  "change_email.bad_current": {
+    label: "Customer change-email refused (bad current)",
+    tone: "bad",
+  },
+  "change_email.same": { label: "Change-email no-op (same address)", tone: "neutral" },
+  "change_email.taken": { label: "Change-email refused (already in use)", tone: "warn" },
 };
 
 export const AdminActivity: React.FC = () => {

@@ -541,6 +541,135 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     },
   )
 
+  /* ───────── self-service email change (logged-in customer) ───────── */
+  // The email column is the customer's primary identifier (it's how they
+  // log in, where order receipts go, where the password-reset link lands).
+  // Without a self-service rotation a typo at register, a typoed re-bind,
+  // or simply moving providers locks the customer out of their own /orders
+  // permanently. Sellauth's profile General form has the same field —
+  // they accept current password to confirm and update in place. Mirror.
+  //
+  // Hardening:
+  //  - currentPassword must verify against the stored argon2id so a
+  //    stolen cookie alone can't change the address (which would lock
+  //    out the legitimate owner via the password-reset email landing
+  //    in the attacker's mailbox).
+  //  - newEmail must differ; UNIQUE constraint on users.email surfaces
+  //    as 409 EMAIL_TAKEN so we don't 500.
+  //  - revokeOtherSessions on success — every cookie minted under the
+  //    old email is invalidated.
+  //  - Best-effort notify to the OLD address (lazy fire-and-forget so
+  //    the response isn't blocked) so a legitimate owner who didn't
+  //    request the change has a paper trail to recover from.
+  //  - Per-user rate-limit shared with /change-password's bucket so
+  //    an attacker can't grind currentPassword via the email path
+  //    after exhausting the password path.
+  .post(
+    "/change-email",
+    async ({ body, cookie, request, set }) => {
+      const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+      const sessionUser = await validateSession(tok);
+      if (!sessionUser) {
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
+      if (sessionUser.role !== "customer") {
+        set.status = 403;
+        return { error: "Admin email change not supported here", code: "WRONG_ROLE" };
+      }
+
+      const ip = clientIp(request);
+      const CHANGE_RATE_MAX = 5;
+      const CHANGE_RATE_WINDOW_MS = 15 * 60_000;
+      // Share the bucket with /change-password — both verify currentPassword
+      // and a hijacker cycling between the two would otherwise get 2× the
+      // attempts before hitting the wall.
+      const rl = rateLimitCheck(
+        `change-password:${sessionUser.id}`,
+        CHANGE_RATE_MAX,
+        CHANGE_RATE_WINDOW_MS,
+      );
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return {
+          error: "Too many attempts, slow down",
+          code: "RATE_LIMITED",
+          retryAfterMs: rl.resetMs,
+        };
+      }
+
+      const newEmail = normalizeEmail(body.newEmail);
+      const oldEmail = sessionUser.email;
+      if (newEmail === oldEmail) {
+        void logAuthEvent(oldEmail, "change_email.same", ip);
+        set.status = 400;
+        return { error: "New email must differ from current", code: "SAME_EMAIL" };
+      }
+
+      const dbUser = (await db.select().from(users).where(eq(users.id, sessionUser.id)))[0];
+      if (!dbUser) {
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
+
+      const ok = await verifyPassword(body.currentPassword, dbUser.passwordHash);
+      if (!ok) {
+        void logAuthEvent(oldEmail, "change_email.bad_current", ip);
+        set.status = 401;
+        return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+      }
+
+      // Race-safe: rely on the UNIQUE index on users.email. Pre-select
+      // is a UX shortcut; the UPDATE below would have failed the same
+      // way on collision, this just lets us return 409 cleanly.
+      const taken = (await db.select().from(users).where(eq(users.email, newEmail)))[0];
+      if (taken && taken.id !== dbUser.id) {
+        void logAuthEvent(oldEmail, "change_email.taken", ip, `(attempted ${newEmail})`);
+        set.status = 409;
+        return { error: "That email is already in use", code: "EMAIL_TAKEN" };
+      }
+
+      try {
+        await db.update(users).set({ email: newEmail }).where(eq(users.id, dbUser.id));
+      } catch {
+        // Lost the UNIQUE race or some other constraint failure.
+        set.status = 409;
+        return { error: "That email is already in use", code: "EMAIL_TAKEN" };
+      }
+
+      // Sweep every other session — old cookies that authenticated under
+      // the previous email reference are gone. Actor's current session
+      // survives so they don't bounce mid-flow.
+      const revoked = await revokeOtherSessions(dbUser.id, tok);
+
+      // Best-effort notify to the OLD address. Fire-and-forget so the
+      // response isn't blocked on the email provider; if the provider is
+      // unconfigured the send returns {skipped:true} and we don't care.
+      EmailService.emailChangedNotice(oldEmail, newEmail)
+        .then((r) => {
+          if ("error" in r) {
+            console.warn(`[email] change-email notice to ${oldEmail} failed: ${r.error}`);
+          }
+        })
+        .catch(() => {});
+
+      void logAuthEvent(
+        oldEmail,
+        "change_email.ok",
+        ip,
+        `→ ${newEmail}${revoked > 0 ? ` (revoked ${revoked} session${revoked === 1 ? "" : "s"})` : ""}`,
+      );
+      return { ok: true, email: newEmail, revokedSessions: revoked };
+    },
+    {
+      body: t.Object({
+        currentPassword: t.String({ minLength: 1, maxLength: 200 }),
+        newEmail: t.String({ format: "email", maxLength: 254 }),
+      }),
+    },
+  )
+
   /* ───────── customer device list + per-row revoke ────────
    * Counterpart of the AdminTeam sessions card for customer accounts.
    * Sellauth's user profile shows every device the account is signed

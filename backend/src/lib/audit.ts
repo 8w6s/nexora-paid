@@ -51,7 +51,15 @@ export async function logAuthEvent(
     // the AdminTeam rotation card). bad_current covers "current password
     // didn't match" so probing patterns surface in the activity log.
     | "change_password.ok"
-    | "change_password.bad_current",
+    | "change_password.bad_current"
+    // Customer self-service email change (logged-in flow). same_email
+    // and email_taken don't actually rotate so they're "neutral"; the
+    // ok event is "warn" because changing the primary key on an account
+    // is worth seeing in the log.
+    | "change_email.ok"
+    | "change_email.bad_current"
+    | "change_email.same"
+    | "change_email.taken",
   ip: string,
   detail?: string,
 ): Promise<void> {

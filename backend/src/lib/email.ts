@@ -151,6 +151,22 @@ export const EmailService = {
       subject: safeHeader("Reset your Nexora password"),
       ...renderPasswordReset(resetUrl, expiresMinutes),
     }),
+  // Notify the OLD address when the email-on-record changes. Best-effort —
+  // if email is unconfigured / fails the change still proceeds, but a
+  // legitimate owner who didn't request it gets a heads-up to recover.
+  emailChangedNotice: (to: string, newEmail: string) => {
+    const safeNew = safeHeader(newEmail, 254).replace(/[<>"']/g, "");
+    return send({
+      to,
+      subject: safeHeader("Your Nexora account email was changed"),
+      html: `<p>The email address on your Nexora account was just changed to <strong>${esc(safeNew)}</strong>.</p><p>If you did this, you can ignore this message. If you did NOT do this, contact the shop operator immediately — your account may have been compromised.</p>`,
+      text: `The email address on your Nexora account was just changed to ${safeNew}.
+
+If you did this, ignore this message. If you did NOT do this, contact the shop operator immediately — your account may have been compromised.
+
+— Nexora`,
+    });
+  },
   lowStockAlert: (to: string, productName: string, remaining: number) => {
     // Sanitize the subject line so an attacker who can name a product can't
     // smuggle CRLF / quotes into the SMTP envelope (header injection).
