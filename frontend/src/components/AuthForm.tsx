@@ -1,5 +1,5 @@
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiRequestError } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { Icon } from "./Icon";
@@ -16,6 +16,15 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
   const [needs2fa, setNeeds2fa] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // querySearch must start as "" to match the SSR'd HTML (server has no
+  // window.location). After hydration we read the real query string and the
+  // switch links update to preserve ?redirect=... — without this two-pass
+  // approach React reports a hydration mismatch on every login page hit
+  // arived at via a redirect.
+  const [querySearch, setQuerySearch] = useState("");
+  useEffect(() => {
+    setQuerySearch(window.location.search);
+  }, []);
 
   const redirectTarget = () => {
     if (typeof window === "undefined") return "/";
@@ -45,7 +54,6 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
   };
 
   const isLogin = mode === "login";
-  const querySearch = typeof window !== "undefined" ? window.location.search : "";
 
   return (
     <main className="container auth-page">
