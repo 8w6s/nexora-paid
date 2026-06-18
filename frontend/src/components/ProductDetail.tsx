@@ -79,24 +79,13 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
 
   return (
     <div className="pd container">
+      {/* Real anchors so middle-click opens a new tab and screen readers
+          announce them as links — the previous span+onClick rendered as
+          plain StaticText in the a11y tree. */}
       <nav className="crumbs" aria-label="Breadcrumb">
-        <span
-          style={{ cursor: "pointer" }}
-          onClick={() => {
-            window.location.href = "/";
-          }}
-        >
-          Home
-        </span>
+        <a href="/">Home</a>
         <span>/</span>
-        <span
-          style={{ cursor: "pointer" }}
-          onClick={() => {
-            window.location.href = `/?category=${encodeURIComponent(product.category)}`;
-          }}
-        >
-          {product.category}
-        </span>
+        <a href={`/?category=${encodeURIComponent(product.category)}`}>{product.category}</a>
         <span>/</span>
         <span aria-current="page">{product.name}</span>
       </nav>
@@ -294,7 +283,7 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
       <style>{`
         .pd { padding: 22px 20px 70px; }
         .crumbs { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--ink-faint); margin-bottom: 18px; flex-wrap: wrap; }
-        .crumbs a { color: var(--ink-soft); font-weight: 500; }
+        .crumbs a { color: var(--ink-soft); font-weight: 500; text-decoration: none; cursor: pointer; }
         .crumbs a:hover { color: var(--brand); }
         .crumbs span[aria-current] { color: var(--ink); font-weight: 600; }
         .pd-grid { display: grid; grid-template-columns: minmax(280px, 0.9fr) 1.1fr; gap: 30px; align-items: start; }
