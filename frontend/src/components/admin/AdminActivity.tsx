@@ -107,6 +107,15 @@ const META: Record<string, { label: string; tone: string }> = {
   },
   "change_email.same": { label: "Change-email no-op (same address)", tone: "neutral" },
   "change_email.taken": { label: "Change-email refused (already in use)", tone: "warn" },
+  // GDPR Art. 17 self-service erasure. ok is "warn" because deleting
+  // an account is legitimate but worth surfacing (an operator scanning
+  // the audit log probably cares); bad_current is "bad" — same
+  // credential-stuffing signature as the other rotation flows.
+  "account.delete.ok": { label: "Customer deleted account", tone: "warn" },
+  "account.delete.bad_current": {
+    label: "Account-delete refused (bad current)",
+    tone: "bad",
+  },
 };
 
 export const AdminActivity: React.FC = () => {

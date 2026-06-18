@@ -59,7 +59,13 @@ export async function logAuthEvent(
     | "change_email.ok"
     | "change_email.bad_current"
     | "change_email.same"
-    | "change_email.taken",
+    | "change_email.taken"
+    // Customer self-service account deletion (GDPR Art. 17 right to
+    // erasure). Soft-delete to preserve order/tax history; PII is
+    // scrubbed from the users row and the original email is fred up
+    // so the customer can re-register fresh later.
+    | "account.delete.ok"
+    | "account.delete.bad_current",
   ip: string,
   detail?: string,
 ): Promise<void> {

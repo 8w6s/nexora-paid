@@ -115,8 +115,11 @@ export async function validateSession(
 
   const u = (await db.select().from(users).where(eq(users.id, row.userId)))[0];
   if (!u) return null;
-  // Refuse banned customers even if their session row hasn't been swept yet.
-  if (u.status === "banned") {
+  // Refuse banned OR deleted customers even if their session row hasn't
+  // been swept yet. "deleted" is the soft-delete state set by the GDPR
+  // erasure flow — the user's PII has been scrubbed and they cannot
+  // log in again under the deleted-...@deleted.invalid email value.
+  if (u.status === "banned" || u.status === "deleted") {
     await db.delete(sessions).where(eq(sessions.token, id));
     return null;
   }

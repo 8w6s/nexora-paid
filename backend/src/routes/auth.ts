@@ -779,7 +779,116 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       );
       return { ok: true };
     },
-  );
+  )
+
+  /* ───────── self-service account deletion (GDPR Art. 17) ───────── */
+  // Sellauth and Whop both ship a "Delete account" surface on the user
+  // profile. EU customers have a legal right to erasure under GDPR
+  // Article 17; for a self-host MVP that may operate in the EU we close
+  // the gap so the operator doesn't have to field manual requests.
+  //
+  // Soft-delete, NOT hard-delete, because:
+  //  - orders.userId has onDelete: "restrict" — a customer with even
+  //    one historical order cannot be removed without orphaning order
+  //    history that the operator legally needs to keep for tax records
+  //    (typically 7+ years in most jurisdictions).
+  //  - GDPR Art. 17(3)(b) explicitly carves out "compliance with a
+  //    legal obligation" — receipts and tax records survive erasure.
+  // What we DO scrub from the users row to satisfy the spirit of the
+  // erasure right:
+  //  - email becomes `deleted-<userId>@deleted.invalid` (the .invalid
+  //    TLD is reserved per RFC 2606 so it will never route anywhere).
+  //    UNIQUE-safe via the userId qualifier; the original address is
+  //    freed up so the same person can re-register fresh later.
+  //  - passwordHash is replaced with a 64-char random hex that does
+  //    not match the argon2id format. verifyPassword returns false on
+  //    it, so even a known-original-password attacker cannot log back
+  //    in. Combined with status="deleted" the validateSession path
+  //    refuses the row at every entry point.
+  //  - totp{Enabled,Secret,BackupCodes} all cleared.
+  //  - status flips to "deleted" — every login + session validate path
+  //    refuses it the same way it refuses "banned".
+  //
+  // What we DELETE outright:
+  //  - sessions for this user (no live cookies survive).
+  //  - password_resets for this user (no outstanding reset links).
+  //
+  // What we DON'T touch:
+  //  - orders, order_items, product_keys.orderId — operator's tax
+  //    records.
+  //  - reviews — public commentary; the masked email cell will read
+  //    "de***@deleted.invalid" which is functionally anonymous, and
+  //    deleting them would be subjective censorship of legitimate
+  //    feedback.
+  //  - tickets — operator may need the conversation context for an
+  //    open dispute; the email field surfaces the anonymized address.
+  .post("/delete-account", async ({ body, cookie, request, set }) => {
+    const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+    const sessionUser = await validateSession(tok);
+    if (!sessionUser) {
+      set.status = 401;
+      return { error: "Authentication required", code: "UNAUTHENTICATED" };
+    }
+    if (sessionUser.role !== "customer") {
+      set.status = 403;
+      return { error: "Admin accounts cannot self-delete here", code: "WRONG_ROLE" };
+    }
+
+    const ip = clientIp(request);
+    const dbUser = (await db.select().from(users).where(eq(users.id, sessionUser.id)))[0];
+    if (!dbUser) {
+      set.status = 401;
+      return { error: "Authentication required", code: "UNAUTHENTICATED" };
+    }
+
+    const ok = await verifyPassword(body.currentPassword, dbUser.passwordHash);
+    if (!ok) {
+      void logAuthEvent(dbUser.email, "account.delete.bad_current", ip);
+      set.status = 401;
+      return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+    }
+
+    // Build the anonymized values OUTSIDE the transaction so we don't
+    // hold a write tx open longer than the writes need.
+    const anonEmail = `deleted-${dbUser.id}@deleted.invalid`;
+    const deadHash = randomBytes(32).toString("hex");
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(users)
+          .set({
+            email: anonEmail,
+            passwordHash: deadHash,
+            totpEnabled: false,
+            totpSecret: null,
+            totpBackupCodes: null,
+            lastTotpCounter: -1,
+            status: "deleted",
+          })
+          .where(eq(users.id, dbUser.id));
+        await tx.delete(sessions).where(eq(sessions.userId, dbUser.id));
+        await tx.delete(passwordResets).where(eq(passwordResets.userId, dbUser.id));
+      });
+    } catch {
+      set.status = 500;
+      return { error: "Could not delete account, try again", code: "DELETE_FAILED" };
+    }
+
+    // Clear the actor's cookie so they don't see a stale "signed in"
+    // shell on the next page load. The cookie is already invalid because
+    // we deleted the sessions row inside the tx, but a fresh /me poll
+    // would 401 anyway — clearing keps the UX tidy.
+    cookie[SESSION_COOKIE]?.remove();
+
+    void logAuthEvent(dbUser.email, "account.delete.ok", ip, `→ ${anonEmail}`);
+    return { ok: true };
+  },
+  {
+    body: t.Object({
+      currentPassword: t.String({ minLength: 1, maxLength: 200 }),
+    }),
+  });
 
 /* ───────── bootstrap single admin from env ───────── */
 // ADMIN_EMAIL + ADMIN_PASSWORD_HASH (an argon2id hash). If only ADMIN_PASSWORD (plaintext) is set

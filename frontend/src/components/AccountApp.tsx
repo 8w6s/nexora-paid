@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect } from "react";
+import { AccountDangerCard } from "./AccountDangerCard";
 import { AccountEmailCard } from "./AccountEmailCard";
 import { AccountPasswordCard } from "./AccountPasswordCard";
 import { AccountSessionsCard } from "./AccountSessionsCard";
@@ -45,6 +46,7 @@ const AccountInner: React.FC = () => {
         <AccountEmailCard />
         <AccountPasswordCard />
         <AccountSessionsCard />
+        <AccountDangerCard />
       </div>
 
       <style>{`

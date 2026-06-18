@@ -42,7 +42,7 @@ export const users = sqliteTable(
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     role: text("role").$type<"customer" | "admin">().default("customer").notNull(),
-    status: text("status").$type<"active" | "banned">().default("active").notNull(),
+    status: text("status").$type<"active" | "banned" | "deleted">().default("active").notNull(),
     // TOTP 2FA. Secret stored AES-256-GCM-encrypted via the encryptedText
     // custom type so a DB leak doesn't immediately yield live authenticator
     // seeds for every admin. lastTotpCounter holds the most recent matched
