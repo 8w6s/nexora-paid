@@ -1,8 +1,8 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
-import { passwordResets, users } from "../db/schema.ts";
+import { passwordResets, sessions, users } from "../db/schema.ts";
 import { logAdminAction, logAuthEvent } from "../lib/audit.ts";
 import {
   createSession,
@@ -538,6 +538,117 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         currentPassword: t.String({ minLength: 1, maxLength: 200 }),
         newPassword: t.String({ minLength: 8, maxLength: 200 }),
       }),
+    },
+  )
+
+  /* ───────── customer device list + per-row revoke ────────
+   * Counterpart of the AdminTeam sessions card for customer accounts.
+   * Sellauth's user profile shows every device the account is signed
+   * in on with IP / browser / OS / first+last login + a per-row Logout
+   * button + a "Logout Other Devices" button. Closes the gap so a
+   * customer who suspects their cookie was stolen on a public machine
+   * can self-service the cleanup instead of having to email the operator.
+   *
+   * Token values are NEVER returned. We expose a 12-char prefix of
+   * sha256(token) — enough to identify a row across the audit trail
+   * without ever holding raw cookie material in the response.
+   */
+  .get("/sessions", async ({ cookie, set }) => {
+    const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+    const sessionUser = await validateSession(tok);
+    if (!sessionUser) {
+      set.status = 401;
+      return { error: "Authentication required", code: "UNAUTHENTICATED" };
+    }
+    const rows = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.userId, sessionUser.id))
+      .orderBy(desc(sessions.lastSeenAt));
+    const currentId = tok ? createHash("sha256").update(tok).digest("hex") : null;
+    return {
+      sessions: rows.map((s) => ({
+        // 12-char prefix of the stored sha256 — non-reversible to the
+        // cookie but unique enough to identify a row in the audit log.
+        id: s.token.slice(0, 12),
+        createdAt: s.createdAt,
+        lastSeenAt: s.lastSeenAt,
+        expiresAt: s.expiresAt,
+        ipAddress: s.ipAddress,
+        lastIp: s.lastIp,
+        userAgent: s.userAgent,
+        current: s.token === currentId,
+      })),
+    };
+  })
+
+  /* "Sign out of all other devices" — keps the actor's own session so
+   * they don't immediately bounce back to /login. Best-effort audit via
+   * logAuthEvent so the actor's email shows up in the activity stream
+   * the same way admin revocations do. */
+  .post("/sessions/revoke-others", async ({ cookie, request, set }) => {
+    const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+    const sessionUser = await validateSession(tok);
+    if (!sessionUser) {
+      set.status = 401;
+      return { error: "Authentication required", code: "UNAUTHENTICATED" };
+    }
+    const ip = clientIp(request);
+    const revoked = await revokeOtherSessions(sessionUser.id, tok);
+    if (revoked > 0) {
+      void logAuthEvent(
+        sessionUser.email,
+        "logout",
+        ip,
+        `(revoked ${revoked} other session${revoked === 1 ? "" : "s"} from /account)`,
+      );
+    }
+    return { ok: true, revokedSessions: revoked };
+  })
+
+  /* Surgical per-row revoke. Same shape as the admin endpoint:
+   *   - Reject malformed id prefixes up front (anti-typo, anti-scan).
+   *   - Scope the lookup to (userId == actor.id) so a forged id from
+   *     someone else's account can never match.
+   *   - Refuse self-revoke — actor uses /logout for that path. */
+  .post(
+    "/sessions/:id/revoke",
+    async ({ params: { id }, cookie, set, request }) => {
+      const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+      const sessionUser = await validateSession(tok);
+      if (!sessionUser) {
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
+      if (typeof id !== "string" || id.length < 8 || !/^[0-9a-f]+$/.test(id)) {
+        set.status = 400;
+        return { error: "Invalid session id", code: "BAD_ID" };
+      }
+      const currentId = tok ? createHash("sha256").update(tok).digest("hex") : null;
+      const own = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.userId, sessionUser.id));
+      const target = own.find((s) => s.token.startsWith(id));
+      if (!target) {
+        set.status = 404;
+        return { error: "Session not found", code: "NOT_FOUND" };
+      }
+      if (target.token === currentId) {
+        set.status = 400;
+        return {
+          error: "Refusing to revoke the current session — use logout instead",
+          code: "SELF_REVOKE",
+        };
+      }
+      await db.delete(sessions).where(eq(sessions.token, target.token));
+      void logAuthEvent(
+        sessionUser.email,
+        "logout",
+        clientIp(request),
+        `(revoked session ${id} from /account)`,
+      );
+      return { ok: true };
     },
   );
 

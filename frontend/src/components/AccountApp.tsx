@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect } from "react";
 import { AccountPasswordCard } from "./AccountPasswordCard";
+import { AccountSessionsCard } from "./AccountSessionsCard";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { CartProvider } from "./CartContext";
 import { CartDrawer } from "./CartDrawer";
@@ -41,6 +42,7 @@ const AccountInner: React.FC = () => {
 
       <div className="account-grid">
         <AccountPasswordCard />
+        <AccountSessionsCard />
       </div>
 
       <style>{`
