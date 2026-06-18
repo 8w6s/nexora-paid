@@ -45,6 +45,8 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
   };
 
   const isLogin = mode === "login";
+  const querySearch = typeof window !== "undefined" ? window.location.search : "";
+
   return (
     <main className="container auth-page">
       <div className="auth-card card">
@@ -72,10 +74,10 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
               <label>
                 <span>Password</span>
                 <PasswordInput
-                id="auth-password"
+                  id="auth-password"
                   name="password"
                   value={password}
-                onChange={setPassword}
+                  onChange={setPassword}
                   required
                   minLength={isLogin ? undefined : 8}
                   placeholder={isLogin ? "Your password" : "At least 8 characters"}
@@ -136,31 +138,26 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
             </button>
           )}
         </form>
+        {!needs2fa && isLogin && (
+          // "Forgot password?" sits below the credential fields and above
+          // the create-account switch — Sellauth + Whop both put it here
+          // and it's where users instinctively look. Real <a> with href so
+          // it's keyboard-focusable and middle-clickable, not a span+onClick.
+          <p className="forgot-line">
+            <a href="/forgot">Forgot your password?</a>
+          </p>
+        )}
         {!needs2fa && (
           <p className="switch">
             {isLogin ? (
               <>
                 No account?{" "}
-                <span
-                  style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
-                  onClick={() => {
-                    window.location.href = `/register${window.location.search}`;
-                  }}
-                >
-                  Create one
-                </span>
+                <a href={`/register${querySearch}`}>Create one</a>
               </>
             ) : (
               <>
                 Already have an account?{" "}
-                <span
-                  style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
-                  onClick={() => {
-                    window.location.href = `/login${window.location.search}`;
-                  }}
-                >
-                  Sign in
-                </span>
+                <a href={`/login${querySearch}`}>Sign in</a>
               </>
             )}
           </p>
@@ -175,8 +172,12 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
         label { display: flex; flex-direction: column; gap: 6px; font-size: .82rem; font-weight: 600; color: var(--ink-soft); }
         .hint { font-size: .76rem; color: var(--ink-faint); font-weight: 400; }
         .auth-error { background: var(--price-soft); color: var(--price); padding: 10px 13px; border-radius: var(--radius-sm); font-size: .84rem; }
+        .forgot-line { margin-top: 12px; text-align: right; font-size: .82rem; }
+        .forgot-line a { color: var(--ink-soft); text-decoration: none; }
+        .forgot-line a:hover { color: var(--brand); text-decoration: underline; }
         .switch { margin-top: 18px; text-align: center; font-size: .86rem; color: var(--ink-soft); }
-        .switch a { color: var(--brand); font-weight: 600; }
+        .switch a { color: var(--brand); font-weight: 600; text-decoration: none; }
+        .switch a:hover { text-decoration: underline; }
       `}</style>
     </main>
   );
