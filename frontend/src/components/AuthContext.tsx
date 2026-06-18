@@ -24,13 +24,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Hydrate from /api/auth/me. Swallow 401 (not logged in) as null.
+  // Hydrate from /api/auth/me. Backend returns {user: AuthUser | null} —
+  // 200 in both cases so an anonymous visitor doesn't log a red 401 in
+  // devtools on every page load. Network/parse failures still fall back
+  // to the loged-out state silently.
   const refresh = useCallback(async () => {
     try {
-      const me = await api.get<AuthUser>("/api/auth/me");
-      setUser(me);
+      const res = await api.get<{ user: AuthUser | null }>("/api/auth/me");
+      setUser(res.user);
     } catch (err) {
-      // 401 = not logged in; any other error = treat as logged out without throwing.
       setUser(null);
       void err;
     }

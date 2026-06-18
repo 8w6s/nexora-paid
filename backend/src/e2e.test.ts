@@ -35,7 +35,7 @@ const email = `e2e_${Date.now()}@test.com`;
 const reg = await call("POST", "/api/auth/register", { email, password: "secret123" }, "c");
 ok("register", reg.status === 201, `id=${reg.data.id}`);
 const me = await call("GET", "/api/auth/me", undefined, "c");
-ok("me after register", me.status === 200 && me.data.email === email);
+ok("me after register", me.status === 200 && me.data.user?.email === email);
 const noauth = await call("POST", "/api/checkout", { items: [{ productId: "prod-1", qty: 1 }] });
 ok(
   "checkout without auth → 400 (EMAIL_REQUIRED)",

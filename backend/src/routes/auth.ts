@@ -210,13 +210,16 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     cookie[SESSION_COOKIE]?.remove();
     return { ok: true };
   })
-  .get("/me", async ({ cookie, set }) => {
+  // Session-status query: returns 200 in BOTH cases (loged-in and guest).
+  // The frontend hydrates from this on every page load, so a 401 for guests
+  // would log a red error to every visitor's devtools console even though
+  // "not signed in" is a normal, expected state. Wrapping in {user: ...|null}
+  // lets the client pattern-match without inspecting status codes — this is
+  // the same shape NextAuth's /session and Supabase's getUser() use.
+  .get("/me", async ({ cookie }) => {
     const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
-    if (!user) {
-      set.status = 401;
-      return { error: "Not authenticated", code: "UNAUTHENTICATED" };
-    }
-    return { id: user.id, email: user.email, role: user.role };
+    if (!user) return { user: null };
+    return { user: { id: user.id, email: user.email, role: user.role } };
   })
 
   /* ───────── password reset (customer-only, two-step) ───────── */
