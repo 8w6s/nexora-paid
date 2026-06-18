@@ -62,6 +62,40 @@ const META: Record<string, { label: string; tone: string }> = {
   "2fa.enable": { label: "Enabled 2FA", tone: "good" },
   "2fa.disable": { label: "Disabled 2FA", tone: "warn" },
   "2fa.recover": { label: "Used 2FA backup code", tone: "warn" },
+  // Customer auth events. The actor on these rows is `auth:<email>`
+  // so they're greppable per-account. Login.fail / login.locked /
+  // login.banned / login.2fa_fail / register.dup are "bad" because they
+  // surface credential-stuffing, account-lockout, or compromise probes.
+  // login.ok / register / logout are "neutral" — legitimate flow events.
+  "login.ok": { label: "Customer signed in", tone: "neutral" },
+  "login.fail": { label: "Bad password attempt", tone: "bad" },
+  "login.locked": { label: "Account locked (too many fails)", tone: "bad" },
+  "login.2fa_fail": { label: "Bad 2FA code", tone: "bad" },
+  "login.banned": { label: "Banned account login attempt", tone: "bad" },
+  register: { label: "Customer registered", tone: "neutral" },
+  "register.dup": { label: "Duplicate registration attempt", tone: "warn" },
+  logout: { label: "Customer signed out", tone: "neutral" },
+  // Customer password reset flow (migration 0009 + /forgot+/reset routes).
+  // Throttled / miss don't confirm the email exists — they're surfaced
+  // anyway so an operator grepping for probing patterns can see them.
+  "forgot.sent": { label: "Reset link sent", tone: "neutral" },
+  "forgot.miss": { label: "Reset attempt — unknown email", tone: "warn" },
+  "forgot.throttled": { label: "Reset attempt throttled", tone: "warn" },
+  "reset.ok": { label: "Customer reset password via link", tone: "warn" },
+  "reset.miss": { label: "Reset failed — token not found", tone: "warn" },
+  "reset.replay": { label: "Reset link replay attempt", tone: "bad" },
+  "reset.expired": { label: "Reset link expired", tone: "neutral" },
+  "reset.bad_token_shape": { label: "Reset link malformed", tone: "warn" },
+  "reset.user_gone": { label: "Reset against deleted user", tone: "warn" },
+  // Customer self-service password change (logged-in flow). Counterpart
+  // of the admin account.password.* keys — "warn" on success because a
+  // password rotation is legitimate but worth seeing, "bad" on the
+  // bad-current path because that's the credential-stuffing signature.
+  "change_password.ok": { label: "Customer changed password", tone: "warn" },
+  "change_password.bad_current": {
+    label: "Customer change-password refused (bad current)",
+    tone: "bad",
+  },
 };
 
 export const AdminActivity: React.FC = () => {
