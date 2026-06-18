@@ -15,6 +15,7 @@ import { loadPlugins } from "./lib/plugin/loader.ts";
 import { clientIp, rateLimitCheck } from "./lib/rate-limit.ts";
 import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watcher.ts";
 import { admin2faRoutes } from "./routes/admin-2fa.ts";
+import { customer2faRoutes } from "./routes/customer-2fa.ts";
 import { adminBlocklistRoutes } from "./routes/admin-blocklist.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
@@ -354,6 +355,7 @@ const baseApp = new Elysia()
 
   // ───── Auth + customer routes ─────
   .use(authRoutes)
+  .use(customer2faRoutes)
   .use(reviewRoutes)
   .use(ticketRoutes)
 

@@ -65,7 +65,16 @@ export async function logAuthEvent(
     // scrubbed from the users row and the original email is fred up
     // so the customer can re-register fresh later.
     | "account.delete.ok"
-    | "account.delete.bad_current",
+    | "account.delete.bad_current"
+    // Customer self-service 2FA enrollment lifecycle (mirrors the
+    // admin 2fa.* keys but scoped to /api/auth/2fa). recover is the
+    // most-sensitive event because a backup code fully bypasses the
+    // second factor; bad_code / bad_backup surface probing patterns.
+    | "customer_2fa.enable"
+    | "customer_2fa.disable"
+    | "customer_2fa.recover"
+    | "customer_2fa.bad_code"
+    | "customer_2fa.bad_backup",
   ip: string,
   detail?: string,
 ): Promise<void> {
