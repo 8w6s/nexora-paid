@@ -65,25 +65,20 @@ export const Navbar: React.FC = () => {
   return (
     <header className="navbar">
       <div className="container nav-inner">
-        <div
-          onClick={() => window.location.assign("/")}
-          className="logo"
-          style={{ cursor: "pointer" }}
-        >
+        {/* Real anchors so middle-click opens a tab and screen readers
+            announce the brand + nav as links. The previous div+onClick was
+            visually identical but failed both. */}
+        <a href="/" className="logo">
           <span className="logo-mark">
             <Icon name="key" size={17} />
           </span>
           {renderLogoText()}
-        </div>
+        </a>
 
         <nav className="nav-links">
-          <span
-            onClick={() => window.location.assign("/")}
-            className={path === "/" ? "active" : ""}
-            style={{ cursor: "pointer" }}
-          >
+          <a href="/" className={path === "/" ? "active" : ""}>
             Shop
-          </span>
+          </a>
         </nav>
 
         <div className="nav-right">
@@ -99,13 +94,9 @@ export const Navbar: React.FC = () => {
               width={180}
             />
           ) : (
-            <span
-              onClick={() => window.location.assign("/login")}
-              className="btn-link"
-              style={{ cursor: "pointer" }}
-            >
+            <a href="/login" className="btn-link">
               Sign in
-            </span>
+            </a>
           )}
           <button
             id="cart-trigger-btn"
@@ -127,15 +118,15 @@ export const Navbar: React.FC = () => {
       <style>{`
         .navbar { position: sticky; top: 0; z-index: 100; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
         .nav-inner { height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-        .logo { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 1.2rem; letter-spacing: -.02em; color: var(--ink); }
+        .logo { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 1.2rem; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
         .logo .accent { color: var(--brand); }
         .logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; }
         .nav-links { display: flex; gap: 26px; margin-right: auto; margin-left: 14px; }
-        .nav-links span { color: var(--ink-soft); font-size: .92rem; font-weight: 500; padding: 4px 0; border-bottom: 2px solid transparent; transition: color .18s var(--ease), border-color .18s var(--ease); }
-        .nav-links span:hover { color: var(--ink); }
-        .nav-links span.active { color: var(--brand); border-bottom-color: var(--brand); }
+        .nav-links a { color: var(--ink-soft); font-size: .92rem; font-weight: 500; padding: 4px 0; border-bottom: 2px solid transparent; text-decoration: none; transition: color .18s var(--ease), border-color .18s var(--ease); }
+        .nav-links a:hover { color: var(--ink); }
+        .nav-links a.active { color: var(--brand); border-bottom-color: var(--brand); }
         .nav-right { display: flex; align-items: center; gap: 14px; }
-        .btn-link { background: none; border: none; color: var(--brand); font-family: var(--font-sans); font-weight: 600; font-size: .88rem; cursor: pointer; padding: 0; }
+        .btn-link { color: var(--brand); font-family: var(--font-sans); font-weight: 600; font-size: .88rem; text-decoration: none; }
         .btn-link:hover { text-decoration: underline; }
         .btn-cart { position: relative; background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink); height: 40px; padding: 0 16px; border-radius: 100px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: var(--font-sans); font-weight: 600; font-size: .88rem; transition: border-color .18s var(--ease), color .18s var(--ease); }
         .btn-cart:hover { border-color: var(--brand); color: var(--brand); }
