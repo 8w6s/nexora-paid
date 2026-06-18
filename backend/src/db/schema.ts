@@ -397,7 +397,35 @@ export const adminActions = sqliteTable(
   (t) => ({ createdIdx: index("admin_actions_created_idx").on(t.createdAt) }),
 );
 
-/* ───────────────────────── relations ────────────────────────────── */
+/* ─────────────────────── blocklist ────────────────────────── */
+// Anti-fraud blocklist + allowlist. Both modes share one table because
+// the shape is identical (type, value, note, timestamp); a `mode` column
+// disambiguates without splitting storage. The AdminBlacklist tab toggles
+// between /api/admin/blacklist and /api/admin/whitelist against the same
+// backend surface.
+export const blocklist = sqliteTable(
+  "blocklist",
+  {
+    id: text("id").primaryKey(),
+    mode: text("mode").$type<"blacklist" | "whitelist">().notNull(),
+    type: text("type").$type<"email" | "ip" | "country" | "vpn">().notNull(),
+    value: text("value").notNull(),
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => ({
+    modeTypeValueUnique: uniqueIndex("blocklist_mode_type_value_unique").on(
+      t.mode,
+      t.type,
+      t.value,
+    ),
+    modeTypeIdx: index("blocklist_mode_type_idx").on(t.mode, t.type),
+  }),
+);
+
+/* ────────────────────── relations ────────────────────────────── */
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   orders: many(orders),

@@ -39,6 +39,13 @@ const META: Record<string, { label: string; tone: string }> = {
   "settings.email.update": { label: "Updated email settings", tone: "neutral" },
   "settings.wallet.fail": { label: "Wallet rotation refused (bad password)", tone: "bad" },
   "settings.email.fail": { label: "Email credential rotation refused (bad password)", tone: "bad" },
+  // Anti-fraud blocklist + allowlist (migration 0008). Adds are "warn"
+  // because tightening the gate is legitimate but worth seeing in the
+  // log; removes are "warn" too because they loosen protection.
+  "blacklist.add": { label: "Added blacklist entry", tone: "warn" },
+  "blacklist.remove": { label: "Removed blacklist entry", tone: "warn" },
+  "whitelist.add": { label: "Added whitelist entry", tone: "warn" },
+  "whitelist.remove": { label: "Removed whitelist entry", tone: "warn" },
   "payment.config": { label: "Updated payment provider", tone: "neutral" },
   "payment.wallet.fail": { label: "Wallet rotation refused (bad password)", tone: "bad" },
   "keys.upload": { label: "Uploaded inventory keys", tone: "good" },
