@@ -1,0 +1,13 @@
+---
+import { AccountApp } from "../components/AccountApp";
+import Layout from "../layouts/Layout.astro";
+
+// Customer self-service account surface. Currently hosts the password
+// change card; future additions (email change, delete account, GDPR
+// export) drop into AccountApp's grid alongside it without needing a
+// new route.
+export const prerender = false;
+---
+<Layout title="Account — Nexora">
+  <AccountApp client:load />
+</Layout>

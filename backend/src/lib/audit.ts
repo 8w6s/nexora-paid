@@ -46,7 +46,12 @@ export async function logAuthEvent(
     | "reset.replay"
     | "reset.expired"
     | "reset.bad_token_shape"
-    | "reset.user_gone",
+    | "reset.user_gone"
+    // Logged-in self-service password change (customer-side counterpart of
+    // the AdminTeam rotation card). bad_current covers "current password
+    // didn't match" so probing patterns surface in the activity log.
+    | "change_password.ok"
+    | "change_password.bad_current",
   ip: string,
   detail?: string,
 ): Promise<void> {

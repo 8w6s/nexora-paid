@@ -14,6 +14,7 @@ import {
   sessionCookieOptions,
   validateSession,
   verifyLogin,
+  verifyPassword,
 } from "../lib/auth.ts";
 import { EmailService } from "../lib/email.ts";
 import { hookBus } from "../lib/plugin/hook-bus.ts";
@@ -435,6 +436,107 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       body: t.Object({
         token: t.String({ minLength: 64, maxLength: 64 }),
         password: t.String({ minLength: 8, maxLength: 200 }),
+      }),
+    },
+  )
+
+  /* ───────── self-service password change (logged-in customer) ───────── */
+  // Counterpart of the /forgot flow for users who DO know their current
+  // password but want to rotate it from the /account page. Sellauth's user
+  // profile has the same form ("Current password / New password / Confirm").
+  // Without this, a customer who's logged in but worried about a shoulder-surf
+  // has to log out + go through the email round-trip — and if the operator
+  // hasn't configured an email provider, they're stuck.
+  //
+  // - Requires the current password to be correct so a stolen cookie can't
+  //   silently lock the legitimate owner out by rotating to an attacker-known
+  //   value (the attacker would still need the current password to do so).
+  // - Refuses identical new password so audit logs reflect actual rotations.
+  // - revokeOtherSessions(userId, currentToken) on success — every cookie
+  //   minted before the rotation dies; the actor's own session survives so
+  //   they don't have to immediately log back in.
+  // - Per-user rate-limit (lighter than /reset because the actor has already
+  //   passed auth) — 5 attempts / 15 min keeps a hijacker from grinding the
+  //   current-password check.
+  .post(
+    "/change-password",
+    async ({ body, cookie, request, set }) => {
+      const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+      const sessionUser = await validateSession(tok);
+      if (!sessionUser) {
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
+      // Self-service rotation is for customers; admins use the dedicated
+      // AdminTeam rotation card which already revokes 2FA-bypassing
+      // bootstrap edge cases. Funnelling admin rotations through this
+      // simpler flow would weaken that surface, so refuse here.
+      if (sessionUser.role !== "customer") {
+        set.status = 403;
+        return { error: "Use the admin password rotation card", code: "WRONG_ROLE" };
+      }
+
+      const ip = clientIp(request);
+      const CHANGE_RATE_MAX = 5;
+      const CHANGE_RATE_WINDOW_MS = 15 * 60_000;
+      const rl = rateLimitCheck(
+        `change-password:${sessionUser.id}`,
+        CHANGE_RATE_MAX,
+        CHANGE_RATE_WINDOW_MS,
+      );
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return {
+          error: "Too many attempts, slow down",
+          code: "RATE_LIMITED",
+          retryAfterMs: rl.resetMs,
+        };
+      }
+
+      if (body.currentPassword === body.newPassword) {
+        set.status = 400;
+        return {
+          error: "New password must differ from current password",
+          code: "SAME_PASSWORD",
+        };
+      }
+
+      const dbUser = (await db.select().from(users).where(eq(users.id, sessionUser.id)))[0];
+      if (!dbUser) {
+        // Edge: session valid, user row gone (cascade race). Treat as an
+        // auth failure so the cookie clears on next /me poll.
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
+
+      const ok = await verifyPassword(body.currentPassword, dbUser.passwordHash);
+      if (!ok) {
+        void logAuthEvent(dbUser.email, "change_password.bad_current", ip);
+        set.status = 401;
+        return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+      }
+
+      const newHash = await hashPassword(body.newPassword);
+      await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, dbUser.id));
+
+      // Sweep every other session — a stolen cookie issued before the
+      // rotation must die. Actor keps their own session so they don't
+      // have to log back in mid-flow.
+      const revoked = await revokeOtherSessions(dbUser.id, tok);
+
+      void logAuthEvent(
+        dbUser.email,
+        "change_password.ok",
+        ip,
+        revoked > 0 ? `(revoked ${revoked} session${revoked === 1 ? "" : "s"})` : undefined,
+      );
+      return { ok: true, revokedSessions: revoked };
+    },
+    {
+      body: t.Object({
+        currentPassword: t.String({ minLength: 1, maxLength: 200 }),
+        newPassword: t.String({ minLength: 8, maxLength: 200 }),
       }),
     },
   );

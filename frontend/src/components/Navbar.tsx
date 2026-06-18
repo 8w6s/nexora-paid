@@ -22,6 +22,7 @@ export const Navbar: React.FC = () => {
         : []),
       { value: "orders", label: "My Orders", icon: "receipt" as const },
       ...(isOn("tickets") ? [{ value: "support", label: "Support", icon: "ticket" as const }] : []),
+      { value: "account", label: "Account", icon: "key" as const },
       { value: "logout", label: "Sign out", icon: "close" as const },
     ],
     [isOn, user],
@@ -34,6 +35,8 @@ export const Navbar: React.FC = () => {
       window.location.assign("/orders"); // keep /orders for customer view
     } else if (val === "support") {
       window.location.assign("/tickets");
+    } else if (val === "account") {
+      window.location.assign("/account");
     } else if (val === "logout") {
       logout().then(() => window.location.assign("/"));
     }
