@@ -116,6 +116,15 @@ const META: Record<string, { label: string; tone: string }> = {
     label: "Account-delete refused (bad current)",
     tone: "bad",
   },
+  // Customer self-service 2FA enrollment lifecycle. Mirrors the admin
+  // 2fa.* keys but actor field is `auth:<customer-email>` so they're
+  // greppable per-account. recover is the most-sensitive event because
+  // a backup code fully bypasses the second factor.
+  "customer_2fa.enable": { label: "Customer enabled 2FA", tone: "good" },
+  "customer_2fa.disable": { label: "Customer disabled 2FA", tone: "warn" },
+  "customer_2fa.recover": { label: "Customer used 2FA backup code", tone: "warn" },
+  "customer_2fa.bad_code": { label: "Customer 2FA bad code", tone: "bad" },
+  "customer_2fa.bad_backup": { label: "Customer 2FA bad backup code", tone: "bad" },
 };
 
 export const AdminActivity: React.FC = () => {
