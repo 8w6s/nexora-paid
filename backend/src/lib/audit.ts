@@ -34,7 +34,19 @@ export async function logAuthEvent(
     | "register"
     | "logout"
     | "register.dup"
-    | "login.banned",
+    | "login.banned"
+    // Password-reset flow (customer self-service). throttled/miss never
+    // confirm the email exists — they're surfaced anyway so an operator
+    // grepping the audit log can see probing patterns.
+    | "forgot.sent"
+    | "forgot.miss"
+    | "forgot.throttled"
+    | "reset.ok"
+    | "reset.miss"
+    | "reset.replay"
+    | "reset.expired"
+    | "reset.bad_token_shape"
+    | "reset.user_gone",
   ip: string,
   detail?: string,
 ): Promise<void> {

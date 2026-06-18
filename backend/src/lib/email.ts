@@ -106,6 +106,19 @@ function renderDeliveredKeys(orderId: string, keys: { name: string; code: string
   return { html, text };
 }
 
+function renderPasswordReset(resetUrl: string, expiresMinutes: number) {
+  const html = `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden"><tr><td style="background:#4f46e5;padding:22px 28px;color:#fff;font-size:20px;font-weight:bold">Nexora</td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 8px;font-size:21px">Reset your password</h1><p style="margin:0 0 18px;color:#475569;font-size:14px">Someone (hopefully you) asked to reset the password for your Nexora account. The link below expires in ${expiresMinutes} minutes and can only be used once.</p><p style="margin:0 0 22px"><a href="${esc(resetUrl)}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;font-size:14px">Reset password</a></p><p style="margin:0 0 12px;color:#475569;font-size:13px">Or paste this URL into your browser:</p><p style="margin:0 0 18px;color:#0f172a;font-size:12px;word-break:break-all;background:#f1f5f9;padding:10px 12px;border-radius:6px">${esc(resetUrl)}</p><p style="margin:18px 0 0;color:#94a3b8;font-size:12px">If you didn't request this, you can ignore this email — your password won't change.</p></td></tr></table></td></tr></table></body></html>`;
+  const text = `Reset your Nexora password
+
+Use this link within ${expiresMinutes} minutes (single use):
+
+${resetUrl}
+
+If you didn't request this, ignore this email — your password won't change.
+— Nexora`;
+  return { html, text };
+}
+
 function renderTicketReply(subject: string, body: string) {
   const html = `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden"><tr><td style="background:#4f46e5;padding:22px 28px;color:#fff;font-size:20px;font-weight:bold">Nexora Support</td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 8px;font-size:19px">Re: ${esc(subject)}</h1><p style="margin:0 0 16px;color:#475569;font-size:14px">Our support team replied to your ticket:</p><div style="padding:14px 16px;background:#f8fafc;border-left:3px solid #4f46e5;border-radius:6px;font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(body)}</div><p style="margin:18px 0 0;color:#94a3b8;font-size:12px">Reply from your account under Support to continue the conversation.</p></td></tr></table></td></tr></table></body></html>`;
   const text = `Nexora Support replied to "${subject}":\n\n${body}\n\nReply from your account under Support to continue.\n— Nexora`;
@@ -131,6 +144,12 @@ export const EmailService = {
       to,
       subject: safeHeader(`Re: ${subject} — Nexora Support`),
       ...renderTicketReply(subject, body),
+    }),
+  passwordReset: (to: string, resetUrl: string, expiresMinutes: number) =>
+    send({
+      to,
+      subject: safeHeader("Reset your Nexora password"),
+      ...renderPasswordReset(resetUrl, expiresMinutes),
     }),
   lowStockAlert: (to: string, productName: string, remaining: number) => {
     // Sanitize the subject line so an attacker who can name a product can't

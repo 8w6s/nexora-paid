@@ -460,6 +460,31 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   product: one(products, { fields: [orderItems.productId], references: [products.id] }),
 }));
 
+/* ─────────────────────── password_resets ────────────── */
+// Customer-facing password reset flow. Like the sessions table, the raw
+// token is never stored — only sha256(token) lives in `token`, so a
+// read-only DB leak can't mint working reset links. Single-use via
+// `usedAt` and 1h TTL via `expiresAt` are enforced at the route layer.
+export const passwordResets = sqliteTable(
+  "password_resets",
+  {
+    token: text("token").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    usedAt: integer("used_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    ipAddress: text("ip_address"),
+  },
+  (t) => ({
+    userIdx: index("password_resets_user_idx").on(t.userId),
+    expiresIdx: index("password_resets_expires_idx").on(t.expiresAt),
+  }),
+);
+
 /* ─────────────────────── plugin_migrations ─────────────────────── */
 export const pluginMigrations = sqliteTable(
   "__plugin_migrations",

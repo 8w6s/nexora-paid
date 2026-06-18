@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
-import { users } from "../db/schema.ts";
+import { passwordResets, users } from "../db/schema.ts";
 import { logAdminAction, logAuthEvent } from "../lib/audit.ts";
 import {
   createSession,
@@ -15,6 +15,7 @@ import {
   validateSession,
   verifyLogin,
 } from "../lib/auth.ts";
+import { EmailService } from "../lib/email.ts";
 import { hookBus } from "../lib/plugin/hook-bus.ts";
 import { verifyCode } from "../lib/totp.ts";
 import {
@@ -215,7 +216,228 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       return { error: "Not authenticated", code: "UNAUTHENTICATED" };
     }
     return { id: user.id, email: user.email, role: user.role };
-  });
+  })
+
+  /* ───────── password reset (customer-only, two-step) ───────── */
+  // Step 1: /forgot — accept any email, ALWAYS return ok=true so an attacker
+  // can't enumerate registered emails by timing or response shape. If the
+  // email matches a real user, mint a single-use token and email a reset
+  // link. Per-email + per-IP rate limits sit on top of the per-route 10/min
+  // already enforced by the /api/auth umbrella.
+  //
+  // Step 2: /reset — exchange a token + new password for a session. We do
+  // sha256(token) lookup, verify not-expired AND not-used, atomically flip
+  // usedAt + write the new password hash inside a transaction, and then
+  // revoke every other session for the user so a stolen pre-reset cookie
+  // can't outlive the rotation.
+  .post(
+    "/forgot",
+    async ({ body, request }) => {
+      const email = normalizeEmail(body.email);
+      const ip = clientIp(request);
+
+      // Per-email floor: 3 tokens / hour / email caps mailbox flooding even
+      // if the route-level 10/min/IP is bypassed by IP rotation. We bump
+      // the lockout-style counter on every accepted POST regardless of
+      // whether the email exists, so a probe-spammer hits the wall too.
+      const FORGOT_PER_EMAIL_MAX = 3;
+      const FORGOT_PER_EMAIL_WINDOW_MS = 60 * 60_000;
+      const emailKey = `forgot-email:${email}`;
+      const emailLock = lockoutCheck(emailKey, FORGOT_PER_EMAIL_MAX, FORGOT_PER_EMAIL_WINDOW_MS);
+      if (emailLock.locked) {
+        // Still return ok=true to preserve enumeration resistance — but
+        // skip the actual mint/send work. The client sees the same UX as
+        // a successful request.
+        void logAuthEvent(email, "forgot.throttled", ip);
+        return { ok: true };
+      }
+      lockoutBump(emailKey, FORGOT_PER_EMAIL_WINDOW_MS);
+
+      const user = (await db.select().from(users).where(eq(users.email, email)))[0];
+
+      // Always-succeed shape: don't reveal whether `email` is registered.
+      // Branch on user only AFTER the response shape is fixed.
+      if (!user || user.status === "banned" || user.role !== "customer") {
+        // Burn ~equivalent time so a registered-vs-not check can't be made
+        // by measuring the response latency. argon2id verify against the
+        // dummy hash is the closest analog to the work that the registered
+        // path would do.
+        await verifyLogin(undefined, "x".repeat(8));
+        void logAuthEvent(email, "forgot.miss", ip);
+        return { ok: true };
+      }
+
+      // Best-effort sweep of expired/used tokens for THIS user before
+      // minting a new one. Keps the password_resets table from accumulating
+      // dead rows on a chatty user. We don't hard-fail on a sweep error —
+      // the new token write is the only thing that matters here.
+      try {
+        const stale = await db
+          .select()
+          .from(passwordResets)
+          .where(eq(passwordResets.userId, user.id));
+        const now = Date.now();
+        for (const row of stale) {
+          if (
+            (row.usedAt !== null && row.usedAt !== undefined) ||
+            new Date(row.expiresAt).getTime() < now
+          ) {
+            await db.delete(passwordResets).where(eq(passwordResets.token, row.token));
+          }
+        }
+      } catch {
+        // non-fatal
+      }
+
+      // Token shape mirrors the session cookie: 32 random bytes hex (256
+      // bit). The raw token is emailed; only sha256(token) hits the DB.
+      const rawToken = randomBytes(32).toString("hex");
+      const hashed = createHash("sha256").update(rawToken).digest("hex");
+      const TTL_MIN = 60;
+      const expiresAt = new Date(Date.now() + TTL_MIN * 60_000);
+      await db.insert(passwordResets).values({
+        token: hashed,
+        userId: user.id,
+        expiresAt,
+        ipAddress: ip,
+      });
+
+      const origin = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
+      const resetUrl = `${origin}/reset?token=${rawToken}`;
+      // Email is best-effort. If the provider is off / unconfigured we
+      // still return ok=true — the operator can read the audit log to find
+      // the URL during local dev. Don't await blocking response on the
+      // network call.
+      EmailService.passwordReset(user.email, resetUrl, TTL_MIN)
+        .then((r) => {
+          if ("error" in r) {
+            console.warn(`[email] password-reset send failed for ${user.email}: ${r.error}`);
+          } else if ("skipped" in r) {
+            // Dev / unconfigured email provider — surface the URL on the
+            // server console so a local operator can still finish the flow.
+            console.warn(`[forgot] email disabled — reset URL: ${resetUrl}`);
+          }
+        })
+        .catch(() => {});
+
+      void logAuthEvent(email, "forgot.sent", ip);
+      return { ok: true };
+    },
+    {
+      body: t.Object({
+        email: t.String({ format: "email", maxLength: 254 }),
+      }),
+    },
+  )
+  .post(
+    "/reset",
+    async ({ body, cookie, set, request }) => {
+      const ip = clientIp(request);
+      // Rate-limit guess attempts per-IP separately from the umbrella —
+      // a stolen but partial token shouldn't be brute-forceable even from
+      // one IP. 8 attempts / 15 min is room for a fat-fingered paste with
+      // no headroom for automation.
+      const RESET_PER_IP_MAX = 8;
+      const RESET_PER_IP_WINDOW_MS = 15 * 60_000;
+      const rl = rateLimitCheck(`reset-attempt:${ip}`, RESET_PER_IP_MAX, RESET_PER_IP_WINDOW_MS);
+      if (!rl.allowed) {
+        set.status = 429;
+        set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+        return { error: "Too many reset attempts", code: "RATE_LIMITED", retryAfterMs: rl.resetMs };
+      }
+
+      // Validate token shape up-front so we don't hash/lookup garbage. The
+      // raw token is 64 lowercase hex chars (32 bytes).
+      if (!/^[0-9a-f]{64}$/i.test(body.token)) {
+        void logAuthEvent("(unknown)", "reset.bad_token_shape", ip);
+        set.status = 400;
+        return { error: "Invalid or expired reset link", code: "BAD_TOKEN" };
+      }
+
+      const hashed = createHash("sha256").update(body.token).digest("hex");
+      const row = (
+        await db.select().from(passwordResets).where(eq(passwordResets.token, hashed))
+      )[0];
+
+      if (!row) {
+        void logAuthEvent("(unknown)", "reset.miss", ip);
+        set.status = 400;
+        return { error: "Invalid or expired reset link", code: "BAD_TOKEN" };
+      }
+      if (row.usedAt) {
+        void logAuthEvent("(unknown)", "reset.replay", ip);
+        set.status = 400;
+        return { error: "Invalid or expired reset link", code: "BAD_TOKEN" };
+      }
+      if (new Date(row.expiresAt).getTime() < Date.now()) {
+        // Best-effort GC of the expired row — keeps the table tidy.
+        await db.delete(passwordResets).where(eq(passwordResets.token, hashed)).catch(() => {});
+        void logAuthEvent("(unknown)", "reset.expired", ip);
+        set.status = 400;
+        return { error: "Invalid or expired reset link", code: "BAD_TOKEN" };
+      }
+
+      const user = (await db.select().from(users).where(eq(users.id, row.userId)))[0];
+      if (!user || user.status === "banned" || user.role !== "customer") {
+        // Edge: user was deleted or banned between mint + redeem. Burn the
+        // token regardless so it can't be re-tried.
+        await db.delete(passwordResets).where(eq(passwordResets.token, hashed)).catch(() => {});
+        void logAuthEvent(user?.email ?? "(unknown)", "reset.user_gone", ip);
+        set.status = 400;
+        return { error: "Invalid or expired reset link", code: "BAD_TOKEN" };
+      }
+
+      const newHash = await hashPassword(body.password);
+
+      // Atomic: rotate the password AND mark the token used in one tx so a
+      // crash mid-flow can't leave a usable token next to the new password.
+      try {
+        await db.transaction(async (tx) => {
+          await tx
+            .update(users)
+            .set({ passwordHash: newHash })
+            .where(eq(users.id, user.id));
+          await tx
+            .update(passwordResets)
+            .set({ usedAt: new Date() })
+            .where(eq(passwordResets.token, hashed));
+        });
+      } catch {
+        set.status = 500;
+        return { error: "Reset failed, try again", code: "RESET_FAILED" };
+      }
+
+      // Sweep every other live session for this user — a stolen cookie
+      // captured before the rotation must not survive it. The actor's own
+      // session (currentToken=undefined) is included since reset is a
+      // re-auth flow: we'll mint a fresh session right after.
+      const revoked = await revokeOtherSessions(user.id, undefined);
+
+      // Auto-login the user on the rotated credential. Same path as login.
+      const { token, expiresAt } = await createSession(user.id, user.role, {
+        ip,
+        userAgent: request.headers.get("user-agent"),
+      });
+      cookie[SESSION_COOKIE].set({
+        value: token,
+        ...sessionCookieOptions(new Date(expiresAt)),
+      });
+
+      void logAuthEvent(
+        user.email,
+        "reset.ok",
+        ip,
+        revoked > 0 ? `(revoked ${revoked} session${revoked === 1 ? "" : "s"})` : undefined,
+      );
+      return { ok: true, id: user.id, email: user.email, role: user.role };
+    },
+    {
+      body: t.Object({
+        token: t.String({ minLength: 64, maxLength: 64 }),
+        password: t.String({ minLength: 8, maxLength: 200 }),
+      }),
+    },
+  );
 
 /* ───────── bootstrap single admin from env ───────── */
 // ADMIN_EMAIL + ADMIN_PASSWORD_HASH (an argon2id hash). If only ADMIN_PASSWORD (plaintext) is set
