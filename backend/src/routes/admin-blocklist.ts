@@ -23,6 +23,17 @@ import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
  * admin session cookie. The .derive expose adminEmail so the audit log
  * records who added/removed each entry.
  */
+// ─── Shared body schema ─────────────────────────────────
+// Declared BEFORE the route registrations because Elysia evaluates the
+// route options object eagerly during chain building — referencing
+// ENTRY_BODY there before this declaration throws TDZ ReferenceError
+// the first time the file is imported.
+const ENTRY_BODY = t.Object({
+  type: t.Union([t.Literal("email"), t.Literal("ip"), t.Literal("country"), t.Literal("vpn")]),
+  value: t.String({ minLength: 1, maxLength: 254 }),
+  note: t.Optional(t.String({ maxLength: 500 })),
+});
+
 export const adminBlocklistRoutes = new Elysia({ prefix: "/api/admin" })
   .onBeforeHandle(async ({ cookie, status }) => {
     const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
@@ -65,14 +76,7 @@ export const adminBlocklistRoutes = new Elysia({ prefix: "/api/admin" })
     deleteEntry("whitelist", params.id, set, adminEmail),
   );
 
-// ─── Shared body schema ─────────────────────────────────
-const ENTRY_BODY = t.Object({
-  type: t.Union([t.Literal("email"), t.Literal("ip"), t.Literal("country"), t.Literal("vpn")]),
-  value: t.String({ minLength: 1, maxLength: 254 }),
-  note: t.Optional(t.String({ maxLength: 500 })),
-});
-
-// ─── Helpers ────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────
 async function listEntries(mode: "blacklist" | "whitelist") {
   const rows = await db
     .select()

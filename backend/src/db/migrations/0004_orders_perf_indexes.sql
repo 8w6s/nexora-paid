@@ -10,7 +10,7 @@
 --   orders list, /api/admin/stats day-bucket aggregation, and the recent
 --   invoices widget.
 -- - orders_email_idx:   backs the user-by-email lookup in admin user-detail.
-- - orders_user_created_idx: composite for the customer "my orders" page
+-- orders_user_created_idx: composite for the customer "my orders" page
 --   which filters by userId and sorts by createdAt.
 
 CREATE INDEX IF NOT EXISTS orders_created_idx

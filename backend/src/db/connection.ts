@@ -58,11 +58,21 @@ function runMigrations(db: Database): void {
     if (applied.has(file)) continue;
     const sql = readFileSync(join(dir, file), "utf8");
     // Each migration runs in its own transaction so a syntax error in
-    // one file can't half-apply.
-    db.transaction(() => {
-      db.exec(sql);
-      db.query("INSERT INTO _migrations (filename) VALUES (?)").run(file);
-    })();
+    // one file can't half-apply. The try/catch surfaces the offending
+    // filename — bun:sqlite otherwise reports only a byteOffset which is
+    // useless when nine migrations are queued behind a fresh shop boot.
+    try {
+      db.transaction(() => {
+        db.exec(sql);
+        db.query("INSERT INTO _migrations (filename) VALUES (?)").run(file);
+      })();
+    } catch (e) {
+      console.error(
+        `[migrate] ${file} failed:`,
+        e instanceof Error ? e.message : String(e),
+      );
+      throw e;
+    }
   }
 }
 
