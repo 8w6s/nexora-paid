@@ -28,7 +28,7 @@ ed.hashes.sha512 = (m: Uint8Array) => sha512(m);
 const args = parseArgs(process.argv.slice(2));
 if (!args.email) {
   console.error(
-    "Usage: bun run scripts/sign-license.ts --email=customer@example.com [--product=nexora] [--note=v1] [--out=./issued/x.license]",
+    "Usage: bun run scripts/sign-license.ts --email=customer@example.com [--customer=cus_123] [--ttl=365] [--expires=2027-12-31T23:59:59Z] [--features=search-suggest,admin-bulk,admin-export,admin-customers-csv] [--product=nexora-paid] [--note=v1] [--out=./issued/x.license]",
   );
   process.exit(1);
 }
@@ -42,11 +42,22 @@ if (!existsSync(PRIV_PATH)) {
 const privHex = readFileSync(PRIV_PATH, "utf-8").trim();
 const privBytes = hexToBytes(privHex);
 
+const ttlDays = args.ttl ? Number(args.ttl) : NaN;
+const expiresAt = Number.isFinite(ttlDays) && ttlDays > 0
+  ? new Date(Date.now() + ttlDays * 86_400_000).toISOString()
+  : args.expires;
+const features = args.features
+  ? args.features.split(",").map((s) => s.trim()).filter(Boolean)
+  : undefined;
+
 const payload = {
   email: args.email.trim().toLowerCase(),
-  productId: args.product ?? "nexora",
+  productId: args.product ?? "nexora-paid",
   issuedAt: new Date().toISOString(),
   ...(args.note ? { note: args.note } : {}),
+  ...(args.customer ? { customerId: args.customer } : {}),
+  ...(expiresAt ? { expiresAt } : {}),
+  ...(features && features.length ? { features } : {}),
 };
 
 const msg = new TextEncoder().encode(JSON.stringify(payload));
@@ -68,6 +79,9 @@ writeFileSync(outPath, JSON.stringify(signedLicense, null, 2));
 console.log(`\n✓ License signed for ${payload.email}`);
 console.log(`  Product:  ${payload.productId}`);
 console.log(`  Issued:   ${payload.issuedAt}`);
+if (payload.customerId) console.log(`  Customer: ${payload.customerId}`);
+if (payload.expiresAt) console.log(`  Expires:  ${payload.expiresAt}`);
+if (payload.features) console.log(`  Features: ${payload.features.join(", ")}`);
 if (payload.note) console.log(`  Note:     ${payload.note}`);
 console.log(`  → ${outPath}`);
 console.log(`\nSend the file above to the customer; they drop it as`);
