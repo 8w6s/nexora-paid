@@ -44,12 +44,22 @@ const LICENSE_PUBKEY_HEX = "b20fc9037c686ef41ae162dc95f95a7ce16f7557d5c4884d8f28
 export interface LicensePayload {
   /** Buyer email (also watermarks the license file) */
   email: string;
-  /** Product SKU — must match for the license to apply, e.g. "nexora" */
+  /** Product SKU — must match for the license to apply, e.g. "nexora-paid" */
   productId: string;
   /** ISO timestamp of issuance — informational, not enforced (one-time pay) */
   issuedAt: string;
   /** Optional human note ("v1", "lifetime", customer ref…) */
   note?: string;
+  /** Stable customer identifier — surfaces in support logs + watermarks. */
+  customerId?: string;
+  /** ISO timestamp; license is invalid past this. Absent = no expiry. */
+  expiresAt?: string;
+  /**
+   * Capability allowlist for paid plugins. Absent = grant-all (back-compat
+   * with v1 licenses). Present = only listed plugin ids load. Examples:
+   * ["search-suggest", "admin-bulk", "admin-export"].
+   */
+  features?: string[];
 }
 
 export interface SignedLicense {
@@ -131,6 +141,17 @@ export async function verifyLicense(): Promise<VerifyResult> {
     };
   }
   if (!ok) return { valid: false, reason: "signature mismatch" };
+
+  // Optional expiry — only enforced when present, so v1 lifetime licenses
+  // (no expiresAt field) keep verifying. Bad/unparseable date is treated as
+  // "no expiry" rather than a hard fail to avoid bricking shops on a typo.
+  if (signed.payload.expiresAt) {
+    const exp = Date.parse(signed.payload.expiresAt);
+    if (!Number.isNaN(exp) && exp < Date.now()) {
+      return { valid: false, reason: `license expired at ${signed.payload.expiresAt}` };
+    }
+  }
+
   return { valid: true, email: signed.payload.email, payload: signed.payload };
 }
 

@@ -91,6 +91,15 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
       continue;
     }
 
+    // 3b. License feature allowlist. Absent (v1 licenses) = grant-all so old
+    // licenses keep working. Present = only listed plugin ids load — lets a
+    // single signing key gate features by tier without re-issuing licences.
+    const allowed = (lic as any).payload?.features as string[] | undefined;
+    if (Array.isArray(allowed) && !allowed.includes(id)) {
+      records.push({ id, version, description, loaded: false, reason: "not in license features" });
+      continue;
+    }
+
     // 4. Migrations (if any)
     if (p.migrations) {
       const r = await runPluginMigrations(db, id, p.migrations());
