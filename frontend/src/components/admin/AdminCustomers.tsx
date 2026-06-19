@@ -66,9 +66,20 @@ export const AdminCustomers: React.FC = () => {
   return (
     <div className="cust">
       <SkeletonStyles />
-      <p className="intro">
-        Your registered customers. Ban to block login + revoke their sessions.
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <p className="intro" style={{ margin: 0 }}>
+          Your registered customers. Ban to block login + revoke their sessions.
+        </p>
+        <a
+          className="chip"
+          href="/api/admin/customers/export.csv?role=customer"
+          download
+          style={{ textDecoration: "none" }}
+          title="Download CSV of customers"
+        >
+          Export CSV
+        </a>
+      </div>
       <div className="card table-card">
         <div className="table-wrap">
           <table>

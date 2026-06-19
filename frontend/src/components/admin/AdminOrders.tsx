@@ -65,7 +65,7 @@ export const AdminOrders: React.FC = () => {
   return (
     <div className="ao">
       <SkeletonStyles />
-      <div className="filters">
+      <div className="filters" style={{ alignItems: "center" }}>
         {STATUSES.map((s) => (
           <button
             key={s}
@@ -75,6 +75,15 @@ export const AdminOrders: React.FC = () => {
             {s === "all" ? "All" : (label[s] ?? s)}
           </button>
         ))}
+        <a
+          className="chip"
+          href={`/api/admin/orders/export.csv${filter !== "all" ? `?status=${filter}` : ""}`}
+          download
+          style={{ marginLeft: "auto", textDecoration: "none" }}
+          title="Download CSV of current filter"
+        >
+          Export CSV
+        </a>
       </div>
       <div className="card table-card">
         <div className="table-wrap">
