@@ -71,11 +71,24 @@ export const AdminCustomers: React.FC = () => {
           Your registered customers. Ban to block login + revoke their sessions.
         </p>
         <a
-          className="chip"
           href="/api/admin/customers/export.csv?role=customer"
           download
-          style={{ textDecoration: "none" }}
           title="Download CSV of customers"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "5px 12px",
+            border: "1px solid var(--line-strong)",
+            background: "var(--surface)",
+            color: "var(--ink-soft)",
+            borderRadius: 100,
+            fontWeight: 600,
+            fontSize: ".8rem",
+            lineHeight: 1.4,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}
         >
           Export CSV
         </a>
