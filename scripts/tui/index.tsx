@@ -658,6 +658,19 @@ function App() {
             else if (w === "fe") { setFeLogs([]); flash("frontend logs cleared"); }
           }}
           onSave={saveBundle}
+          onCopy={async () => {
+            const w = logsOpen();
+            const arr = w === "be" ? beLogs() : feLogs();
+            if (arr.length === 0) {
+              flash("no logs to copy");
+              return;
+            }
+            const text = arr
+              .map((l) => `${new Date(l.ts).toISOString()} [${l.level.toUpperCase()}] ${l.text}`)
+              .join(String.fromCharCode(10));
+            if (await copyToClipboard(text)) flash(`${arr.length} log lines copied`);
+            else flash("clipboard copy failed");
+          }}
         />
       </Show>
 
@@ -709,6 +722,7 @@ function App() {
           <text fg={theme.text} selectable={false}>r            restart both services</text>
           <text fg={theme.text} selectable={false}>l            cycle logs overlay (BE → FE → off)</text>
           <text fg={theme.text} selectable={false}>k            clear focused logs</text>
+          <text fg={theme.text} selectable={false}>s            save support bundle (in logs view)</text>
           <text fg={theme.text} selectable={false}>tab          switch BE/FE in logs overlay</text>
           <text fg={theme.text} selectable={false}>? / h        toggle this help</text>
           <text fg={theme.text} selectable={false}>esc          close any overlay</text>
