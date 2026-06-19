@@ -9,9 +9,14 @@ RUN bun install
 # App source
 COPY . .
 
-# SQLite lives at /app/sqlite.db — mount a volume here to persist (importable single file).
+# SQLite lives at $DB_PATH (default /app/data/sqlite.db in compose). Mount a
+# volume at /app/data — NOT /app — so the persisted state stays separate from
+# the source tree and rebuilds keep working.
 ENV PORT=3000
+ENV DB_PATH=/app/data/sqlite.db
 EXPOSE 3000
 
-# Seed on first boot if the DB is empty, then start. (push schema + seed are idempotent-ish.)
-CMD ["sh", "-c", "bunx drizzle-kit push --config drizzle.config.ts || true; [ -s sqlite.db ] || bun src/db/seed.ts; bun src/index.ts"]
+# Seed on first boot only — schema migrations are applied by connection.ts on
+# every boot (idempotent forward-only migrator). seed.ts re-inserts product
+# keys so it must NOT run on warm boots; gate on absence of the DB file.
+CMD ["sh", "-c", "mkdir -p $(dirname $DB_PATH); [ -s $DB_PATH ] || bun src/db/seed.ts; bun src/index.ts"]
