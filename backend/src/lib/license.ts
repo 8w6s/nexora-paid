@@ -100,7 +100,7 @@ export async function verifyLicense(): Promise<VerifyResult> {
   if (typeof signed.payload.email !== "string" || typeof signed.payload.productId !== "string") {
     return { valid: false, reason: "malformed payload (email/productId)" };
   }
-  if (signed.payload.productId !== "nexora") {
+  if (signed.payload.productId !== "nexora-paid") {
     return { valid: false, reason: `wrong productId: ${signed.payload.productId}` };
   }
   if (LICENSE_PUBKEY_HEX === "00".repeat(32)) {
