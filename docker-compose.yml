@@ -51,9 +51,13 @@ services:
       # Caddy sets X-Forwarded-* — backend must trust it to read real client IP
       # (otherwise per-IP rate limits all see the same docker network address).
       TRUST_PROXY: "true"
+      # SQLite lives under /app/data so the named volume only persists the
+      # DB file, not the entire source tree. Mounting `nexora-db:/app` would
+      # shadow the COPY'd code on first boot and freeze it across rebuilds.
+      DB_PATH: /app/data/sqlite.db
       # Optional: ADMIN_PASSWORD_HASH, LTC_XPUB, EMAIL_PROVIDER, RESEND_API_KEY, SMTP_*
     volumes:
-      - nexora-db:/app
+      - nexora-db:/app/data
     restart: unless-stopped
 
   frontend:
