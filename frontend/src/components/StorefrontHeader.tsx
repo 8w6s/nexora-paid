@@ -9,10 +9,9 @@ interface Stats {
   rating: number;
 }
 
-// SellAuth-style shop header: big shop name on the left, 3 KPI stats on the right.
-// New shops with no data render NOTHING — the brand already shows in the
-// Navbar above, and a 150px-tall card holding only a placeholder pill makes
-// the home look empty + misaligned. The hero appears once the first sale lands.
+// SellAuth-style shop header: shop name on the left, 3 KPI stats on the right.
+// Returns null on first-run (no sales yet) — the brand already shows in the
+// Navbar above and a placeholder card just makes the home look empty.
 export const StorefrontHeader: React.FC = () => {
   const { config } = useConfig();
   const [s, setS] = useState<Stats | null>(null);
@@ -46,8 +45,8 @@ export const StorefrontHeader: React.FC = () => {
       <style>{`
         .sf-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 26px; margin-bottom: 18px; gap: 18px; flex-wrap: wrap; }
         .sf-name { font-size: 2rem; font-weight: 700; color: var(--ink); letter-spacing: -.02em; line-height: 1; }
-        .sf-stats { display: flex; gap: 36px; padding-left: 26px; border-left: 1px solid var(--line); }
-        .sf-stat { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 72px; }
+        .sf-stats { display: grid; grid-template-columns: repeat(3, minmax(80px, 1fr)); gap: 36px; padding-left: 26px; border-left: 1px solid var(--line); }
+        .sf-stat { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
         .sf-stat strong { font-size: 1.8rem; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
         .sf-stat span { font-size: .68rem; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .12em; }
         @media (max-width: 600px) { .sf-stats { padding-left: 0; border-left: none; gap: 22px; } .sf-name { font-size: 1.5rem; } .sf-stat strong { font-size: 1.4rem; } }
