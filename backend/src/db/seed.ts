@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "./connection.ts";
-import { productKeys, products, settings } from "./schema.ts";
+import { productKeys, products, productVariants, settings } from "./schema.ts";
 
 // USD prices (hand-set for the international store). slug = SEO URL.
 const mockProducts = [
@@ -116,7 +116,16 @@ const mockProducts = [
   },
 ];
 
+// Demo variant tiers — only prod-2 (Gemini) gets a 1m/3m/12m breakdown so the
+// storefront shows a working multi-variant flow without overwhelming the demo.
+const variantPlan: { id: string; productId: string; name: string; priceUsd: number; compareAtPrice: number; keys: number }[] = [
+  { id: "var-prod2-1m",  productId: "prod-2", name: "1 Month",   priceUsd: 2.49,  compareAtPrice: 4.99,  keys: 15 },
+  { id: "var-prod2-3m",  productId: "prod-2", name: "3 Months",  priceUsd: 6.49,  compareAtPrice: 12.99, keys: 15 },
+  { id: "var-prod2-12m", productId: "prod-2", name: "12 Months", priceUsd: 17.99, compareAtPrice: 49.99, keys: 15 },
+];
+
 // Demo inventory: how many real keys to seed per product (out-of-stock products get 0).
+// Products listed in variantPlan are seeded inside that block instead of here.
 const stockPlan: Record<string, number> = {
   "prod-1": 25,
   "prod-2": 15,
@@ -167,12 +176,41 @@ async function seed() {
         },
       });
 
-    // Seed real key inventory (fresh DB after reset).
-    const n = stockPlan[p.id] ?? 0;
-    if (n > 0) {
-      const rows = Array.from({ length: n }, () => ({
+    // Variant-driven products seed their key inventory below; flat products
+    // seed straight against `stockPlan`.
+    const productVars = variantPlan.filter((v) => v.productId === p.id);
+    if (productVars.length === 0) {
+      const n = stockPlan[p.id] ?? 0;
+      if (n > 0) {
+        const rows = Array.from({ length: n }, () => ({
+          id: randomUUID(),
+          productId: p.id,
+          code: genCode(),
+        }));
+        await db.insert(productKeys).values(rows);
+      }
+    }
+  }
+
+  for (const v of variantPlan) {
+    await db
+      .insert(productVariants)
+      .values({
+        id: v.id,
+        productId: v.productId,
+        name: v.name,
+        priceUsd: v.priceUsd,
+        compareAtPrice: v.compareAtPrice,
+      })
+      .onConflictDoUpdate({
+        target: productVariants.id,
+        set: { name: v.name, priceUsd: v.priceUsd, compareAtPrice: v.compareAtPrice },
+      });
+    if (v.keys > 0) {
+      const rows = Array.from({ length: v.keys }, () => ({
         id: randomUUID(),
-        productId: p.id,
+        productId: v.productId,
+        variantId: v.id,
         code: genCode(),
       }));
       await db.insert(productKeys).values(rows);
