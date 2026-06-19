@@ -114,7 +114,7 @@ await call("POST", "/api/auth/register", { email: email3, password: "secret123" 
 const coWithCoupon = await call(
   "POST",
   "/api/checkout",
-  { items: [{ productId: "prod-2", qty: 1 }], coupon: couponCode },
+  { items: [{ productId: "prod-3", qty: 1 }], coupon: couponCode },
   "k",
 );
 ok("checkout accepts valid coupon", coWithCoupon.status === 201, `order=${coWithCoupon.data.orderId}`);
@@ -122,8 +122,28 @@ const couponOrderId = coWithCoupon.data.orderId as string;
 const orderDetail = await call("GET", `/api/orders/${couponOrderId}`, undefined, "k");
 ok(
   "coupon applied — totalUsd discounted from list price",
-  Number(orderDetail.data.totalUsd) > 0 && Number(orderDetail.data.totalUsd) < 9999,
+  Number(orderDetail.data.totalUsd) > 0 && Number(orderDetail.data.totalUsd) < 999,
   `total=$${orderDetail.data.totalUsd}`,
+);
+
+// Variant checkout — prod-2 must be bought via a variantId since sed
+// redistributed all keys to variants (variantId-NULL keys = 0).
+await new Promise((r) => setTimeout(r, 1500));
+const email4 = `e2e4_${Date.now()}@test.com`;
+await call("POST", "/api/auth/register", { email: email4, password: "secret123" }, "v");
+const variantOrder = await call(
+  "POST",
+  "/api/checkout",
+  { items: [{ productId: "prod-2", variantId: "var-prod2-1m", qty: 1 }] },
+  "v",
+);
+ok("variant checkout creates order", variantOrder.status === 201, `order=${variantOrder.data.orderId}`);
+const variantOrderId = variantOrder.data.orderId as string;
+const variantDetail = await call("GET", `/api/orders/${variantOrderId}`, undefined, "v");
+ok(
+  "variant price applied (1 Month tier ~ $2.49)",
+  Number(variantDetail.data.totalUsd) > 1 && Number(variantDetail.data.totalUsd) < 5,
+  `total=$${variantDetail.data.totalUsd}`,
 );
 
 const db = new Database("sqlite.db");
