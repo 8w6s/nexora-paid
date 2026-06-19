@@ -24,6 +24,11 @@ interface SetupResponse {
 export const Account2FACard: React.FC = () => {
   const toast = useToast();
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  // Distinct loading vs hidden states. The endpoint 403s for admins and the
+  // generic catch used to leave `enabled === null` forever, frezing the card
+  // on "Loading…". `loadFailed` flips when the fetch settles with a non-OK
+  // response so the card can hide itself instead of looking broken.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [setup, setSetup] = useState<SetupResponse | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,7 +41,7 @@ export const Account2FACard: React.FC = () => {
     api
       .get<{ enabled: boolean }>("/api/auth/2fa/status")
       .then((r) => setEnabled(r.enabled))
-      .catch(() => setEnabled(null));
+      .catch(() => setLoadFailed(true));
   }, []);
 
   const beginSetup = async () => {
@@ -135,6 +140,10 @@ export const Account2FACard: React.FC = () => {
       toast.error("Copy failed — select and copy manually");
     }
   };
+
+  // Status fetch failed (e.g. admin role gets 403). The card is customer-only —
+  // hide it rather than freezing on "Loading…" forever.
+  if (loadFailed) return null;
 
   // Loading state — render the same shell so the page doesn't jitter.
   if (enabled === null) {
