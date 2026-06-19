@@ -118,8 +118,6 @@ const NAV_GROUPS: {
       { key: "groups", label: "Groups", icon: "folder" },
       { key: "categories", label: "Categories", icon: "menu" },
       { key: "coupons", label: "Coupons", icon: "tag" },
-      { key: "quantity-deals", label: "Quantity Deals", icon: "receipt", badge: "NEW" },
-      { key: "bundle-offers", label: "Bundle Offers", icon: "box", badge: "NEW" },
     ],
   },
   {
