@@ -91,6 +91,7 @@ export const AdminTickets: React.FC = () => {
   return (
     <div className="atk">
       <SkeletonStyles />
+      <p className="atk-intro">Customer support tickets. Reply to keep the conversation going.</p>
       <div className={`atk-grid ${active ? "has-active" : ""}`}>
         <div className="atk-left">
           <div className="atk-filters">
@@ -202,6 +203,7 @@ export const AdminTickets: React.FC = () => {
       </div>
 
       <style>{`
+        .atk-intro { color: var(--ink-soft); font-size: .88rem; margin-bottom: 14px; }
         .atk-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
         .atk-filters { display: flex; gap: 8px; margin-bottom: 12px; }
         .chip { background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-soft); padding: 5px 13px; border-radius: 100px; cursor: pointer; font-family: var(--font-sans); font-weight: 600; font-size: .8rem; }

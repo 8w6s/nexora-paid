@@ -48,11 +48,18 @@ export const AdminAbandonedCheckouts: React.FC = () => {
 
   return (
     <div className="adm-section">
-      <div className="adm-sec-head">
-        <div>
-          <h2>Abandoned Checkouts</h2>
-          <p className="muted">Track and recover abandoned checkout sessions.</p>
-        </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 4,
+        }}
+      >
+        <p className="muted" style={{ margin: 0, fontSize: ".88rem" }}>
+          Track and recover abandoned checkout sessions.
+        </p>
         <button className="btn btn-ghost" onClick={load}>
           <Icon name="spinner" size={14} /> Refresh
         </button>
