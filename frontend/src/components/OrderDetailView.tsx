@@ -89,6 +89,14 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
             ))}
           </ul>
           <p className="hint">Keep these private — anyone with the code can redeem it.</p>
+          <button
+            type="button"
+            className="btn od-print-btn"
+            onClick={() => window.print()}
+            style={{ marginTop: 14, display: "inline-flex", gap: 8, alignItems: "center" }}
+          >
+            <Icon name="bolt" size={14} /> Print invoice
+          </button>
         </div>
       )}
       {payable && (
