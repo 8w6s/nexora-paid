@@ -1193,6 +1193,44 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       })),
     };
   })
+  .get("/license", async () => {
+    // Customer-safe view of the verified license. Surfaces customerId/expiry/
+    // features so admins can sanity-check what their license actually entitles
+    // them to without leaking the buyer email cleartext to the panel.
+    const lic = (globalThis as any).__nexora_license as
+      | {
+          valid: boolean;
+          reason?: string;
+          email?: string;
+          payload?: {
+            email: string;
+            productId: string;
+            issuedAt: string;
+            customerId?: string;
+            expiresAt?: string;
+            features?: string[];
+            note?: string;
+          };
+        }
+      | undefined;
+    if (!lic) return { valid: false, reason: "no license loaded" };
+    if (!lic.valid) return { valid: false, reason: lic.reason ?? "invalid" };
+    const p = lic.payload!;
+    const email = p.email;
+    const at = email.indexOf("@");
+    const emailMasked = at > 1 ? email[0] + "***" + email.slice(at) : email;
+    return {
+      valid: true,
+      productId: p.productId,
+      customerId: p.customerId ?? null,
+      issuedAt: p.issuedAt,
+      expiresAt: p.expiresAt ?? null,
+      features: p.features ?? null,
+      note: p.note ?? null,
+      emailMasked,
+    };
+  })
+
   .post(
     "/plugins/:id/enabled",
     async ({ params, body, set, adminEmail }) => {

@@ -5,6 +5,7 @@ import { Chart } from "../Chart";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { AdminLicenseCard } from "./AdminLicenseCard";
 
 interface RecentOrder {
   id: string;
@@ -101,6 +102,7 @@ export const AdminOverview: React.FC = () => {
 
   return (
     <div className="ov">
+      <AdminLicenseCard />
       <div className="cards">
         <div className="stat card">
           <span>Revenue (paid)</span>
