@@ -370,7 +370,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
         .adm-denied { text-align: center; color: var(--price); margin-top: 12px; }
 
         /* ───── Sidebar ───── */
-        .adm-side { position: sticky; top: 0; align-self: flex-start; width: 244px; height: 100vh; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 16px 12px; gap: 14px; overflow-y: auto; z-index: 50; }
+        .adm-side { position: sticky; top: 0; align-self: flex-start; width: 244px; height: 100vh; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 16px 12px; gap: 14px; overflow: hidden; z-index: 50; }
         .adm-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px; }
         .adm-logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         /* Logo cluster — flex row keeps "Nexora · Admin · FREE" on one baseline.
@@ -389,7 +389,9 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
         .adm-store-name { flex: 1; }
         .adm-store-link { color: var(--ink-faint); }
 
-        .adm-nav { display: flex; flex-direction: column; gap: 14px; flex: 1; padding-top: 4px; }
+        .adm-nav { display: flex; flex-direction: column; gap: 14px; flex: 1 1 0; min-height: 0; overflow-y: auto; padding-top: 4px; padding-right: 4px; scrollbar-width: thin; }
+        .adm-nav::-webkit-scrollbar { width: 6px; }
+        .adm-nav::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
         .adm-group { display: flex; flex-direction: column; gap: 2px; }
         .adm-group-title { font-size: .68rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em; padding: 4px 12px 6px; }
         .adm-link { display: flex; align-items: center; gap: 11px; padding: 8px 12px; background: none; border: none; color: var(--ink-soft); font-family: var(--font-sans); font-weight: 500; font-size: .88rem; border-radius: var(--radius-sm); cursor: pointer; text-align: left; transition: background .15s, color .15s; }
