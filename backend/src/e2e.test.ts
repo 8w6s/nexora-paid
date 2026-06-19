@@ -14,8 +14,13 @@ const ok = (_label: string, cond: boolean, _extra = "") => {
     _pass++;
   } else {
     fail++;
+    process.stderr.write(`FAIL: ${_label}${_extra ? ` (${_extra})` : ""}
+`);
   }
 };
+process.on("exit", () => process.stderr.write(`
+E2E: ${_pass} pass, ${fail} fail
+`));
 const jar: Record<string, string> = {};
 async function call(method: string, path: string, body?: unknown, who?: "c" | "a") {
   const headers: Record<string, string> = { "Content-Type": "application/json", Origin: O };
@@ -51,6 +56,7 @@ ok(
 ok("has expectedLitoshi", Number(co.data.expectedLitoshi) > 0, `${co.data.ltcAmount} LTC`);
 const orderId = co.data.orderId as string;
 
+await new Promise((r) => setTimeout(r, 1500));
 const oos = await call("POST", "/api/checkout", { items: [{ productId: "prod-5", qty: 1 }] }, "c");
 ok("out-of-stock → 400", oos.status === 400, oos.data.code);
 const email2 = `e2e2_${Date.now()}@test.com`;
@@ -73,7 +79,10 @@ ok(
 const adminLogin = await call(
   "POST",
   "/api/auth/login",
-  { email: "admin@nexora.local", password: "admin12345" },
+  {
+    email: process.env.ADMIN_EMAIL ?? "admin@nexora.local",
+    password: process.env.ADMIN_PASSWORD ?? "admin12345",
+  },
   "a",
 );
 ok("admin login role=admin", adminLogin.data.role === "admin");
