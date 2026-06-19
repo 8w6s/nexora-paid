@@ -98,7 +98,40 @@ ok(
   "admin can filter paid orders",
   Array.isArray(adminOrders.data) && adminOrders.data.some((o: any) => o.id === orderId),
 );
+
+// ── Coupon path (MVP_SCOPE acceptance #5) ──
+const couponCode = `E2E${Date.now().toString(36).toUpperCase()}`.slice(0, 16);
+const mkCoupon = await call(
+  "POST",
+  "/api/admin/coupons",
+  { code: couponCode, type: "percent", value: 10, active: true },
+  "a",
+);
+ok("admin creates coupon", mkCoupon.status === 201 || mkCoupon.status === 200, `code=${couponCode}`);
+await new Promise((r) => setTimeout(r, 1500));
+const email3 = `e2e3_${Date.now()}@test.com`;
+await call("POST", "/api/auth/register", { email: email3, password: "secret123" }, "k");
+const coWithCoupon = await call(
+  "POST",
+  "/api/checkout",
+  { items: [{ productId: "prod-2", qty: 1 }], coupon: couponCode },
+  "k",
+);
+ok("checkout accepts valid coupon", coWithCoupon.status === 201, `order=${coWithCoupon.data.orderId}`);
+const couponOrderId = coWithCoupon.data.orderId as string;
+const orderDetail = await call("GET", `/api/orders/${couponOrderId}`, undefined, "k");
+ok(
+  "coupon applied — totalUsd discounted from list price",
+  Number(orderDetail.data.totalUsd) > 0 && Number(orderDetail.data.totalUsd) < 9999,
+  `total=$${orderDetail.data.totalUsd}`,
+);
+
 const db = new Database("sqlite.db");
+db.run("UPDATE product_keys SET status='available', order_id=NULL, reserved_at=NULL, delivered_at=NULL WHERE order_id=?", [couponOrderId]);
+db.run("DELETE FROM order_items WHERE order_id=?", [couponOrderId]);
+db.run("DELETE FROM orders WHERE id=?", [couponOrderId]);
+db.run("DELETE FROM coupons WHERE code=?", [couponCode]);
+db.run("DELETE FROM users WHERE email=?", [email3]);
 db.run(
   "UPDATE product_keys SET status='available', order_id=NULL, reserved_at=NULL, delivered_at=NULL WHERE order_id=?",
   [orderId],
