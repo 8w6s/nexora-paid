@@ -167,6 +167,18 @@ If you did this, ignore this message. If you did NOT do this, contact the shop o
 — Nexora`,
     });
   },
+  testEmail: (to: string) =>
+    send({
+      to,
+      subject: safeHeader("Nexora email test — it works!"),
+      html: `<p>This is a test email from your Nexora admin panel. If you received this, your email provider is configured correctly and customers will receive order confirmations + delivered keys.</p><p style="color:#94a3b8;font-size:12px">Sent at ${new Date().toISOString()}</p>`,
+      text: `This is a test email from your Nexora admin panel.
+
+If you received this, your email provider is configured correctly and customers will receive order confirmations + delivered keys.
+
+Sent at ${new Date().toISOString()}
+— Nexora`,
+    }),
   lowStockAlert: (to: string, productName: string, remaining: number) => {
     // Sanitize the subject line so an attacker who can name a product can't
     // smuggle CRLF / quotes into the SMTP envelope (header injection).

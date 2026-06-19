@@ -506,6 +506,27 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     },
   )
 
+  .post("/settings/test-email", async ({ body, set, adminEmail }) => {
+    const to = (body as { to?: string })?.to?.trim() || adminEmail;
+    if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      set.status = 400;
+      return { error: "Invalid recipient email", code: "BAD_EMAIL" };
+    }
+    const rl = rateLimitCheck(`test-email:${adminEmail}`, 3, 5 * 60_000);
+    if (!rl.allowed) {
+      set.status = 429;
+      set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
+      return { error: "Too many test sends — wait a moment", code: "RATE_LIMITED" };
+    }
+    const res = await EmailService.testEmail(to);
+    if ("error" in res) {
+      set.status = 500;
+      return { error: res.error, code: "EMAIL_FAILED" };
+    }
+    await logAdminAction(adminEmail, "settings.test_email", `to ${to}`);
+    return { ok: true, to };
+  })
+
   .get("/products/:id/keys", async ({ params: { id }, query }) => {
     const status = (query as Record<string, string>).status;
     const where =

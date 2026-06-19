@@ -101,6 +101,52 @@ type TabType =
   | "billing"
   | "misc";
 
+const TestEmailCard: React.FC = () => {
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const send = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await api.post("/api/admin/settings/test-email", { to: to.trim() || undefined });
+      if (r.ok) toast.success(`Test email sent to ${r.data.to}`);
+      else toast.error(r.data?.error || "Failed to send test email");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="card sec">
+      <span className="section-title">
+        <Icon name="bolt" size={16} /> Send Test Email
+      </span>
+      <p className="section-subtitle">
+        Verify your provider config end-to-end. Defaults to your admin address if you leave the field empty.
+      </p>
+      <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+        <input
+          className="input"
+          type="email"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          placeholder="recipient@example.com (optional)"
+          style={{ flex: 1 }}
+        />
+        <button
+          type="button"
+          className="btn primary"
+          onClick={send}
+          disabled={busy}
+          style={{ minWidth: 130 }}
+        >
+          {busy ? "Sending…" : "Send test"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const AdminSettings: React.FC = () => {
   const [s, setS] = useState<SettingsView | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("identity");
@@ -1295,6 +1341,8 @@ export const AdminSettings: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                <TestEmailCard />
               </>
             )}
           </div>
