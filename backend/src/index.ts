@@ -349,7 +349,12 @@ const baseApp = new Elysia()
   )
 
   // ───── Public routes (no auth required) ─────
-  .use(configRoutes)
+  .use(configRoutes);
+
+// Paid modules register BEFORE productRoutes so static paths like
+// /api/products/suggest are not shadowed by the dynamic /api/products/:idOrSlug
+// route. Loader is licence-gated and a no-op when no paid registry is shipped.
+const app = (await loadPlugins(baseApp))
   .use(productRoutes)
   .use(categoryRoutes)
 
@@ -359,21 +364,18 @@ const baseApp = new Elysia()
   .use(reviewRoutes)
   .use(ticketRoutes)
 
-  // ───── Admin routes ─────
+  // ───── Admin routes ────
   .use(adminRoutes)
   .use(admin2faRoutes)
   .use(adminBlocklistRoutes)
   .use(adminTicketRoutes)
 
-  // ───── Checkout + setup ─────
+  // ─── Checkout + setup ─────
   .use(checkoutRoutes)
   .use(setupRoutes)
 
   // ───── Dev routes (SSE log stream, health) — only in non-production ─────
   .use(Bun.env.NODE_ENV === "production" ? new Elysia() : devRoutes);
-
-// Paid modules register here (gated by license). Empty registry = no-op.
-const app = await loadPlugins(baseApp);
 
 // Bootstrap admin + prime crypto secrets BEFORE anything else can observe
 // the throw-on-uninitialized branch in generateOrderToken. Previously this
