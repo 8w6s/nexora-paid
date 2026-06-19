@@ -190,9 +190,9 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
                       style={{
                         padding: "10px 16px",
                         borderRadius: "100px",
-                        border: isSelected
-                          ? "2px solid var(--brand)"
-                          : "1px solid var(--line-strong)",
+                        border: "1px solid " + (isSelected ? "var(--brand)" : "var(--line-strong)"),
+                        outline: isSelected ? "1px solid var(--brand)" : "none",
+                        outlineOffset: -2,
                         background: isSelected ? "var(--brand-soft)" : "var(--surface)",
                         color: isSelected
                           ? "var(--brand)"
