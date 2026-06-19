@@ -293,12 +293,10 @@ export const checkoutRoutes = new Elysia()
           const addressIndex = Math.max(counter, Number(maxRow[0]?.m ?? -1) + 1);
           const ltcAddress = deriveReceiveAddress(xpub, addressIndex);
 
-          for (const { product, variant, qty } of lines) {
-            const okk = await reserveKeys(tx as any, product.id, orderId, qty, variant?.id);
-            if (!okk)
-              throw new Error(`OUT_OF_STOCK:${product.name}${variant ? ` (${variant.name})` : ""}`);
-          }
-
+          // Insert order BEFORE reserveKeys: product_keys.order_id has a FK
+          // reference to orders.id, so updating it to a not-yet-existing order
+          // row throws SQLITE_CONSTRAINT_FOREIGNKEY. Items are inserted in the
+          // same order — they share the same FK constraint.
           await tx.insert(orders).values({
             id: orderId,
             userId: checkoutUserId,
@@ -322,6 +320,11 @@ export const checkoutRoutes = new Elysia()
               priceUsd: variant ? variant.priceUsd : product.priceUsd,
               quantity: qty,
             });
+          }
+          for (const { product, variant, qty } of lines) {
+            const okk = await reserveKeys(tx as any, product.id, orderId, qty, variant?.id);
+            if (!okk)
+              throw new Error(`OUT_OF_STOCK:${product.name}${variant ? ` (${variant.name})` : ""}`);
           }
 
           // Atomic coupon consumption: re-read the row inside this transaction
@@ -387,6 +390,7 @@ export const checkoutRoutes = new Elysia()
             error: "Coupon just ran out — try again without it",
             code: "COUPON_EXHAUSTED",
           });
+        console.error("[checkout] failed:", e);
         return status(500, { error: "Checkout failed", code: "CHECKOUT_FAILED" });
       }
     },

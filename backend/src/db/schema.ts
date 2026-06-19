@@ -264,7 +264,7 @@ export const orders = sqliteTable(
     // existing rows to 0 so the first tick after deploy covers them all.
     lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" })
       .notNull()
-      .default(0),
+      .default(sql`0`),
   },
   (t) => ({
     statusIdx: index("orders_status_idx").on(t.status),
