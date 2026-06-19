@@ -1018,26 +1018,35 @@ function DataTable(props: { columns: string[]; rows: Record<string, unknown>[] }
   };
   const padRight = (s: string, w: number) => (s.length >= w ? s : s + " ".repeat(w - s.length));
 
+  // Wrap header + body trong 1 scrollbox duy nhat. Khi tong width N*COL_W
+  // vuot viewport -> opentui hien thi horizontal scrollbar; khi rows vuot
+  // chieu cao -> vertical scrollbar. Header + rows scroll cung huong ngang
+  // (giong xem CSV trong terminal). Inner column box flexShrink={0} de giu
+  // intrinsic width = max-row-width thay vi co lai vua khit container.
   return (
-    <box flexDirection="column" flexGrow={1}>
-      {/* Column header */}
-      <box flexDirection="row" flexShrink={0}>
-        <For each={props.columns}>
-          {(c) => (
-            <text
-              fg={theme.accent}
-              attributes={TextAttributes.BOLD}
-              selectable={false}
-            >
-              {padRight(c.length > COL_W - 1 ? c.slice(0, COL_W - 1) : c, COL_W)}
-            </text>
-          )}
-        </For>
-      </box>
-      <text fg={theme.border} selectable={false}>
-        {"─".repeat(Math.min(props.columns.length * COL_W, 200))}
-      </text>
-      <scrollbox flexGrow={1} viewportOptions={{ paddingRight: 0 }} scrollbarOptions={{ visible: true, showArrows: false }}>
+    <scrollbox
+      flexGrow={1}
+      viewportOptions={{ paddingRight: 0 }}
+      scrollbarOptions={{ visible: true, showArrows: false }}
+    >
+      <box flexDirection="column" flexShrink={0}>
+        {/* Column header */}
+        <box flexDirection="row" flexShrink={0}>
+          <For each={props.columns}>
+            {(c) => (
+              <text
+                fg={theme.accent}
+                attributes={TextAttributes.BOLD}
+                selectable={false}
+              >
+                {padRight(c.length > COL_W - 1 ? c.slice(0, COL_W - 1) : c, COL_W)}
+              </text>
+            )}
+          </For>
+        </box>
+        <text fg={theme.border} selectable={false}>
+          {"─".repeat(Math.min(props.columns.length * COL_W, 200))}
+        </text>
         <For each={props.rows}>
           {(row) => (
             <box flexDirection="row" flexShrink={0}>
@@ -1048,7 +1057,7 @@ function DataTable(props: { columns: string[]; rows: Record<string, unknown>[] }
                   return (
                     <text fg={isNull ? theme.textMuted : theme.text} selectable={true}>
                       {padRight(fmtCellLocal(v), COL_W)}
-                </text>
+                    </text>
                   );
                 }}
               </For>
@@ -1058,8 +1067,8 @@ function DataTable(props: { columns: string[]; rows: Record<string, unknown>[] }
         <Show when={props.rows.length === 0}>
           <text fg={theme.textMuted} selectable={false}>(no rows)</text>
         </Show>
-      </scrollbox>
-    </box>
+      </box>
+    </scrollbox>
   );
 }
 
@@ -1227,6 +1236,8 @@ function Tab(props: { label: string; active: () => boolean; accent: typeof theme
       borderColor={props.active() ? props.accent : theme.border}
       backgroundColor={props.active() ? theme.panel : undefined}
       onMouseDown={() => props.onActivate()}
+      onMouseOver={() => setHover(true)}
+      onMouseOut={() => setHover(false)}
     >
       <text
         fg={props.active() ? props.accent : theme.textDim}
