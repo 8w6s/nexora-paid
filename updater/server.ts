@@ -97,17 +97,45 @@ async function snapshotVolume(j: Job): Promise<string> {
 }
 
 async function pullImage(j: Job): Promise<void> {
-  const ref = `${j.imageRepo}:${j.imageTag}`;
+  // Pin by digest when the manifest provided one. This protects against a
+  // compromised GHCR account silently swapping a tag to point at a malicious
+  // image — by-digest pulls fail if the digest no longer matches.
+  const normalizedDigest = j.sha256
+    ? j.sha256.startsWith("sha256:")
+      ? j.sha256
+      : `sha256:${j.sha256}`
+    : null;
+  const ref = normalizedDigest
+    ? `${j.imageRepo}@${normalizedDigest}`
+    : `${j.imageRepo}:${j.imageTag}`;
   step(j, `pull ${ref}`);
   const r = await run("docker", ["pull", ref], { timeoutMs: 15 * 60_000 });
   if (r.code !== 0) throw new Error(`pull failed: ${r.stderr || r.stdout}`);
-  if (j.sha256) {
-    const inspect = await run("docker", ["image", "inspect", "--format", "{{index .RepoDigests 0}}", ref]);
-    if (inspect.code === 0 && !inspect.stdout.includes(j.sha256)) {
-      throw new Error(`pulled image digest mismatch (expected ${j.sha256})`);
+  if (normalizedDigest) {
+    // Re-tag so compose can refer to the version-tag we record in .env.version.
+    const tagRef = `${j.imageRepo}:${j.imageTag}`;
+    const t = await run("docker", ["tag", ref, tagRef]);
+    if (t.code !== 0) throw new Error(`docker tag failed: ${t.stderr}`);
+    const inspect = await run("docker", ["image", "inspect", "--format", "{{index .RepoDigests 0}}", tagRef]);
+    if (inspect.code === 0 && !inspect.stdout.includes(normalizedDigest)) {
+      throw new Error(`puled image digest mismatch (expected ${normalizedDigest})`);
     }
   }
   step(j, `pull ok`);
+}
+
+async function cleanupOldImage(j: Job): Promise<void> {
+  if (!j.fromVersion || j.fromVersion === "unknown" || j.fromVersion === j.toVersion) return;
+  const oldRef = `${j.imageRepo}:${j.fromVersion}`;
+  step(j, `cleanup: rm ${oldRef}`);
+  // Best-effort; do not fail the job if this errors (another container may still use it).
+  const r = await run("docker", ["image", "rm", oldRef], { timeoutMs: 30_000 });
+  if (r.code !== 0) {
+    const firstLine = r.stderr.trim().split(String.fromCharCode(10))[0] ?? "";
+    step(j, `cleanup: rm failed (non-fatal): ${firstLine}`);
+  }
+  await run("docker", ["image", "prune", "-f"], { timeoutMs: 60_000 });
+  step(j, `cleanup ok`);
 }
 
 async function composeUp(j: Job, version: string): Promise<void> {
@@ -159,6 +187,9 @@ NEXORA_VERSION=${j.imageTag}
     j.status = "healthchecking";
     const healthy = await waitHealthy(j);
     if (!healthy) throw new Error("new version failed healthcheck");
+
+    // Healthcheck passed — safe to reclaim space from the old image.
+    await cleanupOldImage(j).catch((e) => step(j, `cleanup error (non-fatal): ${e}`));
 
     j.status = "ok";
     j.finishedAt = Date.now();
