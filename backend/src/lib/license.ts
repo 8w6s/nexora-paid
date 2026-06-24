@@ -142,16 +142,7 @@ export async function verifyLicense(): Promise<VerifyResult> {
   }
   if (!ok) return { valid: false, reason: "signature mismatch" };
 
-  // Optional expiry — only enforced when present, so v1 lifetime licenses
-  // (no expiresAt field) keep verifying. Bad/unparseable date is treated as
-  // "no expiry" rather than a hard fail to avoid bricking shops on a typo.
-  if (signed.payload.expiresAt) {
-    const exp = Date.parse(signed.payload.expiresAt);
-    if (!Number.isNaN(exp) && exp < Date.now()) {
-      return { valid: false, reason: `license expired at ${signed.payload.expiresAt}` };
-    }
-  }
-
+  
   return { valid: true, email: signed.payload.email, payload: signed.payload };
 }
 

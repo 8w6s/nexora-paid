@@ -18,7 +18,6 @@ import {
 } from "../lib/auth.ts";
 import { EmailService } from "../lib/email.ts";
 import { hookBus } from "../lib/plugin/hook-bus.ts";
-import { verifyCode } from "../lib/totp.ts";
 import {
   lockoutBump,
   lockoutCheck,
@@ -26,6 +25,7 @@ import {
   rateLimitCheck,
   clientIp as resolveClientIp,
 } from "../lib/rate-limit.ts";
+import { verifyCode } from "../lib/totp.ts";
 
 /* ───────── auth macros: requireAuth / requireAdmin (Elysia 1.4 macro v2 + resolve) ───────── */
 // `resolve` runs after validation, injects a typed `user` into context, and short-circuits
@@ -102,7 +102,10 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       // Emit hook for plugins (welcome email, CRM sync, etc.)
       hookBus.emit("user.created", { userId: id, email }).catch(() => {});
 
-      const { token, expiresAt } = await createSession(id, "customer", { ip, userAgent: request.headers.get("user-agent") });
+      const { token, expiresAt } = await createSession(id, "customer", {
+        ip,
+        userAgent: request.headers.get("user-agent"),
+      });
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       void logAuthEvent(email, "register", ip);
       set.status = 201;
@@ -182,7 +185,10 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       lockoutReset(lockKey);
       // Pass role so admin sessions get the 8h hard cap rather than the
       // 30d customer ceiling. SOC2 / ISO 27001 baseline for admin re-auth.
-      const { token, expiresAt } = await createSession(user.id, user.role, { ip, userAgent: request.headers.get("user-agent") });
+      const { token, expiresAt } = await createSession(user.id, user.role, {
+        ip,
+        userAgent: request.headers.get("user-agent"),
+      });
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       void logAuthEvent(email, "login.ok", ip, user.role === "admin" ? "(admin)" : undefined);
       return { id: user.id, email: user.email, role: user.role };
@@ -216,11 +222,40 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   // "not signed in" is a normal, expected state. Wrapping in {user: ...|null}
   // lets the client pattern-match without inspecting status codes — this is
   // the same shape NextAuth's /session and Supabase's getUser() use.
-  .get("/me", async ({ cookie }) => {
-    const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
-    if (!user) return { user: null };
-    return { user: { id: user.id, email: user.email, role: user.role } };
+  .get("/me", async ({ cookie }) => {!user) return { user: null };
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        locale: (user as { locale?: string | null }).locale ?? null,
+      },
+    };
   })
+  // PATCH /api/auth/locale — persist the user's chosen language so future
+  // sessions and server-rendered emails default to it. Body is intentionally
+  // minimal (just the code); the allow-list lives server-side so we never
+  // store an attacker-supplied locale string.
+  .patch(
+    "/locale",
+    async ({ body, cookie, set }) => {
+      const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
+      if (!user) {
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
+      const allowed = ["en", "vi", "zh", "es", "de"] as const;
+      if (!allowed.includes(body.locale as (typeof allowed)[number])) {
+        set.status = 400;
+        return { error: "Unsupported locale", code: "BAD_LOCALE" };
+      }
+      await db.update(users).set({ locale: body.locale }).where(eq(users.id, user.id));
+      return { ok: true, locale: body.locale };
+    },
+    {
+      body: t.Object({ locale: t.String({ minLength: 2, maxLength: 5 }) }),
+    },
+  )
 
   /* ───────── password reset (customer-only, two-step) ───────── */
   // Step 1: /forgot — accept any email, ALWAYS return ok=true so an attacker
@@ -375,7 +410,10 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       }
       if (new Date(row.expiresAt).getTime() < Date.now()) {
         // Best-effort GC of the expired row — keeps the table tidy.
-        await db.delete(passwordResets).where(eq(passwordResets.token, hashed)).catch(() => {});
+        await db
+          .delete(passwordResets)
+          .where(eq(passwordResets.token, hashed))
+          .catch(() => {});
         void logAuthEvent("(unknown)", "reset.expired", ip);
         set.status = 400;
         return { error: "Invalid or expired reset link", code: "BAD_TOKEN" };
@@ -385,7 +423,10 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       if (!user || user.status === "banned" || user.role !== "customer") {
         // Edge: user was deleted or banned between mint + redeem. Burn the
         // token regardless so it can't be re-tried.
-        await db.delete(passwordResets).where(eq(passwordResets.token, hashed)).catch(() => {});
+        await db
+          .delete(passwordResets)
+          .where(eq(passwordResets.token, hashed))
+          .catch(() => {});
         void logAuthEvent(user?.email ?? "(unknown)", "reset.user_gone", ip);
         set.status = 400;
         return { error: "Invalid or expired reset link", code: "BAD_TOKEN" };
@@ -397,10 +438,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       // crash mid-flow can't leave a usable token next to the new password.
       try {
         await db.transaction(async (tx) => {
-          await tx
-            .update(users)
-            .set({ passwordHash: newHash })
-            .where(eq(users.id, user.id));
+          await tx.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
           await tx
             .update(passwordResets)
             .set({ usedAt: new Date() })
@@ -743,46 +781,40 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
    *   - Scope the lookup to (userId == actor.id) so a forged id from
    *     someone else's account can never match.
    *   - Refuse self-revoke — actor uses /logout for that path. */
-  .post(
-    "/sessions/:id/revoke",
-    async ({ params: { id }, cookie, set, request }) => {
-      const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
-      const sessionUser = await validateSession(tok);
-      if (!sessionUser) {
-        set.status = 401;
-        return { error: "Authentication required", code: "UNAUTHENTICATED" };
-      }
-      if (typeof id !== "string" || id.length < 8 || !/^[0-9a-f]+$/.test(id)) {
-        set.status = 400;
-        return { error: "Invalid session id", code: "BAD_ID" };
-      }
-      const currentId = tok ? createHash("sha256").update(tok).digest("hex") : null;
-      const own = await db
-        .select()
-        .from(sessions)
-        .where(eq(sessions.userId, sessionUser.id));
-      const target = own.find((s) => s.token.startsWith(id));
-      if (!target) {
-        set.status = 404;
-        return { error: "Session not found", code: "NOT_FOUND" };
-      }
-      if (target.token === currentId) {
-        set.status = 400;
-        return {
-          error: "Refusing to revoke the current session — use logout instead",
-          code: "SELF_REVOKE",
-        };
-      }
-      await db.delete(sessions).where(eq(sessions.token, target.token));
-      void logAuthEvent(
-        sessionUser.email,
-        "logout",
-        clientIp(request),
-        `(revoked session ${id} from /account)`,
-      );
-      return { ok: true };
-    },
-  )
+  .post("/sessions/:id/revoke", async ({ params: { id }, cookie, set, request }) => {
+    const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+    const sessionUser = await validateSession(tok);
+    if (!sessionUser) {
+      set.status = 401;
+      return { error: "Authentication required", code: "UNAUTHENTICATED" };
+    }
+    if (typeof id !== "string" || id.length < 8 || !/^[0-9a-f]+$/.test(id)) {
+      set.status = 400;
+      return { error: "Invalid session id", code: "BAD_ID" };
+    }
+    const currentId = tok ? createHash("sha256").update(tok).digest("hex") : null;
+    const own = await db.select().from(sessions).where(eq(sessions.userId, sessionUser.id));
+    const target = own.find((s) => s.token.startsWith(id));
+    if (!target) {
+      set.status = 404;
+      return { error: "Session not found", code: "NOT_FOUND" };
+    }
+    if (target.token === currentId) {
+      set.status = 400;
+      return {
+        error: "Refusing to revoke the current session — use logout instead",
+        code: "SELF_REVOKE",
+      };
+    }
+    await db.delete(sessions).where(eq(sessions.token, target.token));
+    void logAuthEvent(
+      sessionUser.email,
+      "logout",
+      clientIp(request),
+      `(revoked session ${id} from /account)`,
+    );
+    return { ok: true };
+  })
 
   /* ───────── self-service account deletion (GDPR Art. 17) ───────── */
   // Sellauth and Whop both ship a "Delete account" surface on the user
@@ -825,73 +857,76 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   //    feedback.
   //  - tickets — operator may need the conversation context for an
   //    open dispute; the email field surfaces the anonymized address.
-  .post("/delete-account", async ({ body, cookie, request, set }) => {
-    const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
-    const sessionUser = await validateSession(tok);
-    if (!sessionUser) {
-      set.status = 401;
-      return { error: "Authentication required", code: "UNAUTHENTICATED" };
-    }
-    if (sessionUser.role !== "customer") {
-      set.status = 403;
-      return { error: "Admin accounts cannot self-delete here", code: "WRONG_ROLE" };
-    }
+  .post(
+    "/delete-account",
+    async ({ body, cookie, request, set }) => {
+      const tok = cookie[SESSION_COOKIE]?.value as string | undefined;
+      const sessionUser = await validateSession(tok);
+      if (!sessionUser) {
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
+      if (sessionUser.role !== "customer") {
+        set.status = 403;
+        return { error: "Admin accounts cannot self-delete here", code: "WRONG_ROLE" };
+      }
 
-    const ip = clientIp(request);
-    const dbUser = (await db.select().from(users).where(eq(users.id, sessionUser.id)))[0];
-    if (!dbUser) {
-      set.status = 401;
-      return { error: "Authentication required", code: "UNAUTHENTICATED" };
-    }
+      const ip = clientIp(request);
+      const dbUser = (await db.select().from(users).where(eq(users.id, sessionUser.id)))[0];
+      if (!dbUser) {
+        set.status = 401;
+        return { error: "Authentication required", code: "UNAUTHENTICATED" };
+      }
 
-    const ok = await verifyPassword(body.currentPassword, dbUser.passwordHash);
-    if (!ok) {
-      void logAuthEvent(dbUser.email, "account.delete.bad_current", ip);
-      set.status = 401;
-      return { error: "Current password is incorrect", code: "BAD_CURRENT" };
-    }
+      const ok = await verifyPassword(body.currentPassword, dbUser.passwordHash);
+      if (!ok) {
+        void logAuthEvent(dbUser.email, "account.delete.bad_current", ip);
+        set.status = 401;
+        return { error: "Current password is incorrect", code: "BAD_CURRENT" };
+      }
 
-    // Build the anonymized values OUTSIDE the transaction so we don't
-    // hold a write tx open longer than the writes need.
-    const anonEmail = `deleted-${dbUser.id}@deleted.invalid`;
-    const deadHash = randomBytes(32).toString("hex");
+      // Build the anonymized values OUTSIDE the transaction so we don't
+      // hold a write tx open longer than the writes need.
+      const anonEmail = `deleted-${dbUser.id}@deleted.invalid`;
+      const deadHash = randomBytes(32).toString("hex");
 
-    try {
-      await db.transaction(async (tx) => {
-        await tx
-          .update(users)
-          .set({
-            email: anonEmail,
-            passwordHash: deadHash,
-            totpEnabled: false,
-            totpSecret: null,
-            totpBackupCodes: null,
-            lastTotpCounter: -1,
-            status: "deleted",
-          })
-          .where(eq(users.id, dbUser.id));
-        await tx.delete(sessions).where(eq(sessions.userId, dbUser.id));
-        await tx.delete(passwordResets).where(eq(passwordResets.userId, dbUser.id));
-      });
-    } catch {
-      set.status = 500;
-      return { error: "Could not delete account, try again", code: "DELETE_FAILED" };
-    }
+      try {
+        await db.transaction(async (tx) => {
+          await tx
+            .update(users)
+            .set({
+              email: anonEmail,
+              passwordHash: deadHash,
+              totpEnabled: false,
+              totpSecret: null,
+              totpBackupCodes: null,
+              lastTotpCounter: -1,
+              status: "deleted",
+            })
+            .where(eq(users.id, dbUser.id));
+          await tx.delete(sessions).where(eq(sessions.userId, dbUser.id));
+          await tx.delete(passwordResets).where(eq(passwordResets.userId, dbUser.id));
+        });
+      } catch {
+        set.status = 500;
+        return { error: "Could not delete account, try again", code: "DELETE_FAILED" };
+      }
 
-    // Clear the actor's cookie so they don't see a stale "signed in"
-    // shell on the next page load. The cookie is already invalid because
-    // we deleted the sessions row inside the tx, but a fresh /me poll
-    // would 401 anyway — clearing keps the UX tidy.
-    cookie[SESSION_COOKIE]?.remove();
+      // Clear the actor's cookie so they don't see a stale "signed in"
+      // shell on the next page load. The cookie is already invalid because
+      // we deleted the sessions row inside the tx, but a fresh /me poll
+      // would 401 anyway — clearing keps the UX tidy.
+      cookie[SESSION_COOKIE]?.remove();
 
-    void logAuthEvent(dbUser.email, "account.delete.ok", ip, `→ ${anonEmail}`);
-    return { ok: true };
-  },
-  {
-    body: t.Object({
-      currentPassword: t.String({ minLength: 1, maxLength: 200 }),
-    }),
-  });
+      void logAuthEvent(dbUser.email, "account.delete.ok", ip, `→ ${anonEmail}`);
+      return { ok: true };
+    },
+    {
+      body: t.Object({
+        currentPassword: t.String({ minLength: 1, maxLength: 200 }),
+      }),
+    },
+  );
 
 /* ───────── bootstrap single admin from env ───────── */
 // ADMIN_EMAIL + ADMIN_PASSWORD_HASH (an argon2id hash). If only ADMIN_PASSWORD (plaintext) is set
@@ -938,8 +973,7 @@ export async function bootstrapAdmin() {
       // the next deploy. Operator must explicitly clear 2FA via the admin API
       // before forcing a password rotation, OR set ADMIN_BOOTSTRAP_FORCE_2FA
       // to acknowledge that recovery requires re-enrollment.
-      const allow2faReset =
-        (Bun.env.ADMIN_BOOTSTRAP_FORCE_2FA ?? "").toLowerCase() === "true";
+      const allow2faReset = (Bun.env.ADMIN_BOOTSTRAP_FORCE_2FA ?? "").toLowerCase() === "true";
       if (existing.totpEnabled && !allow2faReset) {
         console.error(
           `[boot] FATAL: ADMIN_BOOTSTRAP_FORCE=true but ${email} has 2FA enabled. ` +
@@ -993,6 +1027,20 @@ export async function bootstrapAdmin() {
     // No-op when existing user is already admin and no force requested —
     // this is the intended path for restarts.
   } else {
-    await db.insert(users).values({ id: randomUUID(), email, passwordHash, role: "admin" });
+    // Race-safe insert: two concurrent bot workers (or a boot racing a
+    // first-user signup) could both reach this branch after seeing no
+    // existing row. The UNIQUE constraint on email will reject the second
+    // INSERT — catch it so boot doesn't crash. The row already exists with
+    // the same admin credentials, which is the intended end state.
+    try {
+      await db.insert(users).values({ id: randomUUID(), email, passwordHash, role: "admin" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/UNIQUE|constraint|duplicate/i.test(msg)) {
+        console.warn(`[boot] admin ${email} created by concurrent worker, continuing`);
+      } else {
+        throw e;
+      }
+    }
   }
 }

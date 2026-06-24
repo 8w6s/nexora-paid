@@ -2,9 +2,8 @@ import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
-import { revokeOtherSessions } from "../lib/auth.ts";
 import { logAdminAction } from "../lib/audit.ts";
-import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { revokeOtherSessions, SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { rateLimitCheck } from "../lib/rate-limit.ts";
 import {
   generateBackupCodes,
@@ -73,11 +72,11 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
     const u = (await db.select().from(users).where(eq(users.id, adminUser.id)))[0];
     if (!u) {
       set.status = 404;
-      return { error: "Admin user not found" };
+      return { error: "Admin user not found", code: "ADMIN_NOT_FOUND" };
     }
     if (u.totpEnabled) {
       set.status = 400;
-      return { error: "2FA is already enabled" };
+      return { error: "2FA is already enabled", code: "TOTP_ALREADY_ENABLED" };
     }
 
     // Always rotate: a fresh /setup call invalidates any prior candidate so
@@ -102,7 +101,11 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
   .post(
     "/enable",
     async ({ adminUser, body, set, currentToken }) => {
-      const rl = rateLimitCheck(`totp-verify:${adminUser.id}`, TOTP_VERIFY_MAX, TOTP_VERIFY_WINDOW_MS);
+      const rl = rateLimitCheck(
+        `totp-verify:${adminUser.id}`,
+        TOTP_VERIFY_MAX,
+        TOTP_VERIFY_WINDOW_MS,
+      );
       if (!rl.allowed) {
         set.status = 429;
         set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
@@ -157,7 +160,11 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
   .post(
     "/disable",
     async ({ adminUser, body, set, currentToken }) => {
-      const rl = rateLimitCheck(`totp-verify:${adminUser.id}`, TOTP_VERIFY_MAX, TOTP_VERIFY_WINDOW_MS);
+      const rl = rateLimitCheck(
+        `totp-verify:${adminUser.id}`,
+        TOTP_VERIFY_MAX,
+        TOTP_VERIFY_WINDOW_MS,
+      );
       if (!rl.allowed) {
         set.status = 429;
         set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
@@ -166,7 +173,7 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
       const u = (await db.select().from(users).where(eq(users.id, adminUser.id)))[0];
       if (!u || !u.totpEnabled || !u.totpSecret) {
         set.status = 400;
-        return { error: "2FA is not enabled" };
+        return { error: "2FA is not enabled", code: "TOTP_NOT_ENABLED" };
       }
 
       const result = verifyCode(u.totpSecret, body.code, u.lastTotpCounter);
@@ -231,7 +238,8 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
       let hashes: string[] = [];
       try {
         const parsed = JSON.parse(u.totpBackupCodes);
-        if (Array.isArray(parsed)) hashes = parsed.filter((x): x is string => typeof x === "string");
+        if (Array.isArray(parsed))
+          hashes = parsed.filter((x): x is string => typeof x === "string");
       } catch {
         // Corrupt store — refuse rather than silently accepting any code.
         set.status = 500;

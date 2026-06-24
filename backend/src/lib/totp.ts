@@ -189,11 +189,7 @@ export function verifyAndConsumeBackupCode(
       continue;
     }
     const stored = Buffer.from(hashHex, "hex");
-    if (
-      stored.length === derived.length &&
-      timingSafeEqual(stored, derived) &&
-      matchIdx === -1
-    ) {
+    if (stored.length === derived.length && timingSafeEqual(stored, derived) && matchIdx === -1) {
       matchIdx = i;
     }
   }

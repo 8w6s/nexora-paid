@@ -48,7 +48,7 @@ export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const THIRTY_DAYS_MS = 1000 * 60 * 60 * 24 * 30;
 const ADMIN_ABSOLUTE_MAX_MS = 1000 * 60 * 60 * 8; // 8h hard cap for admin sessions
 const CUSTOMER_IDLE_MAX_MS = 1000 * 60 * 60 * 24; // 24h idle for customers
-const ADMIN_IDLE_MAX_MS = 1000 * 60; // 1h idle for admins
+const ADMIN_IDLE_MAX_MS = 1000 * 60 * 60; // 1h idle for admins
 const LAST_SEEN_REFRESH_MS = 1000 * 60; // throttle: only update lastSeenAt every 60s
 export const SESSION_COOKIE = "sid";
 

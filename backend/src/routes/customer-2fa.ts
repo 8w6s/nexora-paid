@@ -4,10 +4,7 @@ import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
 import { logAuthEvent } from "../lib/audit.ts";
 import { revokeOtherSessions, SESSION_COOKIE, validateSession } from "../lib/auth.ts";
-import {
-  rateLimitCheck,
-  clientIp as resolveClientIp,
-} from "../lib/rate-limit.ts";
+import { rateLimitCheck, clientIp as resolveClientIp } from "../lib/rate-limit.ts";
 import {
   generateBackupCodes,
   generateSecret,
@@ -87,11 +84,11 @@ export const customer2faRoutes = new Elysia({ prefix: "/api/auth/2fa" })
     const u = (await db.select().from(users).where(eq(users.id, customerUser.id)))[0];
     if (!u) {
       set.status = 404;
-      return { error: "User not found" };
+      return { error: "User not found", code: "USER_NOT_FOUND" };
     }
     if (u.totpEnabled) {
       set.status = 400;
-      return { error: "2FA is already enabled" };
+      return { error: "2FA is already enabled", code: "TOTP_ALREADY_ENABLED" };
     }
 
     // Always rotate: a fresh /setup invalidates any prior candidate so
@@ -192,7 +189,7 @@ export const customer2faRoutes = new Elysia({ prefix: "/api/auth/2fa" })
       const u = (await db.select().from(users).where(eq(users.id, customerUser.id)))[0];
       if (!u || !u.totpEnabled || !u.totpSecret) {
         set.status = 400;
-        return { error: "2FA is not enabled" };
+        return { error: "2FA is not enabled", code: "TOTP_NOT_ENABLED" };
       }
 
       const result = verifyCode(u.totpSecret, body.code, u.lastTotpCounter);
