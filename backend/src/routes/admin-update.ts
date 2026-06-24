@@ -3,6 +3,7 @@ import { Elysia, t } from "elysia";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { APP_VERSION } from "../lib/app-version.ts";
+import { signRequest } from "../lib/updater-handshake.ts";
 
 const FILESERVER_URL =
   Bun.env.NEXORA_FILESERVER_URL ??
@@ -146,18 +147,30 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
         };
       }
       try {
+        const bodyStr = JSON.stringify({
+          targetVersion: manifest.latest,
+          imageRepo: manifest.imageRepo,
+          imageTag: manifest.imageTag,
+          sha256: manifest.sha256,
+          requestedBy: user?.email ?? "admin",
+        });
+        let authHeaders: Record<string, string>;
+        try {
+          authHeaders = signRequest(bodyStr);
+        } catch (e) {
+          set.status = 500;
+          return {
+            error: "Updater PSK not configured",
+            code: "UPDATER_PSK_MISSING",
+            detail: e instanceof Error ? e.message : String(e),
+          };
+        }
         const r = await fetch("http://unix/apply", {
           method: "POST",
           // @ts-expect-error Bun-specific unix socket option
           unix: "/var/run/nexora-updater.sock",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            targetVersion: manifest.latest,
-            imageRepo: manifest.imageRepo,
-            imageTag: manifest.imageTag,
-            sha256: manifest.sha256,
-            requestedBy: user?.email ?? "admin",
-          }),
+          headers: { "content-type": "application/json", ...authHeaders },
+          body: bodyStr,
           signal: AbortSignal.timeout(5_000),
         });
         const data = await r.json().catch(() => ({}));

@@ -1,0 +1,97 @@
+/**
+ * Shared HMAC handshake for backend ↔ updater over the unix socket.
+ * Threat: a rogue process on the host (or another container that managed
+ * to bind-mount the socket) could otherwise impersonate the backend and
+ * issue an /apply. We require every request to carry a timestamped,
+ * nonce-tagged HMAC computed with a pre-shared secret that both
+ * containers read from env at boot.
+ *
+ * Both sides import this file; the updater has its own copy at
+ * `updater/handshake.ts` kept byte-identical.
+ */
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+
+export const HEADER_TS = "x-updater-ts";
+export const HEADER_NONCE = "x-updater-nonce";
+export const HEADER_AUTH = "x-updater-auth";
+
+const MAX_SKEW_MS = 30_000;
+const NONCE_CACHE_SIZE = 4096;
+
+function pskOrThrow(): string {
+  const psk = process.env.NEXORA_UPDATER_PSK;
+  if (!psk || psk.length < 32) {
+    throw new Error(
+      "NEXORA_UPDATER_PSK missing or too short (need >=32 chars). " +
+        "Generate one with: openssl rand -hex 32",
+    );
+  }
+  return psk;
+}
+
+function hmac(psk: string, ts: string, nonce: string, body: string): string {
+  return createHmac("sha256", psk).update(`${ts}
+${nonce}
+${body}`).digest("hex");
+}
+
+export function signRequest(body: string): {
+  [HEADER_TS]: string;
+  [HEADER_NONCE]: string;
+  [HEADER_AUTH]: string;
+} {
+  const psk = pskOrThrow();
+  const ts = Date.now().toString();
+  const nonce = randomBytes(16).toString("hex");
+  return {
+    [HEADER_TS]: ts,
+    [HEADER_NONCE]: nonce,
+    [HEADER_AUTH]: hmac(psk, ts, nonce, body),
+  };
+}
+
+// LRU-ish nonce store: insertion-ordered Map, evict oldest past cap.
+const seenNonces = new Map<string, number>();
+
+export interface VerifyResult {
+  ok: boolean;
+  reason?: "missing" | "skew" | "replay" | "mismatch" | "no-psk";
+}
+
+export function verifyRequest(headers: Headers, body: string): VerifyResult {
+  let psk: string;
+  try {
+    psk = pskOrThrow();
+  } catch {
+    return { ok: false, reason: "no-psk" };
+  }
+  const ts = headers.get(HEADER_TS);
+  const nonce = headers.get(HEADER_NONCE);
+  const auth = headers.get(HEADER_AUTH);
+  if (!ts || !nonce || !auth) return { ok: false, reason: "missing" };
+
+  const tsNum = Number(ts);
+  if (!Number.isFinite(tsNum) || Math.abs(Date.now() - tsNum) > MAX_SKEW_MS) {
+    return { ok: false, reason: "skew" };
+  }
+  if (seenNonces.has(nonce)) return { ok: false, reason: "replay" };
+
+  const expected = hmac(psk, ts, nonce, body);
+  // timingSafeEqual requires equal length; both are hex of fixed digest size.
+  if (expected.length !== auth.length) return { ok: false, reason: "mismatch" };
+  if (!timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(auth, "hex"))) {
+    return { ok: false, reason: "mismatch" };
+  }
+
+  seenNonces.set(nonce, tsNum);
+  if (seenNonces.size > NONCE_CACHE_SIZE) {
+    // Drop oldest insertion until under cap.
+    const drop = seenNonces.size - NONCE_CACHE_SIZE;
+    let i = 0;
+    for (const k of seenNonces.keys()) {
+      seenNonces.delete(k);
+      if (++i >= drop) break;
+    }
+  }
+  return { ok: true };
+}

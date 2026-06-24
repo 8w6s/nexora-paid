@@ -14,6 +14,7 @@
 import { unlinkSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
+import { verifyRequest } from "./handshake.ts";
 
 const SOCKET_PATH = process.env.SOCKET_PATH ?? "/var/run/nexora-updater.sock";
 const BACKUP_DIR = process.env.BACKUP_DIR ?? "/var/backups/nexora";
@@ -142,7 +143,7 @@ async function runJob(j: Job): Promise<void> {
     j.status = "snapshotting";
     j.backupPath = await snapshotVolume(j);
 
-    j.status = "puling";
+    j.status = "pulling";
     await pullImage(j);
 
     j.status = "swapping";
@@ -193,15 +194,27 @@ Bun.serve({
   unix: SOCKET_PATH,
   async fetch(req) {
     const url = new URL(req.url);
+    // Read raw body once so HMAC verification and JSON parse see the same bytes.
+    const rawBody = req.method === "POST" ? await req.text() : "";
+    const v = verifyRequest(req.headers, rawBody);
+    if (!v.ok) {
+      console.warn(`[updater] reject ${req.method} ${url.pathname}: ${v.reason}`);
+      return json({ error: "handshake failed", reason: v.reason }, 401);
+    }
     if (req.method === "POST" && url.pathname === "/apply") {
       if (currentJob) return json({ error: "job in progress", jobId: currentJob.id }, 409);
-      const body = (await req.json().catch(() => ({}))) as {
+      let body: {
         targetVersion?: string;
         imageRepo?: string;
         imageTag?: string;
         sha256?: string;
         requestedBy?: string;
       };
+      try {
+        body = JSON.parse(rawBody || "{}");
+      } catch {
+        return json({ error: "invalid json" }, 400);
+      }
       if (!body.targetVersion || !body.imageRepo || !body.imageTag) {
         return json({ error: "missing fields" }, 400);
       }

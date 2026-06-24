@@ -222,7 +222,9 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   // "not signed in" is a normal, expected state. Wrapping in {user: ...|null}
   // lets the client pattern-match without inspecting status codes — this is
   // the same shape NextAuth's /session and Supabase's getUser() use.
-  .get("/me", async ({ cookie }) => {!user) return { user: null };
+  .get("/me", async ({ cookie }) => {
+    const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
+    if (!user) return { user: null };
     return {
       user: {
         id: user.id,
