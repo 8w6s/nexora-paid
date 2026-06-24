@@ -1,0 +1,18 @@
+feat(admin-blocklist): rate-limit blocklist writes (60/min/IP)
+
+Roadmap item 16 (partial — admin-blocklist was the only admin*.ts
+route missing rateLimitCheck). 60 writes/min per IP shared across
+add/remove for blacklist + whitelist combined.
+
+Rationale: a hostile admin cookie (CSRF or session theft) shouldn't
+be able to flood the blocklist table — each entry costs a row + an
+audit_log mirror entry, so a tight burst could pollute both stores
+with thousands of bogus rows.
+
+Implementation:
+- New gateRateLimit() helper folded into addEntry + deleteEntry.
+- Bucket key = `admin-blocklist-write:${ip}` (shared across add+del).
+- 429 with code RATE_LIMITED matches the shape of every other
+  admin route's rate-limit response.
+
+Build: 510 modules. 80/80 lib tests pass.

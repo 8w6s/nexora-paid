@@ -5,6 +5,7 @@ import { db } from "../db/connection.ts";
 import { blocklist } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 
 /**
  * Anti-fraud blocklist + allowlist routes.
@@ -58,23 +59,40 @@ export const adminBlocklistRoutes = new Elysia({ prefix: "/api/admin" })
   // success the previous (404'd) route delivered.
   .post(
     "/blacklist",
-    async ({ body, set, adminEmail }) => addEntry("blacklist", body, set, adminEmail),
+    async ({ body, set, adminEmail, request }) =>
+      addEntry("blacklist", body, set, adminEmail, request),
     { body: ENTRY_BODY },
   )
   .post(
     "/whitelist",
-    async ({ body, set, adminEmail }) => addEntry("whitelist", body, set, adminEmail),
+    async ({ body, set, adminEmail, request }) =>
+      addEntry("whitelist", body, set, adminEmail, request),
     { body: ENTRY_BODY },
   )
 
   // ─── Remove an entry. Scoped to the requested mode so a forged id
   // from the other list can never be removed via this endpoint.
-  .delete("/blacklist/:id", async ({ params, set, adminEmail }) =>
-    deleteEntry("blacklist", params.id, set, adminEmail),
+  .delete("/blacklist/:id", async ({ params, set, adminEmail, request }) =>
+    deleteEntry("blacklist", params.id, set, adminEmail, request),
   )
-  .delete("/whitelist/:id", async ({ params, set, adminEmail }) =>
-    deleteEntry("whitelist", params.id, set, adminEmail),
+  .delete("/whitelist/:id", async ({ params, set, adminEmail, request }) =>
+    deleteEntry("whitelist", params.id, set, adminEmail, request),
   );
+
+// Per-IP rate limit on blocklist writes. The shape is operator-facing — a
+// hostile admin cookie shouldn't be able to flood the table or audit log.
+const BLOCKLIST_WRITE_MAX = 60;
+const BLOCKLIST_WRITE_WINDOW_MS = 60_000;
+
+function gateRateLimit(request: Request, set: { status?: number }): { error: string; code: string } | null {
+  const ip = clientIp(request);
+  const rl = rateLimitCheck(`admin-blocklist-write:${ip}`, BLOCKLIST_WRITE_MAX, BLOCKLIST_WRITE_WINDOW_MS);
+  if (!rl.allowed) {
+    set.status = 429;
+    return { error: "Too many blocklist writes", code: "RATE_LIMITED" };
+  }
+  return null;
+}
 
 // ─── Helpers ────────────────────────────────────────────────
 async function listEntries(mode: "blacklist" | "whitelist") {
@@ -100,7 +118,10 @@ async function addEntry(
   body: { type: "email" | "ip" | "country" | "vpn"; value: string; note?: string },
   set: { status?: number },
   adminEmail: string,
+  request: Request,
 ) {
+  const gated = gateRateLimit(request, set);
+  if (gated) return gated;
   // Type-specific normalisation. Email + country are case-insensitive;
   // IPs are stored verbatim (operator might paste a v4 or v6 form).
   // Country codes are clamped to 2 chars so a stray "United States" paste
