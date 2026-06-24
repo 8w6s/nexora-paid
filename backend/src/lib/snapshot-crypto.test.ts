@@ -58,4 +58,31 @@ describe("snapshot-crypto", () => {
     expect(a.equals(b)).toBe(false);
     expect(decryptSnapshot(a, KM).equals(decryptSnapshot(b, KM))).toBe(true);
   });
+
+  it("round-trips empty buffer", () => {
+    const enc = encryptSnapshot(Buffer.alloc(0), KM);
+    const out = decryptSnapshot(enc, KM);
+    expect(out.length).toBe(0);
+  });
+
+  it("round-trips 1 MB payload", () => {
+    const plain = Buffer.alloc(1024 * 1024);
+    for (let i = 0; i < plain.length; i++) plain[i] = i & 0xff;
+    const enc = encryptSnapshot(plain, KM);
+    const out = decryptSnapshot(enc, KM);
+    expect(out.equals(plain)).toBe(true);
+  });
+
+  it("decrypt fails when nonce is tampered", () => {
+    const enc = encryptSnapshot(Buffer.from("hello"), KM);
+    // Nonce sits right after the 4-byte magic.
+    enc[6] ^= 0x01;
+    expect(() => decryptSnapshot(enc, KM)).toThrow();
+  });
+
+  it("decrypt fails when magic is tampered", () => {
+    const enc = encryptSnapshot(Buffer.from("hello"), KM);
+    enc[0] = 0x00;
+    expect(() => decryptSnapshot(enc, KM)).toThrow(/magic/);
+  });
 });

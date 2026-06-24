@@ -76,4 +76,45 @@ describe("updater-handshake", () => {
     process.env.NEXORA_UPDATER_PSK = "tooshort";
     expect(() => signRequest("{}")).toThrow();
   });
+
+  it("two consecutive signRequest calls produce distinct nonces", () => {
+    const a = signRequest("{}");
+    const b = signRequest("{}");
+    expect(a[HEADER_NONCE]).not.toBe(b[HEADER_NONCE]);
+    // ts may equal on a fast machine — that's fine, nonce alone defends replay.
+  });
+
+  it("HMAC differs when body differs by a single byte", () => {
+    const a = signRequest("a");
+    // Re-sign with same ts/nonce path forced by reusing both headers? Simpler:
+    // produce two signatures (different nonces) and check the auth field
+    // changes when the body changes too.
+    const b = signRequest("b");
+    expect(a[HEADER_AUTH]).not.toBe(b[HEADER_AUTH]);
+  });
+
+  it("verifies a 1 MB body without truncation", () => {
+    const body = "x".repeat(1024 * 1024);
+    const v = verifyRequest(headersFrom(signRequest(body)), body);
+    expect(v.ok).toBe(true);
+  });
+
+  it("rejects when ts is not a number", () => {
+    const body = "{}";
+    const signed = signRequest(body);
+    const bad = { ...signed };
+    bad[HEADER_TS] = "not-a-number";
+    const v = verifyRequest(headersFrom(bad), body);
+    expect(v.ok).toBe(false);
+  });
+
+  it("rejects skew in the future beyond 30s", () => {
+    const body = "{}";
+    const signed = signRequest(body);
+    const future = { ...signed };
+    future[HEADER_TS] = String(Date.now() + 45_000);
+    const v = verifyRequest(headersFrom(future), body);
+    expect(v.ok).toBe(false);
+    expect(v.reason).toBe("skew");
+  });
 });

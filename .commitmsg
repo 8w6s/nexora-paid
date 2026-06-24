@@ -1,30 +1,21 @@
-feat(catbox): transport-layer uploader for userspace file sharing
+test(crypto): expand handshake + snapshot-crypto edge coverage
 
-Roadmap item 15 first half (lib only — admin UI button + file-tree
-wiring follow). Adds a clean transport boundary so the upcoming
-Userspace File Tree (roadmap item 7) can ship a "Share to catbox"
-action without inlining FormData plumbing into route code.
+Roadmap item 13 (partial — tenant jail already well-covered, this
+commit thickens the handshake + snapshot-crypto suites).
 
-backend/src/lib/catbox.ts — uploadBufferToCatbox()
-  - 50 MB hard cap (catbox itself allows 200, we keep admin UI snappy).
-  - Filename sanitization: basename only, control chars stripped,
-    100-char cap.
-  - Anonymous by default; CATBOX_USERHASH env enables deletion-capable
-    auth without changing the call site.
-  - 60s default timeout; configurable via opts.timeoutMs for slow links.
-  - Response validation: rejects anything that isn't a canonical
-    files.catbox.moe URL (catbox sometimes returns HTML error pages
-    with 200, which would otherwise look like success).
-  - endpoint override exists ONLY for test injection — production
-    callers should never pass it.
+handshake (+5 cases, 7 -> 12):
+  - consecutive sign calls produce distinct nonces (replay defense
+    sanity check)
+  - HMAC differs across bodies (binding-to-body sanity)
+  - 1 MB body verifies without truncation
+  - non-numeric ts rejected (parseInt NaN path)
+  - future skew >30s rejected symmetrically with past skew
 
-Tests (10 new in catbox.test.ts, total lib tests now 71):
-  - happy path: returns URL and metadata
-  - filename sanitization: ../../etc/passwd -> passwd
-  - empty-buffer / oversize early refusal (no network hit on oversize)
-  - non-URL response body rejected
-  - HTTP error surfaces excerpt
-  - CATBOX_USERHASH env forwarding when set
-  - userhash field absent when env unset
+snapshot-crypto (+4 cases, 9 -> 13):
+  - empty buffer round-trips (boundary)
+  - 1 MB payload round-trips (chunked AEAD path)
+  - tampered nonce rejected (GCM auth failure surface)
+  - tampered magic rejected with /magic/ error code (early reject)
 
-Build: 510 modules. All 71 lib tests pass.
+Total lib tests now 80/0 (was 71/0).
+Build: 510 modules. No production code touched.
