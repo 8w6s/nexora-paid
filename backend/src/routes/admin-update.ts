@@ -4,7 +4,9 @@ import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { APP_VERSION } from "../lib/app-version.ts";
 
-const FILESERVER_URL = Bun.env.NEXORA_FILESERVER_URL ?? "https://updates.nexora.app";
+const FILESERVER_URL =
+  Bun.env.NEXORA_FILESERVER_URL ??
+  "https://raw.githubusercontent.com/8w6s/nexora-releases/main";
 const UPDATE_CHANNEL = Bun.env.NEXORA_UPDATE_CHANNEL ?? "stable";
 
 // In-process cache: avoid hammering FileServer on every admin tab refresh.
@@ -36,7 +38,13 @@ function cmpSemver(a: string, b: string): number {
 
 async function fetchManifest(): Promise<VersionManifest> {
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.payload;
-  const url = `${FILESERVER_URL}/v1/version?channel=${encodeURIComponent(UPDATE_CHANNEL)}`;
+  // Two URL shapes supported:
+  //   - Raw GitHub:     {FILESERVER_URL}/versions/{channel}.json
+  //   - Hosted server:  {FILESERVER_URL}/v1/version?channel={channel}
+  const isRaw = /raw\.githubusercontent\.com/.test(FILESERVER_URL);
+  const url = isRaw
+    ? `${FILESERVER_URL}/versions/${encodeURIComponent(UPDATE_CHANNEL)}.json`
+    : `${FILESERVER_URL}/v1/version?channel=${encodeURIComponent(UPDATE_CHANNEL)}`;
   const r = await fetch(url, {
     signal: AbortSignal.timeout(10_000),
     headers: { "user-agent": `nexora/${APP_VERSION}` },
