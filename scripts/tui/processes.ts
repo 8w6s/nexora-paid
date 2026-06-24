@@ -12,6 +12,22 @@ export type ProcHandle = {
 const ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]/g;
 const NL = String.fromCharCode(10);
 
+// Drop noisy lines unrelated to the app — proxy/MITM cert warnings injected
+// by local network shims (9router, mitmproxy, corporate proxies) when Bun
+// loads system CAs. They cause no harm and only clutter the TUI.
+const NOISE_PATTERNS: RegExp[] = [
+  /ignoring extra certs from .+rootCA\.crt/i,
+  /error:10000002:SSL routines:OPENSSL_internal:system library/i,
+  /9router\\mitm/i,
+];
+
+function isNoiseWarning(line: string): boolean {
+  for (const re of NOISE_PATTERNS) {
+    if (re.test(line)) return true;
+  }
+  return false;
+}
+
 // Phan loai mot dong log thanh level. Stderr mac dinh la "warn" thay vi "info"
 // vi noi do thuong cho cac thong bao quan trong hon.
 function detectLevel(text: string, fromStderr: boolean): LogLevel {
@@ -63,7 +79,7 @@ export function startProcess(opts: {
         const raw = buf.slice(0, idx);
         buf = buf.slice(idx + 1);
         const line = raw.replace(ANSI_RE, "").replace(/\r$/, "");
-        if (line.length > 0) {
+        if (line.length > 0 && !isNoiseWarning(line)) {
           const level = detectLevel(line, fromStderr);
           opts.onLog({ ts: Date.now(), level, text: line });
           if (!isReady && ready && ready.test(line)) {
