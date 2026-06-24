@@ -274,6 +274,67 @@ Bun.serve({
       runJob(j, km); // fire and forget
       return json({ jobId: id, status: j.status, encrypted: !!km });
     }
+    if (req.method === "POST" && url.pathname === "/warm-pull") {
+      // Pre-update warm pull: docker-pull a target image WITHOUT swapping
+      // anything. Lets the admin UI surface "binary ready, click apply to
+      // swap" so the actual /apply turns the slowest step (image pull over
+      // a slow link) into a no-op.
+      //
+      // Idempotent + cheap to retry. Does NOT touch the running stack.
+      let body: { imageRepo?: string; imageTag?: string; sha256?: string };
+      try {
+        body = JSON.parse(rawBody || "{}");
+      } catch {
+        return json({ error: "invalid json" }, 400);
+      }
+      if (!body.imageRepo || !body.imageTag) {
+        return json({ error: "missing fields" }, 400);
+      }
+      const normalizedDigest = body.sha256
+        ? body.sha256.startsWith("sha256:")
+          ? body.sha256
+          : `sha256:${body.sha256}`
+        : null;
+      const ref = normalizedDigest
+        ? `${body.imageRepo}@${normalizedDigest}`
+        : `${body.imageRepo}:${body.imageTag}`;
+      const t0 = Date.now();
+      const r = await run("docker", ["pull", ref], { timeoutMs: 15 * 60_000 });
+      const elapsedMs = Date.now() - t0;
+      if (r.code !== 0) {
+        return json(
+          {
+            ok: false,
+            error: "pull failed",
+            detail: (r.stderr || r.stdout).trim().split(String.fromCharCode(10))[0] ?? "",
+            elapsedMs,
+          },
+          502,
+        );
+      }
+      // Verify digest if pinned.
+      let digestVerified: string | null = null;
+      if (normalizedDigest) {
+        const inspect = await run(
+          "docker",
+          ["image", "inspect", "--format", "{{index .RepoDigests 0}}", ref],
+        );
+        if (inspect.code === 0 && inspect.stdout.includes(normalizedDigest)) {
+          digestVerified = normalizedDigest;
+        } else {
+          return json(
+            {
+              ok: false,
+              error: "digest mismatch",
+              expected: normalizedDigest,
+              elapsedMs,
+            },
+            409,
+          );
+        }
+      }
+      return json({ ok: true, ref, digestVerified, elapsedMs });
+    }
     if (req.method === "GET" && url.pathname === "/status") {
       const id = url.searchParams.get("jobId");
       const j =

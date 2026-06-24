@@ -214,6 +214,79 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
     },
   )
 
+  // POST /api/admin/update/warm-pull — pull image early without swapping.
+  // Lets the admin click "Prepare update" while traffic is still hitting
+  // the old version, so the eventual /apply skips the slow docker-pull.
+  .post("/warm-pull", async ({ request, set }) => {
+    const ip = clientIp(request);
+    const rl = rateLimitCheck(`admin-update-warm:${ip}`, 6, 60_000);
+    if (!rl.allowed) {
+      set.status = 429;
+      return { error: "Too many requests", code: "RATE_LIMITED" };
+    }
+    if (!supportsInPlaceApply()) {
+      set.status = 501;
+      return { error: "Updater not configured", code: "APPLY_NOT_SUPPORTED" };
+    }
+    let manifest: VersionManifest;
+    try {
+      manifest = await fetchManifest();
+    } catch {
+      set.status = 502;
+      return { error: "Could not reach update server", code: "FILESERVER_UNREACHABLE" };
+    }
+    if (cmpSemver(manifest.latest, APP_VERSION) <= 0) {
+      set.status = 400;
+      return { error: "Already up to date", code: "NO_UPDATE" };
+    }
+    const bodyStr = JSON.stringify({
+      imageRepo: manifest.imageRepo,
+      imageTag: manifest.imageTag,
+      sha256: manifest.sha256,
+    });
+    let authHeaders: Record<string, string>;
+    try {
+      authHeaders = signRequest(bodyStr);
+    } catch (e) {
+      set.status = 500;
+      return {
+        error: "Updater PSK not configured",
+        code: "UPDATER_PSK_MISSING",
+        detail: e instanceof Error ? e.message : String(e),
+      };
+    }
+    try {
+      const r = await fetch("http://unix/warm-pull", {
+        method: "POST",
+        // @ts-expect-error Bun-specific unix socket option
+        unix: "/var/run/nexora-updater.sock",
+        headers: { "content-type": "application/json", ...authHeaders },
+        body: bodyStr,
+        signal: AbortSignal.timeout(16 * 60_000),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        set.status = r.status;
+        return { error: "Warm-pull failed", code: "WARM_PULL_FAILED", detail: data };
+      }
+      return {
+        ok: true,
+        targetVersion: manifest.latest,
+        imageRepo: manifest.imageRepo,
+        imageTag: manifest.imageTag,
+        digestVerified: data.digestVerified ?? null,
+        elapsedMs: data.elapsedMs ?? null,
+      };
+    } catch (e) {
+      set.status = 502;
+      return {
+        error: "Could not reach updater",
+        code: "UPDATER_UNREACHABLE",
+        detail: e instanceof Error ? e.message : String(e),
+      };
+    }
+  })
+
   // GET /api/admin/update/status — read job state from host updater.
   .get("/status", async ({ query, set }) => {
     if (!supportsInPlaceApply()) {
