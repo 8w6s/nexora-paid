@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import type React from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 export interface AuthUser {
@@ -10,7 +11,8 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** code is the optional 6-digit TOTP, only required when the account has 2FA enabled. */
+  login: (email: string, password: string, code?: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -22,13 +24,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Hydrate from /api/auth/me. Swallow 401 (not logged in) as null.
+  // Hydrate from /api/auth/me. Backend returns {user: AuthUser | null} —
+  // 200 in both cases so an anonymous visitor doesn't log a red 401 in
+  // devtools on every page load. Network/parse failures still fall back
+  // to the loged-out state silently.
   const refresh = useCallback(async () => {
     try {
-      const me = await api.get<AuthUser>("/api/auth/me");
-      setUser(me);
+      const res = await api.get<{ user: AuthUser | null }>("/api/auth/me");
+      setUser(res.user);
     } catch (err) {
-      // 401 = not logged in; any other error = treat as logged out without throwing.
       setUser(null);
       void err;
     }
@@ -46,11 +50,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [refresh]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      await api.post("/api/auth/login", { email, password });
+    async (email: string, password: string, code?: string) => {
+      // `code` is sent only when the user already typed it. Backend returns
+      // a TOTP_REQUIRED error code on first attempt for 2FA accounts; the
+      // form catches it and re-submits with the code attached.
+      await api.post("/api/auth/login", code ? { email, password, code } : { email, password });
       await refresh();
     },
-    [refresh]
+    [refresh],
   );
 
   const register = useCallback(
@@ -58,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await api.post("/api/auth/register", { email, password });
       await refresh();
     },
-    [refresh]
+    [refresh],
   );
 
   const logout = useCallback(async () => {

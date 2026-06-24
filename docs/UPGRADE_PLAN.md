@@ -197,7 +197,7 @@ Quy ước: JSON in/out; tiền hiển thị = USD, tiền so khớp = **litoshi
 | POST | `/api/auth/register` | public | `{email,password(min8)}` → hash argon2id, 409 nếu trùng, auto-login (set `sid`) |
 | POST | `/api/auth/login` | public | verify constant-time, 401 generic, rate-limited |
 | POST | `/api/auth/logout` | customer | xóa session, clear cookie |
-| GET | `/api/auth/me` | customer | `{id,email}` hoặc 401 |
+| GET | `/api/auth/me` | public | `{user:{id,email,role}}` khi đã login, `{user:null}` khi guest (200 trong cả 2 trường hợp — session-status query, không phải protected resource) |
 
 **Customer — Checkout & Orders**
 | Method | Path | Auth | Behavior |

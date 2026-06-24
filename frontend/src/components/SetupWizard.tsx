@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
-import { api, ApiRequestError } from "../lib/api";
-import { Icon } from "./Icon";
-import { AnimatedBackground } from "./AnimatedBackground";
-import { PasswordInput } from "./PasswordInput";
-import { Checkbox } from "./Checkbox";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { ApiRequestError, api } from "../lib/api";
 import { fadeRise, staggerIn } from "../lib/motion";
+import { AnimatedBackground } from "./AnimatedBackground";
+import { Icon } from "./Icon";
+import { PasswordInput } from "./PasswordInput";
 
 // `comingSoon` toggles are rendered as locked cards — the flag exists in the
 // backend FEATURES map but no chain watcher / route is wired yet, so letting
@@ -19,9 +19,26 @@ const TOGGLEABLE = [
   { key: "search", label: "Search & filters", desc: "Filter catalog by keywords", icon: "search" },
   { key: "dark_mode", label: "Dark mode", desc: "Sleek dark theme support", icon: "moon" },
   { key: "email", label: "Transactional email", desc: "Automatic email receipts", icon: "mail" },
-  { key: "coin_LTC", label: "Accept Litecoin", desc: "Self-hosted LTC wallet", icon: "credit-card" },
-  { key: "coin_BTC", label: "Accept Bitcoin", desc: "Self-hosted BTC wallet", icon: "credit-card", comingSoon: true },
-  { key: "coin_ETH", label: "Accept Ethereum", desc: "Self-hosted ETH wallet", icon: "credit-card", comingSoon: true },
+  {
+    key: "coin_LTC",
+    label: "Accept Litecoin",
+    desc: "Self-hosted LTC wallet",
+    icon: "credit-card",
+  },
+  {
+    key: "coin_BTC",
+    label: "Accept Bitcoin",
+    desc: "Self-hosted BTC wallet",
+    icon: "credit-card",
+    comingSoon: true,
+  },
+  {
+    key: "coin_ETH",
+    label: "Accept Ethereum",
+    desc: "Self-hosted ETH wallet",
+    icon: "credit-card",
+    comingSoon: true,
+  },
 ] as { key: string; label: string; desc: string; icon: string; comingSoon?: boolean }[];
 
 export const SetupWizard: React.FC = () => {
@@ -30,13 +47,13 @@ export const SetupWizard: React.FC = () => {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [storeName, setStoreName] = useState("Nexora Store");
-  const [faKitUrl, setFaKitUrl] = useState("");
-  const [ltcXpub, setLtcXpub] = useState("");
+  const [faKitUrl, _setFaKitUrl] = useState("");
+  const [ltcXpub, _setLtcXpub] = useState("");
   const [features, setFeatures] = useState<Record<string, boolean>>(
     // coming-soon toggles default off and stay off; email defaults off (admin
     // has to wire SMTP first); everything else defaults on for a friendly
     // out-of-box experience.
-    Object.fromEntries(TOGGLEABLE.map((f) => [f.key, !f.comingSoon && f.key !== "email"]))
+    Object.fromEntries(TOGGLEABLE.map((f) => [f.key, !f.comingSoon && f.key !== "email"])),
   );
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,35 +66,72 @@ export const SetupWizard: React.FC = () => {
     fadeRise(el, { duration: 420 });
     const fields = el.querySelectorAll("label, .su-toggle-card, h2, .su-row, .btn, .su-subhead");
     if (fields.length) staggerIn(fields, { stagger: 45, duration: 400 });
-  }, [step, allowed]);
+  }, []);
 
   useEffect(() => {
-    api.get<{ needsSetup: boolean }>("/api/setup/status")
+    api
+      .get<{ needsSetup: boolean }>("/api/setup/status")
       .then((s) => setAllowed(s.needsSetup))
       .catch(() => setAllowed(false));
   }, []);
 
-  if (allowed === null) return <main className="su"><AnimatedBackground /><div className="su-state"><Icon name="spinner" size={26} className="is-spinning" /></div><Styles /></main>;
-  if (!allowed) return (
-    <main className="su">
-      <AnimatedBackground />
-      <div className="su-state">
-        <div className="su-success-icon"><Icon name="check" size={32} /></div>
-        <h1>Setup completed successfully</h1>
-        <p className="su-subhead">Your Nexora store is already configured and ready to go.</p>
-        <div className="su-success-actions">
-          <a href="/" className="btn btn-primary">Go to storefront</a>
-          <a href="/admin" className="btn btn-ghost">Admin Panel</a>
+  if (allowed === null)
+    return (
+      <main className="su">
+        <AnimatedBackground />
+        <div className="su-state">
+          <Icon name="spinner" size={26} className="is-spinning" />
         </div>
-      </div>
-      <Styles />
-    </main>
-  );
+        <Styles />
+      </main>
+    );
+  if (!allowed)
+    return (
+      <main className="su">
+        <AnimatedBackground />
+        <div className="su-state">
+          <div className="su-success-icon">
+            <Icon name="check" size={32} />
+          </div>
+          <h1>Setup completed successfully</h1>
+          <p className="su-subhead">Your Nexora store is already configured and ready to go.</p>
+          <div className="su-success-actions">
+            <div
+              className="btn btn-primary"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = "/";
+              }}
+            >
+              Go to storefront
+            </div>
+            <div
+              className="btn btn-ghost"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = "/admin";
+              }}
+            >
+              Admin Panel
+            </div>
+          </div>
+        </div>
+        <Styles />
+      </main>
+    );
 
   const submit = async () => {
-    setErr(null); setBusy(true);
+    setErr(null);
+    setBusy(true);
     try {
-      await api.post("/api/setup", { adminEmail: adminEmail.trim(), adminPassword, storeName, faKitUrl: faKitUrl.trim() || undefined, ltcXpub: ltcXpub.trim() || undefined, features });
+      await api.post("/api/setup", {
+        adminEmail: adminEmail.trim(),
+        adminPassword,
+        storeName,
+        faKitUrl: faKitUrl.trim() || undefined,
+        ltcXpub: ltcXpub.trim() || undefined,
+        features,
+      });
       window.location.assign("/admin");
     } catch (e) {
       setErr(e instanceof ApiRequestError ? e.message : "Setup failed");
@@ -90,7 +144,7 @@ export const SetupWizard: React.FC = () => {
     // them in the list for visibility so admins know what's planned.
     const meta = TOGGLEABLE.find((f) => f.key === key);
     if (meta?.comingSoon) return;
-    setFeatures(prev => ({ ...prev, [key]: !prev[key] }));
+    setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -99,12 +153,12 @@ export const SetupWizard: React.FC = () => {
       <div className="su-card card">
         <div className="su-card-head">
           <div className="su-brand">
-            <span className="su-logo-icon"><Icon name="key" size={18} /></span>
+            <span className="su-logo-icon">
+              <Icon name="key" size={18} />
+            </span>
             <span>Nexora Setup</span>
           </div>
-          <div className="su-step-indicator">
-            Step {step} of 3
-          </div>
+          <div className="su-step-indicator">Step {step} of 3</div>
         </div>
 
         <div className="su-progress-bar">
@@ -115,28 +169,51 @@ export const SetupWizard: React.FC = () => {
           {step === 1 && (
             <>
               <h2>Create administrator</h2>
-              <p className="su-subhead">Set up the master account to manage your store settings, products, and sales.</p>
-              
+              <p className="su-subhead">
+                Set up the master account to manage your store settings, products, and sales.
+              </p>
+
               <div className="su-form-group">
                 <label>
                   <span>Admin Email</span>
                   <div className="su-input-wrapper">
-                    <span className="su-input-icon"><Icon name="mail" size={15} /></span>
-                    <input className="input" type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="you@example.com" required />
+                    <span className="su-input-icon">
+                      <Icon name="mail" size={15} />
+                    </span>
+                    <input
+                      className="input"
+                      type="email"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                    />
                   </div>
                 </label>
-                
+
                 <label>
                   <span>Admin Password</span>
                   <div className="su-input-wrapper">
-                    <span className="su-input-icon"><Icon name="key" size={15} /></span>
-                    <PasswordInput value={adminPassword} onChange={setAdminPassword} placeholder="Min 8 characters" autoComplete="new-password" minLength={8} />
+                    <span className="su-input-icon">
+                      <Icon name="key" size={15} />
+                    </span>
+                    <PasswordInput
+                      value={adminPassword}
+                      onChange={setAdminPassword}
+                      placeholder="Min 8 characters"
+                      autoComplete="new-password"
+                      minLength={8}
+                    />
                   </div>
                 </label>
               </div>
 
               <div className="su-row" style={{ justifyContent: "flex-end", marginTop: 24 }}>
-                <button className="btn btn-primary" disabled={!adminEmail || adminPassword.length < 8} onClick={() => setStep(2)}>
+                <button
+                  className="btn btn-primary"
+                  disabled={!adminEmail || adminPassword.length < 8}
+                  onClick={() => setStep(2)}
+                >
                   <span>Continue</span>
                   <Icon name="arrow-right" size={14} />
                 </button>
@@ -147,28 +224,46 @@ export const SetupWizard: React.FC = () => {
           {step === 2 && (
             <>
               <h2>Store Identity</h2>
-              <p className="su-subhead">Give your digital storefront a memorable name. You can customize descriptions, theme colors, and logos inside the Admin Panel later.</p>
-              
+              <p className="su-subhead">
+                Give your digital storefront a memorable name. You can customize descriptions, theme
+                colors, and logos inside the Admin Panel later.
+              </p>
+
               <div className="su-form-group">
                 <label>
                   <span>Store Name</span>
                   <div className="su-input-wrapper">
-                    <span className="su-input-icon"><Icon name="home" size={15} /></span>
-                    <input className="input" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="e.g. Nexora Store" />
+                    <span className="su-input-icon">
+                      <Icon name="home" size={15} />
+                    </span>
+                    <input
+                      className="input"
+                      value={storeName}
+                      onChange={(e) => setStoreName(e.target.value)}
+                      placeholder="e.g. Nexora Store"
+                    />
                   </div>
                 </label>
-                
+
                 <div className="su-wizard-tip">
-                  <div className="tip-icon"><Icon name="shield" size={14} /></div>
+                  <div className="tip-icon">
+                    <Icon name="shield" size={14} />
+                  </div>
                   <div className="tip-content">
                     <strong>Payment Setup & Icons</strong>
-                    <span>To start receiving payments, you can configure your Litecoin HD Wallet (xpub) anytime later in the Admin Settings. The default premium design and Font Awesome icons are already pre-loaded and ready.</span>
+                    <span>
+                      To start receiving payments, you can configure your Litecoin HD Wallet (xpub)
+                      anytime later in the Admin Settings. The default premium design and Font
+                      Awesome icons are already pre-loaded and ready.
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="su-row" style={{ marginTop: 24 }}>
-                <button className="btn btn-ghost" onClick={() => setStep(1)}>Back</button>
+                <button className="btn btn-ghost" onClick={() => setStep(1)}>
+                  Back
+                </button>
                 <button className="btn btn-primary" onClick={() => setStep(3)}>
                   <span>Continue</span>
                   <Icon name="arrow-right" size={14} />
@@ -180,8 +275,11 @@ export const SetupWizard: React.FC = () => {
           {step === 3 && (
             <>
               <h2>Configure Store Modules</h2>
-              <p className="su-subhead">Choose which features to activate. You can toggle any of these on/off at any time in the admin dashboard.</p>
-              
+              <p className="su-subhead">
+                Choose which features to activate. You can toggle any of these on/off at any time in
+                the admin dashboard.
+              </p>
+
               <div className="su-feats">
                 {TOGGLEABLE.map((f) => {
                   const isChecked = !!features[f.key];
@@ -192,10 +290,18 @@ export const SetupWizard: React.FC = () => {
                       className={`su-toggle-card ${isChecked ? "active" : ""} ${locked ? "locked" : ""}`}
                       onClick={() => toggleFeature(f.key)}
                       aria-disabled={locked}
-                      title={locked ? "Coming soon — backend support lands with the multi-crypto milestone" : undefined}
+                      title={
+                        locked
+                          ? "Coming soon — backend support lands with the multi-crypto milestone"
+                          : undefined
+                      }
                     >
                       <span className="su-toggle-icon">
-                        <Icon name={f.icon as any} size={15} variant={isChecked ? "badge" : "duotone-regular"} />
+                        <Icon
+                          name={f.icon as any}
+                          size={15}
+                          variant={isChecked ? "badge" : "duotone-regular"}
+                        />
                       </span>
                       <div className="su-toggle-info">
                         <strong>
@@ -209,11 +315,13 @@ export const SetupWizard: React.FC = () => {
                   );
                 })}
               </div>
-              
+
               {err && <div className="su-err">{err}</div>}
-              
+
               <div className="su-row" style={{ marginTop: 24 }}>
-                <button className="btn btn-ghost" onClick={() => setStep(2)}>Back</button>
+                <button className="btn btn-ghost" onClick={() => setStep(2)}>
+                  Back
+                </button>
                 <button className="btn btn-primary" onClick={submit} disabled={busy}>
                   {busy ? (
                     <>

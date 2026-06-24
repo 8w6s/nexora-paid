@@ -15,18 +15,29 @@ bun run dev         # starts backend :3000 AND frontend :4321 together
 
 Open **http://localhost:4321**. Other scripts: `bun run dev:backend`, `bun run dev:frontend`, `bun run seed`.
 
-First boot seeds 10 demo products (USD) + 210 demo keys. Admin: **admin@nexora.local / admin12345** (`/login`, then `/admin`).
+First boot seeds 10 demo products (USD) + 210 demo keys. Admin: **admin@nexora.local / change-me** — the default password from `backend/.env.example`. Override before going live by setting `ADMIN_PASSWORD_HASH` (argon2id) in your `.env`; production refuses to boot with plaintext.
 
 ## Run with Docker
 
+The stack ships with a Caddy reverse proxy in front of backend + frontend, so
+you only expose **one port** and HTTPS is handled automatically.
+
 ```bash
-ADMIN_PASSWORD=your-strong-pass \
-PUBLIC_API_ORIGIN=http://localhost:3000 \
-PUBLIC_SITE_URL=http://localhost:4321 \
+# Local / dev — http://localhost
 docker compose up --build
+
+# Production with auto-HTTPS (Let's Encrypt)
+DOMAIN=shop.example.com ADMIN_EMAIL=you@example.com \
+ADMIN_PASSWORD=strong-pass \
+docker compose up -d --build
+
+# Cloudflare Tunnel (no open ports, behind NAT/CGNAT)
+CLOUDFLARE_TUNNEL_TOKEN=eyJh... \
+docker compose --profile tunnel up -d --build
 ```
 
-SQLite persists in the `nexora-db` volume. (Note `PUBLIC_API_ORIGIN` is baked into the frontend at build time.)
+Copy `.env.example` → `.env` for full config. SQLite persists in `nexora-db`
+volume; certs in `caddy-data`. See **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the three modes in detail.
 
 ## Before selling for real
 
@@ -52,4 +63,14 @@ bun run dev                             # then, with the server up:
 bun --cwd backend src/e2e.test.ts       # full backend e2e (17 checks)
 ```
 
-See `docs/UPGRADE_PLAN.md` for the full design.
+## Documentation
+
+- **[CLUSTERS.md](docs/CLUSTERS.md)** — Feature roadmap (Cluster A/F done, Cluster C planned)
+- **[PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** — How to build plugins (manifest, register, hooks, migrations, testing)
+- **[LICENSE_ROTATION.md](docs/LICENSE_ROTATION.md)** — License security, key rotation, incident response
+- **[PRODUCTION.md](docs/PRODUCTION.md)** — Pre-launch checklist, scalability, monitoring, backups
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** — Docker & standalone setup
+- **[MIGRATION_POSTGRES.md](docs/MIGRATION_POSTGRES.md)** — SQLite → PostgreSQL migration guide
+- **[ARCHITECTURE.md](../nexora/docs/ARCHITECTURE.md)** — Payment flow, HD wallet, state machine (shared with Free)
+
+See `../nexora/docs/UPGRADE_PLAN_V2.md` for full V2 roadmap architecture.

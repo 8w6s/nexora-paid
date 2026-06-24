@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 
 /**
  * Animated checkbox — the box outline morphs into a checkmark via SVG stroke-dasharray.
@@ -10,9 +10,16 @@ export const Checkbox: React.FC<{
   onChange: (v: boolean) => void;
   label?: React.ReactNode;
   size?: number;
-}> = ({ checked, onChange, label, size = 26 }) => (
+  name?: string;
+}> = ({ checked, onChange, label, size = 26, name }) => (
   <label className="cbx">
-    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    <input
+      type="checkbox"
+      name={name}
+      aria-label={typeof label === "string" ? label : undefined}
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+    />
     <svg viewBox="0 0 64 64" height={size} width={size} aria-hidden="true">
       <path
         key={checked ? "on" : "off"}

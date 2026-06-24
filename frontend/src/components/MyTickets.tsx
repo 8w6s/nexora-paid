@@ -1,30 +1,53 @@
-import React, { useEffect, useState } from "react";
-import { api, ApiRequestError } from "../lib/api";
+import type React from "react";
+import { useEffect, useState } from "react";
+import { useT } from "../i18n";
+import { ApiRequestError, api } from "../lib/api";
 import { Icon } from "./Icon";
-import { SkRows, SkeletonStyles } from "./Skeleton";
+import { SkeletonStyles, SkRows } from "./Skeleton";
 
-interface Ticket { id: string; subject: string; status: "open" | "closed"; createdAt: number; updatedAt: number; }
-interface Message { id: string; fromAdmin: boolean; body: string; createdAt: number; }
-interface TicketDetail extends Ticket { email: string; orderId: string | null; messages: Message[]; }
+interface Ticket {
+  id: string;
+  subject: string;
+  status: "open" | "closed";
+  createdAt: number;
+  updatedAt: number;
+}
+interface Message {
+  id: string;
+  fromAdmin: boolean;
+  body: string;
+  createdAt: number;
+}
+interface TicketDetail extends Ticket {
+  email: string;
+  orderId: string | null;
+  messages: Message[];
+}
 
 export const MyTickets: React.FC = () => {
+  const { t } = useT();
   const [list, setList] = useState<Ticket[] | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [view, setView] = useState<"list" | "new" | "thread">("list");
   const [active, setActive] = useState<TicketDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // New-ticket form
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
 
   const loadList = () => {
-    api.get<Ticket[]>("/api/tickets").then((t) => { setList(t); setNeedLogin(false); }).catch((e) => {
-      if (e instanceof ApiRequestError && e.status === 401) setNeedLogin(true);
-      else setErr(e.message);
-    });
+    api
+      .get<Ticket[]>("/api/tickets")
+      .then((tt) => {
+        setList(tt);
+        setNeedLogin(false);
+      })
+      .catch((e) => {
+        if (e instanceof ApiRequestError && e.status === 401) setNeedLogin(true);
+        else setErr(e.message);
+      });
   };
   useEffect(loadList, []);
 
@@ -39,8 +62,9 @@ export const MyTickets: React.FC = () => {
         url.searchParams.set("id", id);
         window.history.pushState({}, "", url.pathname + url.search);
       }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t("storefront.tickets.loadFailed"));
     }
-    catch (e) { setErr(e instanceof Error ? e.message : "Failed to load"); }
   };
 
   useEffect(() => {
@@ -59,7 +83,7 @@ export const MyTickets: React.FC = () => {
     handleUrlSync();
     window.addEventListener("popstate", handleUrlSync);
     return () => window.removeEventListener("popstate", handleUrlSync);
-  }, [active?.id]);
+  }, [active?.id, openThread]);
 
   const goBack = () => {
     setView("list");
@@ -75,70 +99,150 @@ export const MyTickets: React.FC = () => {
 
   const createTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setErr(null);
     try {
-      const { id } = await api.post<{ id: string }>("/api/tickets", { subject: subject.trim(), message: message.trim() });
-      setSubject(""); setMessage("");
+      const { id } = await api.post<{ id: string }>("/api/tickets", {
+        subject: subject.trim(),
+        message: message.trim(),
+      });
+      setSubject("");
+      setMessage("");
       loadList();
       await openThread(id);
-    } catch (e2) { setErr(e2 instanceof Error ? e2.message : "Failed to create"); }
-    finally { setBusy(false); }
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : t("storefront.tickets.createFailed"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const sendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!active) return;
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setErr(null);
     try {
       await api.post(`/api/tickets/${active.id}/reply`, { message: reply.trim() });
       setReply("");
       await openThread(active.id);
       loadList();
-    } catch (e2) { setErr(e2 instanceof Error ? e2.message : "Failed to send"); }
-    finally { setBusy(false); }
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : t("storefront.tickets.sendFailed"));
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (needLogin) return <main className="container tk-page"><div className="tk-state">Please <a href="/login?redirect=/tickets">sign in</a> to view your support tickets.</div><Styles /></main>;
-  if (list === null && !err) return <main className="container tk-page"><h1>Support</h1><SkRows count={3} height={72} /><SkeletonStyles /><Styles /></main>;
+  const statusLabel = (s: "open" | "closed") =>
+    s === "open" ? t("storefront.tickets.statusOpen") : t("storefront.tickets.statusClosed");
+
+  if (needLogin)
+    return (
+      <main className="container tk-page">
+        <div className="tk-state">
+          {t("storefront.tickets.pleaseSignIn")}
+        </div>
+        <Styles />
+      </main>
+    );
+  if (list === null && !err)
+    return (
+      <main className="container tk-page">
+        <h1>{t("storefront.tickets.title")}</h1>
+        <SkRows count={3} height={72} />
+        <SkeletonStyles />
+        <Styles />
+      </main>
+    );
 
   return (
     <main className="container tk-page">
       <div className="tk-head">
-        <h1>Support</h1>
-        {view === "list" && <button className="btn" onClick={() => { setView("new"); setErr(null); }}><Icon name="plus" size={15} /> New ticket</button>}
-        {view !== "list" && <button className="btn-ghost" onClick={goBack}><Icon name="arrow-right" size={14} className="flip" /> Back</button>}
+        <h1>{t("storefront.tickets.title")}</h1>
+        {view === "list" && (
+          <button
+            className="btn"
+            onClick={() => {
+              setView("new");
+              setErr(null);
+            }}
+          >
+            <Icon name="plus" size={15} /> {t("storefront.tickets.newTicket")}
+          </button>
+        )}
+        {view !== "list" && (
+          <button className="btn-ghost" onClick={goBack}>
+            <Icon name="arrow-right" size={14} className="flip" /> {t("common.back")}
+          </button>
+        )}
       </div>
 
       {err && <div className="tk-err">{err}</div>}
 
-      {view === "list" && (
-        list && list.length === 0
-          ? <div className="tk-empty card">
-              <span className="tk-empty-icon"><Icon name="ticket" size={28} variant="badge" /></span>
-              <h2>No tickets yet</h2>
-              <p>Need help with an order, a key that didn't arrive, or a billing question? We usually reply within a few hours.</p>
-              <button className="btn" onClick={() => setView("new")}><Icon name="plus" size={15} /> Open a ticket</button>
-            </div>
-          : <div className="tk-list">
-              {list?.map((t) => (
-                <button key={t.id} className="tk card" onClick={() => openThread(t.id)}>
-                  <div className="tk-row">
-                    <Icon name="ticket" size={16} variant="badge" />
-                    <span className="tk-subj">{t.subject}</span>
-                    <span className={`badge ${t.status}`}>{t.status}</span>
-                  </div>
-                  <span className="muted">Updated {new Date(t.updatedAt).toLocaleString()}</span>
-                </button>
-              ))}
-            </div>
-      )}
+      {view === "list" &&
+        (list && list.length === 0 ? (
+          <div className="tk-empty card">
+            <span className="tk-empty-icon">
+              <Icon name="ticket" size={28} variant="badge" />
+            </span>
+            <h2>{t("storefront.tickets.emptyTitle")}</h2>
+            <p>{t("storefront.tickets.emptyHint")}</p>
+            <button className="btn" onClick={() => setView("new")}>
+              <Icon name="plus" size={15} /> {t("storefront.tickets.openTicket")}
+            </button>
+          </div>
+        ) : (
+          <div className="tk-list">
+            {list?.map((tk) => (
+              <button key={tk.id} className="tk card" onClick={() => openThread(tk.id)}>
+                <div className="tk-row">
+                  <Icon name="ticket" size={16} variant="badge" />
+                  <span className="tk-subj">{tk.subject}</span>
+                  <span className={`badge ${tk.status}`}>{statusLabel(tk.status)}</span>
+                </div>
+                <span className="muted">
+                {t("storefront.tickets.updatedAt", { when: new Date(tk.updatedAt).toLocaleString() })}
+                </span>
+              </button>
+            ))}
+          </div>
+        ))}
 
       {view === "new" && (
         <form className="tk-form card" onSubmit={createTicket}>
-          <label><span>Subject</span><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="e.g. My key didn't arrive" /></label>
-          <label><span>Message</span><textarea value={message} onChange={(e) => setMessage(e.target.value)} required rows={5} placeholder="Describe your issue…" /></label>
-          <button className="btn" disabled={busy || !subject.trim() || !message.trim()} type="submit">
-            {busy ? <><Icon name="spinner" size={15} className="is-spinning" /> Creating…</> : "Create ticket"}
+          <label>
+            <span>{t("storefront.tickets.subject")}</span>
+            <input
+              className="input"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              required
+              placeholder={t("storefront.tickets.subjectPlaceholder")}
+            />
+          </label>
+          <label>
+            <span>{t("storefront.tickets.message")}</span>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              required
+              rows={5}
+              placeholder={t("storefront.tickets.messagePlaceholder")}
+            />
+          </label>
+          <button
+            className="btn"
+            disabled={busy || !subject.trim() || !message.trim()}
+            type="submit"
+          >
+            {busy ? (
+              <>
+                <Icon name="spinner" size={15} className="is-spinning" /> {t("common.loading")}
+              </>
+            ) : (
+              t("storefront.tickets.createTicket")
+            )}
           </button>
         </form>
       )}
@@ -147,25 +251,42 @@ export const MyTickets: React.FC = () => {
         <div className="tk-thread">
           <div className="tk-thread-head card">
             <h2>{active.subject}</h2>
-            <span className={`badge ${active.status}`}>{active.status}</span>
+            <span className={`badge ${active.status}`}>{statusLabel(active.status)}</span>
           </div>
           <div className="tk-msgs">
             {active.messages.map((m) => (
               <div key={m.id} className={`msg ${m.fromAdmin ? "admin" : "me"}`}>
-                <div className="msg-meta">{m.fromAdmin ? "Support" : "You"} · {new Date(m.createdAt).toLocaleString()}</div>
+                <div className="msg-meta">
+                  {m.fromAdmin
+                    ? t("storefront.tickets.fromSupport")
+                    : t("storefront.tickets.fromYou")}{" "}
+                  · {new Date(m.createdAt).toLocaleString()}
+                </div>
                 <div className="msg-body">{m.body}</div>
               </div>
             ))}
           </div>
           {active.status === "open" ? (
             <form className="tk-reply card" onSubmit={sendReply}>
-              <textarea value={reply} onChange={(e) => setReply(e.target.value)} required rows={3} placeholder="Write a reply…" />
+              <textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                required
+                rows={3}
+                placeholder={t("storefront.tickets.replyPlaceholder")}
+              />
               <button className="btn" disabled={busy || !reply.trim()} type="submit">
-                {busy ? <><Icon name="spinner" size={15} className="is-spinning" /> Sending…</> : "Send reply"}
+                {busy ? (
+                  <>
+                    <Icon name="spinner" size={15} className="is-spinning" /> {t("common.loading")}
+                  </>
+                ) : (
+                  t("storefront.tickets.sendReply")
+                )}
               </button>
             </form>
           ) : (
-            <p className="tk-closed">This ticket is closed.</p>
+            <p className="tk-closed">{t("storefront.tickets.ticketClosed")}</p>
           )}
         </div>
       )}

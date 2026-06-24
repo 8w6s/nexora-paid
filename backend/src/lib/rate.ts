@@ -8,6 +8,13 @@ type Quote = { usdPerLtc: number; source: string; fetchedAt: number };
 
 let cache: Quote | null = null;
 const TTL_MS = 60_000;
+// Hard ceiling on the "last-good" fallback used when BOTH Kraken and Coinbase
+// fail. Without this an outage could keep us serving an LTC price hours old;
+// LTC moves >5% intraday routinely, and a buyer-locked rate that stale would
+// be far enough off that orders read as "underpaid" (or the buyer overpays).
+// 10 min is short enough to bound mispricing risk and long enough to absorb
+// a transient explorer blip.
+const STALE_FALLBACK_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 4_000;
 
 async function fetchJson(url: string): Promise<any> {
@@ -48,8 +55,12 @@ export async function getUsdPerLtc(): Promise<Quote> {
   } catch {
     try {
       cache = { usdPerLtc: await fromCoinbase(), source: "coinbase", fetchedAt: now };
-    } catch (e) {
-      if (cache) return cache; // last-good if both upstreams fail
+    } catch (_e) {
+      // Last-good fallback: only honor the cached quote if it's within the
+      // stale ceiling. A genuinely old cache (process up for hours, both
+      // upstreams down through the whole window) would otherwise mint orders
+      // at a price disconnected from the current market.
+      if (cache && now - cache.fetchedAt < STALE_FALLBACK_MS) return cache;
       throw new Error("no LTC rate available");
     }
   }
@@ -58,7 +69,10 @@ export async function getUsdPerLtc(): Promise<Quote> {
 
 // LTC has 8 decimals (1 LTC = 1e8 litoshi). Round the amount OWED *up* so the buyer never
 // underpays due to truncation. Returns both the integer litoshi target and an 8dp display string.
-export function usdToLitoshi(usd: number, usdPerLtc: number): { litoshi: number; ltcAmount: string } {
+export function usdToLitoshi(
+  usd: number,
+  usdPerLtc: number,
+): { litoshi: number; ltcAmount: string } {
   const litoshi = Math.ceil((usd / usdPerLtc) * 1e8);
   return { litoshi, ltcAmount: (litoshi / 1e8).toFixed(8) };
 }

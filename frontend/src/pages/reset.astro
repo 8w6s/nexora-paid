@@ -1,0 +1,12 @@
+---
+import { ResetPasswordApp } from "../components/ResetPasswordApp";
+import Layout from "../layouts/Layout.astro";
+
+// Step 2 of the recovery flow. Token is read from ?token= in the React
+// component — keeping the SSR side dumb means a malformed token never
+// renders a server-side error path, the form handles it client-side.
+export const prerender = false;
+---
+<Layout title="Set new password — Nexora">
+  <ResetPasswordApp client:load />
+</Layout>

@@ -1,50 +1,120 @@
-import React, { useEffect, useState } from "react";
-import { api, ApiRequestError, fmtUsd, type OrderSummary } from "../lib/api";
-import { SkRows, SkeletonStyles } from "./Skeleton";
+import type React from "react";
+import { useEffect, useState } from "react";
+import { useT } from "../i18n";
+import { ApiRequestError, api, fmtUsd, type OrderSummary } from "../lib/api";
 import { Icon } from "./Icon";
-
-const label: Record<string, string> = { pending: "Awaiting payment", awaiting_payment: "Awaiting payment", underpaid: "Underpaid", paid: "Paid", completed: "Completed", expired: "Expired", cancelled: "Cancelled" };
+import { SkeletonStyles, SkRows } from "./Skeleton";
 
 export const MyOrders: React.FC = () => {
+  const { t } = useT();
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const label: Record<string, string> = {
+    pending: t("storefront.checkout.awaitingPayment"),
+    awaiting_payment: t("storefront.checkout.awaitingPayment"),
+    underpaid: t("storefront.checkout.underpaid"),
+    paid: t("storefront.checkout.paid"),
+    completed: t("storefront.checkout.completed"),
+    expired: t("storefront.checkout.expired"),
+    cancelled: t("storefront.checkout.cancelled"),
+  };
+
   useEffect(() => {
-    api.get<OrderSummary[]>("/api/orders").then(setOrders).catch((e) => {
-      if (e instanceof ApiRequestError && e.status === 401) setNeedLogin(true);
-      else setErr(e.message);
-    });
+    api
+      .get<OrderSummary[]>("/api/orders")
+      .then(setOrders)
+      .catch((e) => {
+        if (e instanceof ApiRequestError && e.status === 401) setNeedLogin(true);
+        else setErr(e.message);
+      });
   }, []);
 
-  if (needLogin) return <main className="container ord-page"><div className="ord-state">Please <a href="/login?redirect=/orders">sign in</a> to view your orders.</div><Styles /></main>;
-  if (err) return <main className="container ord-page"><div className="ord-state">{err}</div><Styles /></main>;
-  if (!orders) return <main className="container ord-page"><h1>My Orders</h1><SkRows count={4} height={92} /><SkeletonStyles /><Styles /></main>;
+  if (needLogin)
+    return (
+      <main className="container ord-page">
+        <div className="ord-state">
+          {t("storefront.orders.pleaseSignInPrefix")}{" "}
+          <span
+            style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
+            onClick={() => {
+              window.location.href = "/login?redirect=/orders";
+            }}
+          >
+            {t("storefront.auth.signIn").toLowerCase()}
+          </span>{" "}
+          {t("storefront.orders.pleaseSignInSuffix")}
+        </div>
+        <Styles />
+      </main>
+    );
+  if (err)
+    return (
+      <main className="container ord-page">
+        <div className="ord-state">{err}</div>
+        <Styles />
+      </main>
+    );
+  if (!orders)
+    return (
+      <main className="container ord-page">
+        <h1>{t("storefront.account.myOrders")}</h1>
+        <SkRows count={4} height={92} />
+        <SkeletonStyles />
+        <Styles />
+      </main>
+    );
 
   return (
     <main className="container ord-page">
-      <h1>My Orders</h1>
+      <h1>{t("storefront.account.myOrders")}</h1>
       {orders.length === 0 ? (
         <div className="ord-empty card">
-          <span className="ord-empty-icon"><Icon name="receipt" size={28} variant="badge" /></span>
-          <h2>No orders yet</h2>
-          <p>Once you complete a purchase, your keys and order history will live here forever.</p>
-          <a className="btn" href="/"><Icon name="cart" size={16} variant="duotone-regular" /> Start shopping</a>
+          <span className="ord-empty-icon">
+            <Icon name="receipt" size={28} variant="badge" />
+          </span>
+          <h2>{t("storefront.orders.emptyTitle")}</h2>
+          <p>{t("storefront.orders.emptyHint")}</p>
+          <div
+            className="btn"
+            style={{ cursor: "pointer" }}
+            onClick={() => {
+              window.location.href = "/";
+            }}
+          >
+            <Icon name="cart" size={16} variant="duotone-regular" /> {t("storefront.orders.startShopping")}
+          </div>
         </div>
       ) : (
         <div className="ord-list">
           {orders.map((o) => (
-            <a key={o.id} className="ord card" href={`/orders/${o.id}`}>
+            <div
+              key={o.id}
+              className="ord card"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                window.location.href = `/orders/${o.id}`;
+              }}
+            >
               <div className="ord-top">
                 <strong>{o.id}</strong>
                 <span className={`badge ${o.status}`}>{label[o.status] ?? o.status}</span>
               </div>
-              <div className="ord-items">{o.items.map((i, k) => <span key={k} className="pill">{i.name} ×{i.quantity}</span>)}</div>
+              <div className="ord-items">
+                {o.items.map((i, k) => (
+                  <span key={k} className="pill">
+                    {i.name} ×{i.quantity}
+                  </span>
+                ))}
+              </div>
               <div className="ord-bottom">
                 <span className="muted">{new Date(o.createdAt).toLocaleString()}</span>
-                <span className="price">{fmtUsd(o.totalUsd)} · {o.ltcAmount} LTC</span>
+                <span className="price">
+                  {fmtUsd(o.totalUsd)} · {o.ltcAmount} LTC
+                </span>
               </div>
-            </a>
+            </div>
           ))}
         </div>
       )}

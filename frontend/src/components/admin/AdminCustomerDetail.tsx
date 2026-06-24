@@ -1,9 +1,16 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
-import { Icon } from "../Icon";
 import { EmptyState } from "../EmptyState";
+import { Icon } from "../Icon";
 
-interface Order { id: string; status: string; totalUsd: number; ltcAmount: string; createdAt: number; }
+interface Order {
+  id: string;
+  status: string;
+  totalUsd: number;
+  ltcAmount: string;
+  createdAt: number;
+}
 interface CustomerDetail {
   id: string;
   email: string;
@@ -13,8 +20,13 @@ interface CustomerDetail {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: "Awaiting", awaiting_payment: "Awaiting", underpaid: "Underpaid",
-  paid: "Paid", completed: "Completed", expired: "Expired", cancelled: "Cancelled",
+  pending: "Awaiting",
+  awaiting_payment: "Awaiting",
+  underpaid: "Underpaid",
+  paid: "Paid",
+  completed: "Completed",
+  expired: "Expired",
+  cancelled: "Cancelled",
 };
 
 export const AdminCustomerDetail: React.FC<{
@@ -26,8 +38,17 @@ export const AdminCustomerDetail: React.FC<{
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const load = () => api.get<CustomerDetail>(`/api/admin/customers/${customerId}`).then(setC).catch((e) => setErr(e instanceof Error ? e.message : "Load failed"));
-  useEffect(() => { load(); }, [customerId]);
+  const load = useCallback(
+    () =>
+      api
+        .get<CustomerDetail>(`/api/admin/customers/${customerId}`)
+        .then(setC)
+        .catch((e) => setErr(e instanceof Error ? e.message : "Load failed")),
+    [customerId],
+  );
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const toggleBan = async () => {
     if (!c) return;
@@ -36,12 +57,31 @@ export const AdminCustomerDetail: React.FC<{
     try {
       await api.put(`/api/admin/customers/${c.id}/status`, { status: next });
       setC({ ...c, status: next });
-    } catch (e) { setErr(e instanceof Error ? e.message : "Update failed"); }
-    finally { setBusy(false); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (err) return <div className="acd"><button className="btn btn-ghost" onClick={onBack}><Icon name="arrow-right" size={14} className="flip" /> Back</button><div className="err">{err}</div></div>;
-  if (!c) return <div className="acd"><button className="btn btn-ghost" onClick={onBack}><Icon name="arrow-right" size={14} className="flip" /> Back</button><EmptyState icon="spinner" title="Loading…" compact /></div>;
+  if (err)
+    return (
+      <div className="acd">
+        <button className="btn btn-ghost" onClick={onBack}>
+          <Icon name="arrow-right" size={14} className="flip" /> Back
+        </button>
+        <div className="err">{err}</div>
+      </div>
+    );
+  if (!c)
+    return (
+      <div className="acd">
+        <button className="btn btn-ghost" onClick={onBack}>
+          <Icon name="arrow-right" size={14} className="flip" /> Back
+        </button>
+        <EmptyState icon="spinner" title="Loading…" compact />
+      </div>
+    );
 
   const paid = c.orders.filter((o) => o.status === "paid" || o.status === "completed");
   const totalSpent = paid.reduce((s, o) => s + o.totalUsd, 0);
@@ -50,38 +90,87 @@ export const AdminCustomerDetail: React.FC<{
     <div className="acd">
       <header className="acd-head">
         <div>
-          <button className="btn btn-ghost" onClick={onBack} type="button"><Icon name="arrow-right" size={14} className="flip" /> Back to customers</button>
+          <button className="btn btn-ghost" onClick={onBack} type="button">
+            <Icon name="arrow-right" size={14} className="flip" /> Back to customers
+          </button>
           <h1>{c.email}</h1>
           <p className="muted">Joined {new Date(c.createdAt).toLocaleString()}</p>
         </div>
         <div className="acd-actions">
           <span className={`badge ${c.status}`}>{c.status === "active" ? "Active" : "Banned"}</span>
-          <button className={`btn ${c.status === "active" ? "btn-danger" : ""}`} onClick={toggleBan} disabled={busy} type="button">
-            {busy ? <><Icon name="spinner" size={14} className="is-spinning" /> Working…</> : (c.status === "active" ? "Ban customer" : "Unban customer")}
+          <button
+            className={`btn ${c.status === "active" ? "btn-danger" : ""}`}
+            onClick={toggleBan}
+            disabled={busy}
+            type="button"
+          >
+            {busy ? (
+              <>
+                <Icon name="spinner" size={14} className="is-spinning" /> Working…
+              </>
+            ) : c.status === "active" ? (
+              "Ban customer"
+            ) : (
+              "Unban customer"
+            )}
           </button>
         </div>
       </header>
 
       <div className="acd-stats">
-        <div className="stat card"><span>Orders</span><strong>{c.orders.length}</strong></div>
-        <div className="stat card"><span>Paid orders</span><strong>{paid.length}</strong></div>
-        <div className="stat card"><span>Total spent</span><strong className="price">{fmtUsd(totalSpent)}</strong></div>
+        <div className="stat card">
+          <span>Orders</span>
+          <strong>{c.orders.length}</strong>
+        </div>
+        <div className="stat card">
+          <span>Paid orders</span>
+          <strong>{paid.length}</strong>
+        </div>
+        <div className="stat card">
+          <span>Total spent</span>
+          <strong className="price">{fmtUsd(totalSpent)}</strong>
+        </div>
       </div>
 
       <section className="card acd-pane">
-        <h3><Icon name="receipt" size={16} variant="badge" /> Order history</h3>
+        <h3>
+          <Icon name="receipt" size={16} variant="badge" /> Order history
+        </h3>
         {c.orders.length === 0 ? (
-          <EmptyState icon="receipt" title="No orders yet" desc="This customer has not made any purchase yet." compact />
+          <EmptyState
+            icon="receipt"
+            title="No orders yet"
+            desc="This customer has not made any purchase yet."
+            compact
+          />
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Order</th><th>Status</th><th className="num">Total</th><th>When</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Status</th>
+                  <th className="num">Total</th>
+                  <th>When</th>
+                </tr>
+              </thead>
               <tbody>
                 {c.orders.map((o) => (
-                  <tr key={o.id} className="clickable" onClick={() => onOpenOrder(o.id)} title="View order">
+                  <tr
+                    key={o.id}
+                    className="clickable"
+                    onClick={() => onOpenOrder(o.id)}
+                    title="View order"
+                  >
                     <td className="mono">{o.id.slice(0, 8)}</td>
-                    <td><span className={`badge ${o.status}`}>{STATUS_LABEL[o.status] ?? o.status}</span></td>
-                    <td className="num price">{fmtUsd(o.totalUsd)} <span className="muted sm">({o.ltcAmount} LTC)</span></td>
+                    <td>
+                      <span className={`badge ${o.status}`}>
+                        {STATUS_LABEL[o.status] ?? o.status}
+                      </span>
+                    </td>
+                    <td className="num price">
+                      {fmtUsd(o.totalUsd)} <span className="muted sm">({o.ltcAmount} LTC)</span>
+                    </td>
                     <td className="muted sm">{new Date(o.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}

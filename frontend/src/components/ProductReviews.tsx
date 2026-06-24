@@ -1,12 +1,31 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { Icon } from "./Icon";
 
-interface ReviewItem { id: string; rating: number; body: string; email: string; createdAt: number; }
-interface ReviewsResp { enabled: boolean; average: number; count: number; reviews: ReviewItem[]; }
-interface CanReview { canReview: boolean; reason?: string; }
+interface ReviewItem {
+  id: string;
+  rating: number;
+  body: string;
+  email: string;
+  createdAt: number;
+}
+interface ReviewsResp {
+  enabled: boolean;
+  average: number;
+  count: number;
+  reviews: ReviewItem[];
+}
+interface CanReview {
+  canReview: boolean;
+  reason?: string;
+}
 
-const Stars: React.FC<{ value: number; size?: number; onPick?: (n: number) => void }> = ({ value, size = 16, onPick }) => (
+const Stars: React.FC<{ value: number; size?: number; onPick?: (n: number) => void }> = ({
+  value,
+  size = 16,
+  onPick,
+}) => (
   <span className="stars" role={onPick ? "radiogroup" : undefined}>
     {[1, 2, 3, 4, 5].map((n) => (
       <button
@@ -32,14 +51,21 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
   const [err, setErr] = useState<string | null>(null);
 
   const load = () => {
-    api.get<ReviewsResp>(`/api/products/${slug}/reviews`).then(setData).catch(() => setData(null));
-    api.get<CanReview>(`/api/products/${slug}/can-review`).then(setCan).catch(() => setCan({ canReview: false }));
+    api
+      .get<ReviewsResp>(`/api/products/${slug}/reviews`)
+      .then(setData)
+      .catch(() => setData(null));
+    api
+      .get<CanReview>(`/api/products/${slug}/can-review`)
+      .then(setCan)
+      .catch(() => setCan({ canReview: false }));
   };
   useEffect(load, [slug]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null); setBusy(true);
+    setErr(null);
+    setBusy(true);
     try {
       await api.post(`/api/products/${slug}/reviews`, { rating, body: body.trim() || undefined });
       setBody("");
@@ -51,7 +77,7 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
     }
   };
 
-  if (!data || !data.enabled) return null;
+  if (!data?.enabled) return null;
 
   return (
     <section className="reviews">
@@ -61,7 +87,9 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
           <div className="rv-agg">
             <Stars value={Math.round(data.average)} size={18} />
             <strong>{data.average.toFixed(1)}</strong>
-            <span>({data.count} review{data.count !== 1 ? "s" : ""})</span>
+            <span>
+              ({data.count} review{data.count !== 1 ? "s" : ""})
+            </span>
           </div>
         )}
       </div>
@@ -72,18 +100,34 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
             <span>Your rating</span>
             <Stars value={rating} size={22} onPick={setRating} />
           </div>
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Share your experience (optional)" rows={3} maxLength={1000} />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Share your experience (optional)"
+            rows={3}
+            maxLength={1000}
+          />
           {err && <div className="rv-err">{err}</div>}
           <button className="btn" disabled={busy} type="submit">
-            {busy ? <><Icon name="spinner" size={15} className="is-spinning" /> Submitting…</> : "Submit review"}
+            {busy ? (
+              <>
+                <Icon name="spinner" size={15} className="is-spinning" /> Submitting…
+              </>
+            ) : (
+              "Submit review"
+            )}
           </button>
         </form>
       )}
       {can && !can.canReview && can.reason === "not-purchased" && (
-        <p className="rv-note"><Icon name="box" size={14} /> Only verified buyers can leave a review.</p>
+        <p className="rv-note">
+          <Icon name="box" size={14} /> Only verified buyers can leave a review.
+        </p>
       )}
       {can && !can.canReview && can.reason === "already-reviewed" && (
-        <p className="rv-note"><Icon name="zap" size={14} /> Thanks — you've already reviewed this product.</p>
+        <p className="rv-note">
+          <Icon name="zap" size={14} /> Thanks — you've already reviewed this product.
+        </p>
       )}
 
       {data.count === 0 ? (

@@ -1,8 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { RefundApp } from '../components/RefundApp';
+import { RefundApp } from "../components/RefundApp";
+import Layout from "../layouts/Layout.astro";
+
 export const prerender = false;
 ---
 <Layout title="Refund Policy — Nexora">
-  <RefundApp client:load />
+  <RefundApp client:idle />
 </Layout>

@@ -1,13 +1,19 @@
-import { Elysia, t } from "elysia";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { Elysia, t } from "elysia";
 import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
-import { hashPassword, normalizeEmail, createSession, sessionCookieOptions, SESSION_COOKIE } from "../lib/auth.ts";
-import { setSetting } from "../lib/settings.ts";
-import { setFlag, type FeatureKey, FEATURES } from "../lib/features.ts";
+import {
+  createSession,
+  hashPassword,
+  normalizeEmail,
+  SESSION_COOKIE,
+  sessionCookieOptions,
+} from "../lib/auth.ts";
+import { FEATURES, type FeatureKey, setFlag } from "../lib/features.ts";
 import { validateXpub } from "../lib/hd.ts";
 import { rateLimitCheck, clientIp as resolveClientIp } from "../lib/rate-limit.ts";
+import { setSetting } from "../lib/settings.ts";
 
 // /api/setup is a CPU-bound endpoint (argon2id hashing) and the only path
 // without auth that can move state. Cap at 3 attempts / hour / IP — enough for
@@ -38,7 +44,10 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
       let xpubType: string | null = null;
       if (body.ltcXpub) {
         const v = validateXpub(body.ltcXpub);
-        if (!v.ok) { set.status = 400; return { error: `Invalid LTC xpub: ${v.error}`, code: "BAD_XPUB" }; }
+        if (!v.ok) {
+          set.status = 400;
+          return { error: `Invalid LTC xpub: ${v.error}`, code: "BAD_XPUB" };
+        }
         xpubType = (v as { type?: string }).type ?? null;
       }
 
@@ -58,7 +67,10 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
       let created: { id: string; email: string } | null = null;
       try {
         created = await db.transaction(async (tx) => {
-          const existing = await tx.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+          const existing = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.role, "admin"));
           if (existing.length > 0) {
             // Throw to abort the transaction; caller maps to a 409.
             throw new Error("SETUP_DONE");
@@ -92,8 +104,13 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
         }
       }
 
-      // 4) auto-login the new admin
-      const { token, expiresAt } = await createSession(created.id);
+      // 4) auto-login the new admin. Pass role so the session row gets the
+      // 8h admin cap (not 30d customer ceiling); capture IP+UA for the
+      // device-list UI.
+      const { token, expiresAt } = await createSession(created.id, "admin", {
+        ip,
+        userAgent: request.headers.get("user-agent"),
+      });
       cookie[SESSION_COOKIE].set({ value: token, ...sessionCookieOptions(new Date(expiresAt)) });
       set.status = 201;
       return { ok: true, adminId: created.id, email: created.email };
@@ -107,5 +124,5 @@ export const setupRoutes = new Elysia({ prefix: "/api/setup" })
         ltcXpub: t.Optional(t.String()),
         features: t.Optional(t.Record(t.String(), t.Boolean())),
       }),
-    }
+    },
   );

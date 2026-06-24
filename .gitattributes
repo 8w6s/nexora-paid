@@ -1,0 +1,25 @@
+# Hash-stable source: every text file is committed with LF endings so the
+# SHA256 in manifest.signed.json matches across Linux CI build + Windows
+# checkout + Docker container runtime. Without this, a Windows clone with
+# autocrlf=true would silently break integrity verification on boot.
+* text=auto eol=lf
+
+# Binary blobs — never touch.
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.webp       binary
+*.ico        binary
+*.svg        text eol=lf
+*.pdf        binary
+*.zip        binary
+*.tar.gz     binary
+*.lock       binary
+*.db         binary
+*.sqlite     binary
+*.license    text eol=lf
+*.signed.json text eol=lf
+
+# Keys — never CRLF, never auto-export.
+.keys/*      text eol=lf

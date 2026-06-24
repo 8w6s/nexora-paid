@@ -1,5 +1,27 @@
-import { sqliteTable, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
-import { sql, relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
+import {
+  customType,
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+import { decrypt, encrypt } from "../lib/encryption.ts";
+
+const encryptedText = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "text";
+  },
+  toDriver(value: string): string {
+    return encrypt(value);
+  },
+  fromDriver(value: string): string {
+    return decrypt(value);
+  },
+});
 
 /**
  * Nexora digital-goods shop — Drizzle (SQLite/bun:sqlite) schema.
@@ -17,57 +39,84 @@ export const users = sqliteTable(
   "users",
   {
     id: text("id").primaryKey(),
-    // Always stored lower-cased + trimmed at the application layer (register/login),
-    // so a plain unique index gives case-insensitive uniqueness (drizzle-kit 0.21 has no
-    // expression-index support in push).
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     role: text("role").$type<"customer" | "admin">().default("customer").notNull(),
-    status: text("status").$type<"active" | "banned">().default("active").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    status: text("status").$type<"active" | "banned" | "deleted">().default("active").notNull(),
+    // TOTP 2FA. Secret stored AES-256-GCM-encrypted via the encryptedText
+    // custom type so a DB leak doesn't immediately yield live authenticator
+    // seeds for every admin. lastTotpCounter holds the most recent matched
+    // RFC-6238 step to block 60-90s replay; new rows start at -1 so the
+    // first verification always succeeds. totpBackupCodes is a JSON array
+    // of "saltHex:hashHex" (scrypt) entries; NULL when none enrolled.
+    totpSecret: encryptedText("totp_secret"),
+    totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
+    lastTotpCounter: integer("last_totp_counter").notNull().default(-1),
+    totpBackupCodes: text("totp_backup_codes"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
-  (t) => ({ emailUnique: uniqueIndex("users_email_unique").on(t.email) })
+  (t) => ({ emailUnique: uniqueIndex("users_email_unique").on(t.email) }),
 );
 
 /* ──────────────────────────── coupons ──────────────────────────── */
-// Discount codes applied at checkout. Discount computed on the USD total before coin conversion.
 export const coupons = sqliteTable(
   "coupons",
   {
     id: text("id").primaryKey(),
-    code: text("code").notNull(),                          // case-insensitive match at app layer
+    code: text("code").notNull(), // case-insensitive match at app layer
     type: text("type").$type<"percent" | "fixed">().notNull(),
-    value: real("value").notNull(),                        // percent (0-100) or fixed USD
-    maxUses: integer("max_uses"),                          // null = unlimited
+    value: real("value").notNull(), // percent (0-100) or fixed USD
+    maxUses: integer("max_uses"), // null = unlimited
     usedCount: integer("used_count").notNull().default(0),
     minOrderUsd: real("min_order_usd").notNull().default(0),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
-  (t) => ({ codeUnique: uniqueIndex("coupons_code_unique").on(t.code) })
+  (t) => ({ codeUnique: uniqueIndex("coupons_code_unique").on(t.code) }),
 );
 
-/* ──────────────────────────── sessions ─────────────────────────── */
-// Cookie value === sessions.token. We store SHA-256(rawToken) here; the cookie carries the raw token.
+/* ──────────────────────────── sessions ────────────────── */
 export const sessions = sqliteTable(
   "sessions",
   {
     token: text("token").primaryKey(),
-    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    // Idle timeout tracking. Updated on each validateSession() call so a stolen
+    // cookie that is never used drops out faster than the absolute expiresAt.
+    // Migration 0005 backfills existing rows from createdAt.
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    // Per-session metadata captured at createSession() so the admin Profile
+    // UI can render an accurate "logged in devices" list and let the operator
+    // revoke a single suspicious session knowing where it came from.
+    // Migration 0007 adds these as nullable so existing sessions keep
+    // validating; new sessions populate them up-front. lastIp refreshes
+    // alongside lastSeenAt to track session roaming (mobile → wifi, or —
+    // alarmingly — a different country).
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    lastIp: text("last_ip"),
   },
   (t) => ({
     userIdx: index("sessions_user_idx").on(t.userId),
     expiryIdx: index("sessions_expiry_idx").on(t.expiresAt),
-  })
+    lastSeenIdx: index("sessions_last_seen_idx").on(t.lastSeenAt),
+  }),
 );
 
 /* ──────────────────────────── categories ───────────────────────── */
-// Hierarchical product categories (up to 4 levels). parentId is a self-reference
-// for the tree; null = top-level. Slug is unique across ALL categories (flat
-// URL space). sortOrder gives admins explicit ordering within a parent.
 export const categories = sqliteTable(
   "categories",
   {
@@ -78,12 +127,14 @@ export const categories = sqliteTable(
     description: text("description").notNull().default(""),
     image: text("image").notNull().default(""),
     sortOrder: integer("sort_order").notNull().default(0),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
   (t) => ({
     slugUnique: uniqueIndex("categories_slug_unique").on(t.slug),
     parentIdx: index("categories_parent_idx").on(t.parentId),
-  })
+  }),
 );
 
 /* ──────────────────────────── products ─────────────────────────── */
@@ -96,25 +147,45 @@ export const products = sqliteTable(
     description: text("description").notNull(),
     priceUsd: real("price_usd").notNull().default(0),
     image: text("image").notNull(),
-    // Legacy free-text category. Kept for backwards-compat; new code reads categoryId.
     category: text("category").notNull(),
-    // Optional FK to the categories table (preferred going forward). Nullable so
-    // pre-migration rows don't break and so admins can keep using the string field
-    // until they finish organising the tree.
     categoryId: text("category_id"),
-    // Delivery model: serials = auto-deliver from product_keys (current behavior).
-    // service = manual / instructions only. dynamic = fetch from webhook (groundwork).
-    deliverables: text("deliverables").$type<"serials" | "service" | "dynamic">().notNull().default("serials"),
+    compareAtPrice: real("compare_at_price"),
+    deliverables: text("deliverables")
+      .$type<"serials" | "service" | "dynamic">()
+      .notNull()
+      .default("serials"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     sold: integer("sold").notNull().default(0),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
   (t) => ({
     slugUnique: uniqueIndex("products_slug_unique").on(t.slug),
     categoryIdx: index("products_category_idx").on(t.category),
     categoryIdIdx: index("products_category_id_idx").on(t.categoryId),
     activeIdx: index("products_active_idx").on(t.active),
-  })
+  }),
+);
+
+/* ──────────────────────── product_variants ─────────────────────── */
+export const productVariants = sqliteTable(
+  "product_variants",
+  {
+    id: text("id").primaryKey(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    priceUsd: real("price_usd").notNull().default(0),
+    compareAtPrice: real("compare_at_price"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => ({
+    productIdx: index("product_variants_product_idx").on(t.productId),
+  }),
 );
 
 /* ───────────────────── product_keys (REAL inventory) ────────────── */
@@ -122,19 +193,31 @@ export const productKeys = sqliteTable(
   "product_keys",
   {
     id: text("id").primaryKey(),
-    productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-    code: text("code").notNull(),
-    status: text("status").$type<"available" | "reserved" | "delivered">().notNull().default("available"),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    variantId: text("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
+    code: encryptedText("code").notNull(),
+    status: text("status")
+      .$type<"available" | "reserved" | "delivered">()
+      .notNull()
+      .default("available"),
+    keyType: text("key_type")
+      .$type<"code" | "account" | "file" | "instructions">()
+      .notNull()
+      .default("code"),
     orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
     reservedAt: integer("reserved_at", { mode: "timestamp_ms" }),
     deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
   (t) => ({
     productStatusIdx: index("product_keys_product_status_idx").on(t.productId, t.status),
     orderIdx: index("product_keys_order_idx").on(t.orderId),
     productCodeUnique: uniqueIndex("product_keys_product_code_unique").on(t.productId, t.code),
-  })
+  }),
 );
 
 /* ───────────────────────────── orders ──────────────────────────── */
@@ -142,43 +225,63 @@ export const orders = sqliteTable(
   "orders",
   {
     id: text("id").primaryKey(),
-    // Login required to purchase → userId NOT NULL (no guest checkout).
-    userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
     email: text("email").notNull(),
-
     status: text("status")
-      .$type<"pending" | "awaiting_payment" | "underpaid" | "paid" | "completed" | "expired" | "cancelled">()
+      .$type<
+        | "pending"
+        | "awaiting_payment"
+        | "underpaid"
+        | "paid"
+        | "completed"
+        | "expired"
+        | "cancelled"
+      >()
       .notNull()
       .default("pending"),
-
-    // ── Pricing / rate lock (frozen at checkout) ──
     totalUsd: real("total_usd").notNull(),
-    ltcRate: real("ltc_rate").notNull(),                       // locked USD-per-LTC
+    ltcRate: real("ltc_rate").notNull(),
     rateSource: text("rate_source"),
-    ltcAmount: text("ltc_amount").notNull(),                   // expected LTC, 8dp string (display)
-    expectedLitoshi: integer("expected_litoshi").notNull(),    // integer target (1 LTC = 1e8)
-
-    // ── HD wallet derived receive address (watch-only) ──
+    ltcAmount: text("ltc_amount").notNull(),
+    expectedLitoshi: integer("expected_litoshi").notNull(),
     addressIndex: integer("address_index").notNull(),
     ltcAddress: text("ltc_address").notNull(),
-
-    // ── Settlement state (written by the poller) ──
     receivedLitoshi: integer("received_litoshi").notNull().default(0),
     confirmations: integer("confirmations").notNull().default(0),
     paidTxId: text("paid_tx_id"),
-
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
     paidAt: integer("paid_at", { mode: "timestamp_ms" }),
     deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),   // payment window end
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    // Watcher fan-out tracking. Without this every tick re-polls every payable
+    // address indiscriminately, exhausting the BlockCypher quota once the
+    // payable backlog crosses ~90 orders. lastCheckedAt lets us prioritise
+    // oldest-pending first and skip recently-checked. Migration 0006 backfills
+    // existing rows to 0 so the first tick after deploy covers them all.
+    lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" }).notNull().default(sql`0`),
   },
   (t) => ({
     statusIdx: index("orders_status_idx").on(t.status),
     userIdx: index("orders_user_idx").on(t.userId),
     expiresIdx: index("orders_expires_idx").on(t.expiresAt),
+    // Perf: admin orders/stats sort by createdAt desc; customer "my orders"
+    // filters by (userId, createdAt). Without these, a 100k-row orders table
+    // forces a full scan + filesort on every admin and customer view.
+    createdIdx: index("orders_created_idx").on(t.createdAt),
+    emailIdx: index("orders_email_idx").on(t.email),
+    userCreatedIdx: index("orders_user_created_idx").on(t.userId, t.createdAt),
+    // Watcher prioritises payable orders by lastCheckedAt ASC so the
+    // oldest-checked address gets the next slot in the limited BlockCypher
+    // quota each tick. Composite (status, lastCheckedAt) keeps the ORDER BY
+    // out of a filesort.
+    statusCheckedIdx: index("orders_status_checked_idx").on(t.status, t.lastCheckedAt),
     ltcAddressUnique: uniqueIndex("orders_ltc_address_unique").on(t.ltcAddress),
     addressIndexUnique: uniqueIndex("orders_address_index_unique").on(t.addressIndex),
-  })
+  }),
 );
 
 /* ─────────────────────────── order_items ───────────────────────── */
@@ -186,8 +289,12 @@ export const orderItems = sqliteTable(
   "order_items",
   {
     id: text("id").primaryKey(),
-    orderId: text("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
-    productId: text("product_id").notNull().references(() => products.id, { onDelete: "restrict" }),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     priceUsd: real("price_usd").notNull(),
     quantity: integer("quantity").notNull(),
@@ -195,35 +302,41 @@ export const orderItems = sqliteTable(
   (t) => ({
     orderIdx: index("order_items_order_idx").on(t.orderId),
     productIdx: index("order_items_product_idx").on(t.productId),
-  })
+  }),
 );
 
 /* ───────────────────────────── settings ────────────────────────── */
-// Key/value config editable in admin. Secrets prefer .env; DB holds toggles + non-secret config.
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
-  value: text("value"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  value: encryptedText("value"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
 });
 
 /* ───────────────────────────── reviews ─────────────────────────── */
-// Verified-purchase product reviews. Shown immediately; admin can hide abusive ones.
 export const reviews = sqliteTable(
   "reviews",
   {
     id: text("id").primaryKey(),
-    productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),                 // snapshot for display ("j***@x.com")
-    rating: integer("rating").notNull(),            // 1-5
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    rating: integer("rating").notNull(),
     body: text("body").notNull().default(""),
     hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
   (t) => ({
     productIdx: index("reviews_product_idx").on(t.productId),
-    userProductUnique: uniqueIndex("reviews_user_product_unique").on(t.userId, t.productId), // one review per product
-  })
+    userProductUnique: uniqueIndex("reviews_user_product_unique").on(t.userId, t.productId),
+  }),
 );
 
 /* ───────────────────────────── tickets ─────────────────────────── */
@@ -231,44 +344,86 @@ export const tickets = sqliteTable(
   "tickets",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
-    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }), // optional link
+    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
     subject: text("subject").notNull(),
     status: text("status").$type<"open" | "closed">().notNull().default("open"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
-  (t) => ({ userIdx: index("tickets_user_idx").on(t.userId), statusIdx: index("tickets_status_idx").on(t.status) })
+  (t) => ({
+    userIdx: index("tickets_user_idx").on(t.userId),
+    statusIdx: index("tickets_status_idx").on(t.status),
+  }),
 );
 
 export const ticketMessages = sqliteTable(
   "ticket_messages",
   {
     id: text("id").primaryKey(),
-    ticketId: text("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
     fromAdmin: integer("from_admin", { mode: "boolean" }).notNull().default(false),
     body: text("body").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
-  (t) => ({ ticketIdx: index("ticket_messages_ticket_idx").on(t.ticketId) })
+  (t) => ({ ticketIdx: index("ticket_messages_ticket_idx").on(t.ticketId) }),
 );
 
 /* ─────────────────────────── admin_actions ─────────────────────── */
-// Audit log of admin operations.
 export const adminActions = sqliteTable(
   "admin_actions",
   {
     id: text("id").primaryKey(),
     adminEmail: text("admin_email").notNull(),
-    action: text("action").notNull(),               // e.g. "product.create", "customer.ban"
+    action: text("action").notNull(),
     detail: text("detail"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
   },
-  (t) => ({ createdIdx: index("admin_actions_created_idx").on(t.createdAt) })
+  (t) => ({ createdIdx: index("admin_actions_created_idx").on(t.createdAt) }),
 );
 
-/* ───────────────────────── relations ────────────────────────────── */
+/* ─────────────────────── blocklist ────────────────────────── */
+// Anti-fraud blocklist + allowlist. Both modes share one table because
+// the shape is identical (type, value, note, timestamp); a `mode` column
+// disambiguates without splitting storage. The AdminBlacklist tab toggles
+// between /api/admin/blacklist and /api/admin/whitelist against the same
+// backend surface.
+export const blocklist = sqliteTable(
+  "blocklist",
+  {
+    id: text("id").primaryKey(),
+    mode: text("mode").$type<"blacklist" | "whitelist">().notNull(),
+    type: text("type").$type<"email" | "ip" | "country" | "vpn">().notNull(),
+    value: text("value").notNull(),
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => ({
+    modeTypeValueUnique: uniqueIndex("blocklist_mode_type_value_unique").on(
+      t.mode,
+      t.type,
+      t.value,
+    ),
+    modeTypeIdx: index("blocklist_mode_type_idx").on(t.mode, t.type),
+  }),
+);
+
+/* ────────────────────── relations ────────────────────────────── */
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   orders: many(orders),
@@ -279,9 +434,18 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 export const productsRelations = relations(products, ({ many }) => ({
   keys: many(productKeys),
   orderItems: many(orderItems),
+  variants: many(productVariants),
+}));
+export const productVariantsRelations = relations(productVariants, ({ one, many }) => ({
+  product: one(products, { fields: [productVariants.productId], references: [products.id] }),
+  keys: many(productKeys),
 }));
 export const productKeysRelations = relations(productKeys, ({ one }) => ({
   product: one(products, { fields: [productKeys.productId], references: [products.id] }),
+  variant: one(productVariants, {
+    fields: [productKeys.variantId],
+    references: [productVariants.id],
+  }),
   order: one(orders, { fields: [productKeys.orderId], references: [orders.id] }),
 }));
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -294,15 +458,40 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   product: one(products, { fields: [orderItems.productId], references: [products.id] }),
 }));
 
+/* ─────────────────────── password_resets ────────────── */
+// Customer-facing password reset flow. Like the sessions table, the raw
+// token is never stored — only sha256(token) lives in `token`, so a
+// read-only DB leak can't mint working reset links. Single-use via
+// `usedAt` and 1h TTL via `expiresAt` are enforced at the route layer.
+export const passwordResets = sqliteTable(
+  "password_resets",
+  {
+    token: text("token").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    usedAt: integer("used_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    ipAddress: text("ip_address"),
+  },
+  (t) => ({
+    userIdx: index("password_resets_user_idx").on(t.userId),
+    expiresIdx: index("password_resets_expires_idx").on(t.expiresAt),
+  }),
+);
+
 /* ─────────────────────── plugin_migrations ─────────────────────── */
-// Per-plugin migration tracker. Each plugin ships an ordered list of SQL
-// statements; we record the index of each successfully applied statement so
-// reruns skip already-applied ones. Composite PK ensures one row per
-// (plugin, statement index).
-export const pluginMigrations = sqliteTable("__plugin_migrations", {
-  pluginId: text("plugin_id").notNull(),
-  idx: integer("idx").notNull(),
-  appliedAt: integer("applied_at", { mode: "timestamp_ms" }).notNull(),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.pluginId, t.idx] }),
-}));
+export const pluginMigrations = sqliteTable(
+  "__plugin_migrations",
+  {
+    pluginId: text("plugin_id").notNull(),
+    idx: integer("idx").notNull(),
+    appliedAt: integer("applied_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.pluginId, t.idx] }),
+  }),
+);

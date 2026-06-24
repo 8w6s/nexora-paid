@@ -1,5 +1,5 @@
 ---
-import '../styles/global.css';
+import "../styles/global.css";
 
 interface Props {
   title: string;
@@ -8,7 +8,7 @@ interface Props {
 
 const {
   title,
-  description = 'Nexora — digital goods store: license keys, accounts, software. Instant automated delivery, paid with Litecoin.',
+  description = "Nexora — digital goods store: license keys, accounts, software. Instant automated delivery, paid with Litecoin.",
 } = Astro.props;
 ---
 
@@ -19,19 +19,28 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    {/* Apply persisted theme BEFORE paint to avoid FOUC. */}
+    {/* Apply persisted theme BEFORE paint to avoid FOUC. Falls back to the
+        OS-level prefers-color-scheme when no explicit choice has been made
+        so a dark-mode user doesn't get a flash of light theme on first visit. */}
     <script is:inline>
       (function () {
         // Canonical key is "nexora-theme" (lowercase). Older builds used
         // "Nexora-theme" (mixed-case typo) and "gemvn-theme" (pre-rebrand);
         // read all three so a returning visitor keeps their preference, then
         // ConfigContext on hydrate writes the canonical key + clears legacy.
+        // When NO explicit choice exists, fall back to the OS prefers-color-scheme
+        // so dark-mode users don't get a flash of light theme on first visit.
         try {
           var keys = ["nexora-theme", "Nexora-theme", "gemvn-theme"];
+          var chosen = null;
           for (var i = 0; i < keys.length; i++) {
             var t = localStorage.getItem(keys[i]);
-            if (t === "dark" || t === "light") { document.documentElement.dataset.theme = t; break; }
+            if (t === "dark" || t === "light") { chosen = t; break; }
           }
+          if (!chosen && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+            chosen = "dark";
+          }
+          if (chosen) document.documentElement.dataset.theme = chosen;
         } catch (_) {}
       })();
     </script>
@@ -41,17 +50,37 @@ const {
     <meta name="description" content={description} />
 
     {/* Font Awesome Pro (self-hosted from /public/fontawesome). CSS Webfonts mode
-        is used instead of SVG replacement mode to avoid DOM mutations that break 
-        React client-side hydration. */}
-    <link rel="stylesheet" href="/fontawesome/css/all.min.css" />
+        is used instead of SVG replacement mode to avoid DOM mutations that break
+        React client-side hydration.
 
-    <!-- Google Fonts: Fredoka (primary, rounded) + Kosugi Maru (Japanese) -->
+        Async-loaded via preload+swap so the ~80-100 KB stylesheet stops blocking
+        first paint. The <noscript> fallback restores the synchronous load for
+        users who disable JS (rare, but the cost is just the original behavior). */}
+    <link
+      rel="preload"
+      href="/fontawesome/css/all.min.css"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript><link rel="stylesheet" href="/fontawesome/css/all.min.css" /></noscript>
+
+    {/* Google Fonts: Fredoka (primary, rounded) + Kosugi Maru (Japanese fallback).
+        Async via preload+swap to avoid the cross-origin DNS+TLS handshake on the
+        critical path (typically +100-300ms LCP on cold connections). */}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Kosugi+Maru&display=swap"
-      rel="stylesheet"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Kosugi+Maru&display=swap"
+      />
+    </noscript>
 
     <slot name="head" />
   </head>

@@ -15,7 +15,9 @@ async function needsSetup(): Promise<boolean> {
   const now = Date.now();
   if (cache && now - cache.at < TTL) return cache.needsSetup;
   try {
-    const r = await fetch(`${API_ORIGIN}/api/setup/status`, { headers: { accept: "application/json" } });
+    const r = await fetch(`${API_ORIGIN}/api/setup/status`, {
+      headers: { accept: "application/json" },
+    });
     const j = (await r.json()) as { needsSetup?: boolean };
     cache = { needsSetup: !!j.needsSetup, at: now };
   } catch {

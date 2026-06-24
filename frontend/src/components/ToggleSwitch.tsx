@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 
 /**
  * Tiny on/off switch (40x22). For settings toggles / feature flags.

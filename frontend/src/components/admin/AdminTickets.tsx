@@ -1,11 +1,28 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 
-interface Ticket { id: string; subject: string; email: string; status: "open" | "closed"; createdAt: number; updatedAt: number; orderId: string | null; }
-interface Message { id: string; fromAdmin: boolean; body: string; createdAt: number; }
-interface TicketDetail extends Ticket { messages: Message[]; }
+interface Ticket {
+  id: string;
+  subject: string;
+  email: string;
+  status: "open" | "closed";
+  createdAt: number;
+  updatedAt: number;
+  orderId: string | null;
+}
+interface Message {
+  id: string;
+  fromAdmin: boolean;
+  body: string;
+  createdAt: number;
+}
+interface TicketDetail extends Ticket {
+  messages: Message[];
+}
 
 export const AdminTickets: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "open" | "closed">("open");
@@ -13,27 +30,47 @@ export const AdminTickets: React.FC = () => {
   const [active, setActive] = useState<TicketDetail | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
-  const load = () => {
+  const load = useCallback(() => {
     const qs = filter === "all" ? "" : `?status=${filter}`;
-    api.get<Ticket[]>(`/api/admin/tickets${qs}`).then(setList).catch(() => {});
-  };
-  useEffect(load, [filter]);
+    api
+      .get<Ticket[]>(`/api/admin/tickets${qs}`)
+      .then(setList)
+      .catch(() => {});
+  }, [filter]);
 
-  const open = async (id: string) => {
-    setActive(await api.get<TicketDetail>(`/api/tickets/${id}`));
-  };
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const open = useCallback(
+    async (id: string) => {
+      try {
+        const details = await api.get<TicketDetail>(`/api/tickets/${id}`);
+        setActive(details);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to load ticket details");
+      }
+    },
+    [toast],
+  );
 
   const sendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!active) return;
+    if (!active || !reply.trim()) return;
     setBusy(true);
     try {
       await api.post(`/api/tickets/${active.id}/reply`, { message: reply.trim() });
       setReply("");
+      toast.success("Reply sent successfully.");
       await open(active.id);
       load();
-    } finally { setBusy(false); }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send reply");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const setStatus = async (status: "open" | "closed") => {
@@ -42,56 +79,122 @@ export const AdminTickets: React.FC = () => {
     try {
       await api.put(`/api/admin/tickets/${active.id}/status`, { status });
       setActive({ ...active, status });
+      toast.success(`Ticket marked as ${status}.`);
       load();
-    } finally { setBusy(false); }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to change status");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="atk">
       <SkeletonStyles />
+      <p className="atk-intro">Customer support tickets. Reply to keep the conversation going.</p>
       <div className={`atk-grid ${active ? "has-active" : ""}`}>
         <div className="atk-left">
           <div className="atk-filters">
             {(["open", "closed", "all"] as const).map((f) => (
-              <button key={f} className={`chip ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>{f[0].toUpperCase() + f.slice(1)}</button>
+              <button
+                key={f}
+                className={`chip ${filter === f ? "active" : ""}`}
+                onClick={() => setFilter(f)}
+              >
+                {f[0].toUpperCase() + f.slice(1)}
+              </button>
             ))}
           </div>
           <div className="atk-list">
-            {!list ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="atk-item"><Sk w={180} h={13} /><Sk w={120} h={11} /></div>)
-              : list.length === 0 ? <div className="empty">No tickets.</div>
-              : list.map((t) => (
-                <button key={t.id} className={`atk-item ${active?.id === t.id ? "sel" : ""}`} onClick={() => open(t.id)}>
-                  <div className="atk-item-top"><span className="subj">{t.subject}</span><span className={`badge ${t.status}`}>{t.status}</span></div>
-                  <span className="muted">{t.email} · {new Date(t.updatedAt).toLocaleDateString()}</span>
+            {!list ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="atk-item">
+                  <Sk w={180} h={13} />
+                  <Sk w={120} h={11} />
+                </div>
+              ))
+            ) : list.length === 0 ? (
+              <div className="empty">No tickets.</div>
+            ) : (
+              list.map((t) => (
+                <button
+                  key={t.id}
+                  className={`atk-item ${active?.id === t.id ? "sel" : ""}`}
+                  onClick={() => open(t.id)}
+                >
+                  <div className="atk-item-top">
+                    <span className="subj">{t.subject}</span>
+                    <span className={`badge ${t.status}`}>{t.status}</span>
+                  </div>
+                  <span className="muted">
+                    {t.email} · {new Date(t.updatedAt).toLocaleDateString()}
+                  </span>
                 </button>
-              ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="atk-right card">
           {!active ? (
-            <div className="atk-empty"><Icon name="ticket" size={28} variant="badge" /><p>Select a ticket to view the conversation.</p></div>
+            <div className="atk-empty">
+              <Icon name="ticket" size={28} variant="badge" />
+              <p>Select a ticket to view the conversation.</p>
+            </div>
           ) : (
             <>
               <div className="atk-head">
-                <button className="atk-back" onClick={() => setActive(null)} aria-label="Back to list"><Icon name="arrow-right" size={14} className="flip" /></button>
-                <div><h3>{active.subject}</h3><span className="muted">{active.email}{active.orderId ? ` · order ${active.orderId}` : ""}</span></div>
-                {active.status === "open"
-                  ? <button className="btn-sm" disabled={busy} onClick={() => setStatus("closed")}>Close</button>
-                  : <button className="btn-sm ghost" disabled={busy} onClick={() => setStatus("open")}>Reopen</button>}
+                <button
+                  className="atk-back"
+                  onClick={() => setActive(null)}
+                  aria-label="Back to list"
+                >
+                  <Icon name="arrow-right" size={14} className="flip" />
+                </button>
+                <div>
+                  <h3>{active.subject}</h3>
+                  <span className="muted">
+                    {active.email}
+                    {active.orderId ? ` · order ${active.orderId}` : ""}
+                  </span>
+                </div>
+                {active.status === "open" ? (
+                  <button className="btn-sm" disabled={busy} onClick={() => setStatus("closed")}>
+                    Close
+                  </button>
+                ) : (
+                  <button
+                    className="btn-sm ghost"
+                    disabled={busy}
+                    onClick={() => setStatus("open")}
+                  >
+                    Reopen
+                  </button>
+                )}
               </div>
               <div className="atk-msgs">
                 {active.messages.map((m) => (
                   <div key={m.id} className={`msg ${m.fromAdmin ? "admin" : "cust"}`}>
-                    <div className="msg-meta">{m.fromAdmin ? "You (support)" : active.email} · {new Date(m.createdAt).toLocaleString()}</div>
+                    <div className="msg-meta">
+                      {m.fromAdmin ? "You (support)" : active.email} ·{" "}
+                      {new Date(m.createdAt).toLocaleString()}
+                    </div>
                     <div className="msg-body">{m.body}</div>
                   </div>
                 ))}
               </div>
               {active.status === "open" && (
                 <form className="atk-reply" onSubmit={sendReply}>
-                  <textarea value={reply} onChange={(e) => setReply(e.target.value)} required rows={3} placeholder="Reply to the customer…" />
-                  <button className="btn" disabled={busy || !reply.trim()} type="submit">{busy ? "Sending…" : "Send reply"}</button>
+                  <textarea
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    required
+                    rows={3}
+                    placeholder="Reply to the customer…"
+                  />
+                  <button className="btn" disabled={busy || !reply.trim()} type="submit">
+                    {busy ? "Sending…" : "Send reply"}
+                  </button>
                 </form>
               )}
             </>
@@ -100,6 +203,7 @@ export const AdminTickets: React.FC = () => {
       </div>
 
       <style>{`
+        .atk-intro { color: var(--ink-soft); font-size: .88rem; margin-bottom: 14px; }
         .atk-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
         .atk-filters { display: flex; gap: 8px; margin-bottom: 12px; }
         .chip { background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-soft); padding: 5px 13px; border-radius: 100px; cursor: pointer; font-family: var(--font-sans); font-weight: 600; font-size: .8rem; }

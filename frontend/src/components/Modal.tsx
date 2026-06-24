@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+import type React from "react";
+import { useEffect, useId, useRef } from "react";
 import { Icon } from "./Icon";
 
 /**
@@ -6,6 +7,10 @@ import { Icon } from "./Icon";
  * - `open` controls visibility (caller owns the state)
  * - `onClose` fires on Esc, backdrop click, and X button
  * - `size`: sm (420px) / md (560px, default) / lg (720px)
+ *
+ * A11y: focus moves to the close button when the modal opens, returns to the
+ * previously-focused element when it closes, and Tab is trapped inside the
+ * dialog so keyboard users can't escape it without closing.
  */
 export const Modal: React.FC<{
   open: boolean;
@@ -15,16 +20,49 @@ export const Modal: React.FC<{
   footer?: React.ReactNode;
   children?: React.ReactNode;
 }> = ({ open, onClose, title, size = "md", footer, children }) => {
+  const titleId = useId();
+  const boxRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const prevActive = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      // Focus trap: cycle Tab within the dialog so screen-reader / keyboard
+      // users can't tab out of an open modal into the background page.
+      if (e.key === "Tab" && boxRef.current) {
+        const focusables = boxRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
     window.addEventListener("keydown", onKey);
-    // Lock body scroll while open
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Move focus into the modal on the next tick so React has committed the DOM.
+    const focusTimer = window.setTimeout(() => closeBtnRef.current?.focus(), 0);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.clearTimeout(focusTimer);
       document.body.style.overflow = prev;
+      // Restore focus to the element that had it before the modal opened so
+      // keyboard users land where they left off.
+      prevActive?.focus?.();
     };
   }, [open, onClose]);
 
@@ -33,10 +71,30 @@ export const Modal: React.FC<{
   const maxW = size === "sm" ? 420 : size === "lg" ? 720 : 560;
 
   return (
-    <div className="m-backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="m-box card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: maxW }}>
-        <button className="m-x" onClick={onClose} aria-label="Close"><Icon name="close" size={16} /></button>
-        {title && <h3 className="m-title">{title}</h3>}
+    <div className="m-backdrop" onClick={onClose}>
+      <div
+        ref={boxRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        className="m-box card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: maxW }}
+      >
+        <button
+          ref={closeBtnRef}
+          type="button"
+          className="m-x"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <Icon name="close" size={16} />
+        </button>
+        {title && (
+          <h3 id={titleId} className="m-title">
+            {title}
+          </h3>
+        )}
         <div className="m-body">{children}</div>
         {footer && <div className="m-footer">{footer}</div>}
       </div>

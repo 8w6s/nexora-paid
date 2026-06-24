@@ -1,18 +1,24 @@
-import React, { useEffect, useRef } from "react";
+import anime from "animejs";
+import type React from "react";
+import { useEffect, useRef } from "react";
+import { useT } from "../i18n";
+import { fmtUsd } from "../lib/api";
 import { useCart } from "./CartContext";
 import { Icon } from "./Icon";
-import { fmtUsd } from "../lib/api";
-import anime from "animejs";
 
+export const CartDrawer: React.FC = () => {
+  const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity, getCartTotal } =
+    useCart();
+  const { t } = useT();
 // Cart drawer. Checkout requires login + LTC payment, so "Checkout" just routes to /checkout
 // (the Checkout island handles auth redirect + order creation). No customer form here anymore.
-export const CartDrawer: React.FC = () => {
-  const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity, getCartTotal } = useCart();
   const drawerRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (isCartOpen) {
       if (backdropRef.current) backdropRef.current.style.display = "block";
       if (reduce) {
@@ -20,16 +26,42 @@ export const CartDrawer: React.FC = () => {
         if (drawerRef.current) drawerRef.current.style.transform = "translateX(0%)";
         return;
       }
-      anime({ targets: backdropRef.current, opacity: [0, 1], duration: 300, easing: "easeOutQuad" });
-      anime({ targets: drawerRef.current, translateX: ["100%", "0%"], duration: 420, easing: "cubicBezier(0.16,1,0.3,1)" });
+      anime({
+        targets: backdropRef.current,
+        opacity: [0, 1],
+        duration: 300,
+        easing: "easeOutQuad",
+      });
+      anime({
+        targets: drawerRef.current,
+        translateX: ["100%", "0%"],
+        duration: 420,
+        easing: "cubicBezier(0.16,1,0.3,1)",
+      });
     } else {
       if (reduce) {
-        if (backdropRef.current) { backdropRef.current.style.opacity = "0"; backdropRef.current.style.display = "none"; }
+        if (backdropRef.current) {
+          backdropRef.current.style.opacity = "0";
+          backdropRef.current.style.display = "none";
+        }
         if (drawerRef.current) drawerRef.current.style.transform = "translateX(100%)";
         return;
       }
-      anime({ targets: backdropRef.current, opacity: [1, 0], duration: 260, easing: "easeInQuad", complete: () => { if (backdropRef.current) backdropRef.current.style.display = "none"; } });
-      anime({ targets: drawerRef.current, translateX: ["0%", "100%"], duration: 320, easing: "cubicBezier(0.16,1,0.3,1)" });
+      anime({
+        targets: backdropRef.current,
+        opacity: [1, 0],
+        duration: 260,
+        easing: "easeInQuad",
+        complete: () => {
+          if (backdropRef.current) backdropRef.current.style.display = "none";
+        },
+      });
+      anime({
+        targets: drawerRef.current,
+        translateX: ["0%", "100%"],
+        duration: 320,
+        easing: "cubicBezier(0.16,1,0.3,1)",
+      });
     }
   }, [isCartOpen]);
 
@@ -37,42 +69,107 @@ export const CartDrawer: React.FC = () => {
 
   return (
     <>
-      <div ref={backdropRef} className="cart-backdrop" onClick={() => setIsCartOpen(false)} style={{ display: "none", opacity: 0 }} />
+      <div
+        ref={backdropRef}
+        className="cart-backdrop"
+        onClick={() => setIsCartOpen(false)}
+        style={{ display: "none", opacity: 0 }}
+      />
       <aside ref={drawerRef} className="cart-drawer" style={{ transform: "translateX(100%)" }}>
         <div className="drawer-header">
-          <h2>Cart ({totalQty})</h2>
-          <button className="btn-close" onClick={() => setIsCartOpen(false)} aria-label="Close"><Icon name="close" size={20} /></button>
+          <h2>{t("storefront.cart.title")} ({totalQty})</h2>
+          <button className="btn-close" onClick={() => setIsCartOpen(false)} aria-label={t("common.close")}>
+            <Icon name="close" size={20} />
+          </button>
         </div>
 
         <div className="drawer-content">
           {cart.length === 0 ? (
-            <div className="empty-cart"><Icon name="cart" size={38} /><p>Your cart is empty.</p></div>
+            <div className="empty-cart">
+              <Icon name="cart" size={38} />
+              <p>{t("storefront.cart.empty")}</p>
+            </div>
           ) : (
             <div className="cart-items">
-              {cart.map((item) => (
-                <div key={item.product.id} className="cart-item">
-                  <img src={item.product.image} alt={item.product.name} />
-                  <div className="item-details">
-                    <h4>{item.product.name}</h4>
-                    <span className="item-price price">{fmtUsd(item.product.priceUsd)}</span>
-                    <div className="quantity-controls">
-                      <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)} disabled={item.quantity <= 1} aria-label="Decrease"><Icon name="minus" size={13} /></button>
-                      <span>{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} disabled={item.quantity >= item.product.stock} aria-label="Increase"><Icon name="plus" size={13} /></button>
+              {cart.map((item) => {
+                const key = `${item.product.id}_${item.variant?.id ?? ""}`;
+                const price = item.variant ? item.variant.priceUsd : item.product.priceUsd;
+                const stock = item.variant ? item.variant.stock : item.product.stock;
+                return (
+                  <div key={key} className="cart-item">
+                    {item.product.image && item.product.image.trim() ? (
+                      <img src={item.product.image} alt={item.product.name} />
+                    ) : (
+                      <div
+                        style={{
+                          background: "var(--surface-2)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minWidth: 64,
+                          minHeight: 64,
+                        }}
+                      >
+                        <Icon name="package" size={24} style={{ opacity: 0.3 }} />
+                      </div>
+                    )}
+                    <div className="item-details">
+                      <h4>{item.product.name}</h4>
+                      {item.variant && (
+                        <span style={{ fontSize: "0.76rem", color: "var(--ink-soft)" }}>
+                          {item.variant.name}
+                        </span>
+                      )}
+                      <span className="item-price price">{fmtUsd(price)}</span>
+                      <div className="quantity-controls">
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product.id, item.quantity - 1, item.variant?.id)
+                          }
+                          disabled={item.quantity <= 1}
+                          aria-label="Decrease"
+                        >
+                          <Icon name="minus" size={13} />
+                        </button>
+                        <span>{item.quantity}</span>
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product.id, item.quantity + 1, item.variant?.id)
+                          }
+                          disabled={item.quantity >= stock}
+                          aria-label="Increase"
+                        >
+                          <Icon name="plus" size={13} />
+                        </button>
+                      </div>
                     </div>
+                    <button
+                      className="btn-delete"
+                      onClick={() => removeFromCart(item.product.id, item.variant?.id)}
+                      aria-label="Remove"
+                    >
+                      <Icon name="trash" size={16} />
+                    </button>
                   </div>
-                  <button className="btn-delete" onClick={() => removeFromCart(item.product.id)} aria-label="Remove"><Icon name="trash" size={16} /></button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
         {cart.length > 0 && (
           <div className="drawer-footer">
-            <div className="total-row"><span>Total</span><span className="total-amount price">{fmtUsd(getCartTotal())}</span></div>
-            <a className="btn" href="/checkout" style={{ width: "100%", justifyContent: "center" }}>
-              <span>Continue to checkout</span><Icon name="arrow-right" size={17} />
+            <div className="total-row">
+              <span>{t("storefront.cart.total")}</span>
+              <span className="total-amount price">{fmtUsd(getCartTotal())}</span>
+            </div>
+            <a
+              href="/checkout"
+              className="btn"
+              style={{ width: "100%", justifyContent: "center", cursor: "pointer" }}
+            >
+              <span>{t("storefront.cart.checkout")}</span>
+              <Icon name="arrow-right" size={17} />
             </a>
           </div>
         )}

@@ -1,91 +1,314 @@
-import React, { useState } from "react";
+import type React from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { AdminLogin } from "./admin/AdminLogin";
+import { AdminOverview } from "./admin/AdminOverview";
 import { useConfig } from "./ConfigContext";
 import { Icon } from "./Icon";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { AdminLogin } from "./admin/AdminLogin";
-import { AdminOverview } from "./admin/AdminOverview";
-import { AdminProducts } from "./admin/AdminProducts";
-import { AdminOrders } from "./admin/AdminOrders";
-import { AdminSettings } from "./admin/AdminSettings";
-import { AdminFeatures } from "./admin/AdminFeatures";
-import { AdminPayments } from "./admin/AdminPayments";
-import { AdminCustomers } from "./admin/AdminCustomers";
-import { AdminCoupons } from "./admin/AdminCoupons";
-import { AdminReviews } from "./admin/AdminReviews";
-import { AdminTickets } from "./admin/AdminTickets";
-import { AdminActivity } from "./admin/AdminActivity";
-import { AdminCategories } from "./admin/AdminCategories";
+
+// Lazy-load every non-default tab. Pre-audit AdminDashboard imported all
+// 23 tab modules at the top, which made Astro/Vite ship a single ~400-600 KB
+// admin chunk on every /admin/* page load — even when the admin only viewed
+// the overview. Now: AdminLogin + AdminOverview stay eager (login is
+// always-on, overview is the default tab). Everything else gets a
+// per-tab chunk that downloads only when the admin clicks the tab.
+const AdminAbandonedCheckouts = lazy(() =>
+  import("./admin/AdminAbandonedCheckouts").then((m) => ({ default: m.AdminAbandonedCheckouts })),
+);
+const AdminActivity = lazy(() =>
+  import("./admin/AdminActivity").then((m) => ({ default: m.AdminActivity })),
+);
+const AdminAddons = lazy(() =>
+  import("./admin/AdminAddons").then((m) => ({ default: m.AdminAddons })),
+);
+const AdminBlacklist = lazy(() =>
+  import("./admin/AdminBlacklist").then((m) => ({ default: m.AdminBlacklist })),
+);
+const AdminBlog = lazy(() => import("./admin/AdminBlog").then((m) => ({ default: m.AdminBlog })));
+const AdminBundleOffers = lazy(() =>
+  import("./admin/AdminBundleOffers").then((m) => ({ default: m.AdminBundleOffers })),
+);
+const AdminCategories = lazy(() =>
+  import("./admin/AdminCategories").then((m) => ({ default: m.AdminCategories })),
+);
+const AdminCoupons = lazy(() =>
+  import("./admin/AdminCoupons").then((m) => ({ default: m.AdminCoupons })),
+);
+const AdminCustomers = lazy(() =>
+  import("./admin/AdminCustomers").then((m) => ({ default: m.AdminCustomers })),
+);
+const AdminDevelopers = lazy(() =>
+  import("./admin/AdminDevelopers").then((m) => ({ default: m.AdminDevelopers })),
+);
+const AdminFeatures = lazy(() =>
+  import("./admin/AdminFeatures").then((m) => ({ default: m.AdminFeatures })),
+);
+const AdminGroups = lazy(() =>
+  import("./admin/AdminGroups").then((m) => ({ default: m.AdminGroups })),
+);
+const AdminImport = lazy(() =>
+  import("./admin/AdminImport").then((m) => ({ default: m.AdminImport })),
+);
+const AdminNotifications = lazy(() =>
+  import("./admin/AdminNotifications").then((m) => ({ default: m.AdminNotifications })),
+);
+const AdminOrders = lazy(() =>
+  import("./admin/AdminOrders").then((m) => ({ default: m.AdminOrders })),
+);
+const AdminPayments = lazy(() =>
+  import("./admin/AdminPayments").then((m) => ({ default: m.AdminPayments })),
+);
+const AdminProducts = lazy(() =>
+  import("./admin/AdminProducts").then((m) => ({ default: m.AdminProducts })),
+);
+const AdminQuantityDeals = lazy(() =>
+  import("./admin/AdminQuantityDeals").then((m) => ({ default: m.AdminQuantityDeals })),
+);
+const AdminReviews = lazy(() =>
+  import("./admin/AdminReviews").then((m) => ({ default: m.AdminReviews })),
+);
+const AdminSettings = lazy(() =>
+  import("./admin/AdminSettings").then((m) => ({ default: m.AdminSettings })),
+);
+const AdminTeam = lazy(() => import("./admin/AdminTeam").then((m) => ({ default: m.AdminTeam })));
+const AdminTickets = lazy(() =>
+  import("./admin/AdminTickets").then((m) => ({ default: m.AdminTickets })),
+);
 
 type Tab =
-  | "overview" | "products" | "categories" | "orders" | "customers" | "coupons"
-  | "reviews" | "tickets" | "payments" | "features" | "activity" | "settings";
+  | "overview"
+  | "products"
+  | "categories"
+  | "groups"
+  | "addons"
+  | "quantity-deals"
+  | "bundle-offers"
+  | "orders"
+  | "customers"
+  | "coupons"
+  | "abandoned"
+  | "reviews"
+  | "tickets"
+  | "payments"
+  | "features"
+  | "blog"
+  | "notifications"
+  | "blacklist"
+  | "import"
+  | "activity"
+  | "team"
+  | "developers"
+  | "settings";
 
-// SellAuth-style grouped sidebar nav. Order matters — Overview standalone at top, then themed groups.
-const NAV_GROUPS: { title?: string; items: { key: Tab; label: string; icon: any }[] }[] = [
+// Ghost panels — UI exists, backend endpoints do NOT yet. Default-hidden so
+// production buyers don't click into empty "No xxx yet" forever. Set
+// `PUBLIC_SHOW_PREVIEW_PANELS=true` at build time to render them with a
+// "Preview" badge for internal/dev review. Once a panel's backend lands,
+// remove it from this set and the corresponding lazy import becomes real.
+const PREVIEW_PANELS: ReadonlySet<Tab> = new Set<Tab>([
+  "addons",
+  "groups",
+  "quantity-deals",
+  "bundle-offers",
+  "abandoned",
+  "blog",
+  "notifications",
+  "import",
+  "developers",
+  "team",
+]);
+
+const SHOW_PREVIEW =
+  typeof import.meta !== "undefined" &&
+  (import.meta as any).env?.PUBLIC_SHOW_PREVIEW_PANELS === "true";
+
+const NAV_GROUPS_FULL: {
+  title?: string;
+  items: { key: Tab; label: string; icon: any; badge?: string }[];
+}[] = [
   { items: [{ key: "overview", label: "Dashboard", icon: "home" }] },
-  { title: "Catalog", items: [
-    { key: "products", label: "Products", icon: "box" },
-    { key: "categories", label: "Categories", icon: "folder" },
-    { key: "coupons", label: "Coupons", icon: "tag" },
-  ]},
-  { title: "Sales", items: [
-    { key: "orders", label: "Orders", icon: "receipt" },
-    { key: "customers", label: "Customers", icon: "users" },
-    { key: "reviews", label: "Reviews", icon: "star" },
-  ]},
-  { title: "Support", items: [
-    { key: "tickets", label: "Tickets", icon: "ticket" },
-  ]},
-  { title: "Storefront", items: [
-    { key: "payments", label: "Payments", icon: "credit-card" },
-    { key: "features", label: "Features", icon: "bolt" },
-  ]},
-  { title: "System", items: [
-    { key: "activity", label: "Activity", icon: "activity" },
-    { key: "settings", label: "Settings", icon: "settings" },
-  ]},
+  {
+    title: "Catalog",
+    items: [
+      { key: "products", label: "Products", icon: "box" },
+      { key: "addons", label: "Addons", icon: "tag" },
+      { key: "groups", label: "Groups", icon: "folder" },
+      { key: "categories", label: "Categories", icon: "menu" },
+      { key: "coupons", label: "Coupons", icon: "tag" },
+    ],
+  },
+  {
+    title: "Orders",
+    items: [
+      { key: "orders", label: "Invoices", icon: "receipt" },
+      { key: "customers", label: "Customers", icon: "users" },
+    ],
+  },
+  { items: [{ key: "reviews", label: "Feedbacks", icon: "star" }] },
+  { items: [{ key: "tickets", label: "Tickets", icon: "ticket" }] },
+  { items: [{ key: "abandoned", label: "Abandoned Checkouts", icon: "close" }] },
+  {
+    title: "Storefront",
+    items: [
+      { key: "settings", label: "Configure", icon: "settings" },
+      { key: "blog", label: "Blog", icon: "receipt" },
+      { key: "notifications", label: "Push Notifications", icon: "bell" },
+    ],
+  },
+  { items: [{ key: "activity", label: "Activity Logs", icon: "activity" }] },
+  {
+    title: "Settings",
+    items: [
+      { key: "payments", label: "Payment Methods", icon: "credit-card" },
+      { key: "team", label: "Team", icon: "users" },
+      { key: "blacklist", label: "Blacklist", icon: "shield" },
+      { key: "import", label: "Import", icon: "arrow-right" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { key: "developers", label: "Developers", icon: "zap" },
+      { key: "features", label: "Features", icon: "bolt" },
+    ],
+  },
 ];
 
-export const AdminDashboard: React.FC = () => {
+const NAV_GROUPS = NAV_GROUPS_FULL.map((g) => ({
+  ...g,
+  items: g.items
+    .filter((i) => SHOW_PREVIEW || !PREVIEW_PANELS.has(i.key))
+    .map((i) => (PREVIEW_PANELS.has(i.key) ? { ...i, badge: "Preview" } : i)),
+})).filter((g) => g.items.length > 0);
+
+export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTabPath }) => {
   const { user, loading, logout } = useAuth();
   const { config, theme } = useConfig();
-  const [tab, setTab] = useState<Tab>("overview");
+  // URL slug → Tab key mapping. Sidebar shows "Configure" / "Invoices" but
+  // internal tab keys are "settings" / "orders" (legacy). Centralized so the
+  // initial-mount sync useEffect below uses the same mapping as the popstate
+  // handler — otherwise a deep-link to /admin/invoices SSR-rendered as
+  // "overview" never reconciles with the URL after hydration.
+  const urlToTab: Record<string, Tab> = {
+    configure: "settings",
+    invoices: "orders",
+    feedbacks: "reviews",
+  };
+
+  const [tab, setTab] = useState<Tab>(() => {
+    if (activeTabPath) return (urlToTab[activeTabPath] ?? activeTabPath) as Tab;
+    if (typeof window !== "undefined") {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      if (parts[0] === "admin" && parts[1]) {
+        return (urlToTab[parts[1]] ?? parts[1]) as Tab;
+      }
+    }
+    return "overview";
+  });
   const [navOpen, setNavOpen] = useState(false); // mobile drawer
 
-  if (loading) return <div className="adm-loading"><Icon name="spinner" size={28} className="is-spinning" /></div>;
-  if (!user || user.role !== "admin")
+  // Initial-mount sync: SSR renders with `tab="overview"` because `window` is
+  // unavailable. After hydration, re-read the URL once and reconcile. Without
+  // this, a deep-link to `/admin/invoices` boots as Dashboard until the user
+  // hits Back/Forward (popstate handler below).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    if (parts[0] === "admin" && parts[1]) {
+      const next = (urlToTab[parts[1]] ?? parts[1]) as Tab;
+      if (next !== tab) setTab(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      if (parts[0] === "admin" && parts[1]) {
+        setTab((urlToTab[parts[1]] ?? parts[1]) as Tab);
+      } else {
+        setTab("overview");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const changeTab = (newTab: Tab) => {
+    setTab(newTab);
+    setNavOpen(false);
+    if (typeof window !== "undefined") {
+      // Reverse map: tab key → URL slug (so users see /admin/configure not /admin/settings)
+      const tabToUrl: Record<string, string> = {
+        settings: "configure",
+        orders: "invoices",
+        reviews: "feedbacks",
+      };
+      const slug = tabToUrl[newTab] ?? newTab;
+      const path = newTab === "overview" ? "/admin" : `/admin/${slug}`;
+      window.history.pushState(null, "", path);
+    }
+  };
+
+  if (loading)
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "80vh",
+          width: "100%",
+          color: "var(--ink-soft)",
+        }}
+      >
+        <Icon name="spinner" size={28} className="is-spinning" />
+      </div>
+    );
+  if (user?.role !== "admin")
     return (
       <>
         <AdminLogin />
-        {user && user.role !== "admin" && <p className="adm-denied">Signed in as {user.email} — not an admin account.</p>}
+        {user && user.role !== "admin" && (
+          <p className="adm-denied">Signed in as {user.email} — not an admin account.</p>
+        )}
       </>
     );
 
-  const activeLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === tab)?.label ?? "Admin";
+  const activeLabel =
+    NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === tab)?.label ?? "Admin";
 
   return (
     <div className="adm-shell">
       {/* Mobile topbar — only visible <900px */}
       <div className="adm-topbar">
-        <button className="adm-burger" onClick={() => setNavOpen((o) => !o)} aria-label="Open menu"><Icon name={navOpen ? "close" : "bell"} size={18} /></button>
+        <button className="adm-burger" onClick={() => setNavOpen((o) => !o)} aria-label="Open menu">
+          <Icon name={navOpen ? "close" : "menu"} size={18} />
+        </button>
         <span className="adm-topbar-title">{activeLabel}</span>
       </div>
 
       <aside className={`adm-side ${navOpen ? "open" : ""}`}>
         <div className="adm-brand">
-          <span className="adm-logo-mark"><Icon name="key" size={16} /></span>
+          <span className="adm-logo-mark">
+            <Icon name="key" size={16} />
+          </span>
           <span className="adm-logo-text">
-            <span className="adm-logo-name">Nexora</span>
+            <span className="adm-logo-name">{config.storeName || "Nexora"}</span>
             <span className="adm-tag">Admin</span>
-            <span className="adm-tag-free">FREE</span>
           </span>
         </div>
 
         <a href="/" className="adm-store" title="Open storefront">
-          <span className="adm-store-icon"><Icon name="box" size={14} /></span>
-          <span className="adm-store-name">{config.storeName ?? "Store"}</span>
-          <span className="adm-store-link"><Icon name="arrow-right" size={12} /></span>
+          <span className="adm-store-icon">
+            <Icon name="box" size={14} />
+          </span>
+          <span className="adm-store-name">View storefront</span>
+          <span className="adm-store-link">
+            <Icon name="arrow-right" size={12} />
+          </span>
         </a>
 
         <nav className="adm-nav">
@@ -96,10 +319,11 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   key={item.key}
                   className={`adm-link ${tab === item.key ? "active" : ""}`}
-                  onClick={() => { setTab(item.key); setNavOpen(false); }}
+                  onClick={() => changeTab(item.key)}
                 >
                   <Icon name={item.icon} size={15} />
-                  <span>{item.label}</span>
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.badge && <span className="adm-badge">{item.badge}</span>}
                 </button>
               ))}
             </div>
@@ -107,11 +331,28 @@ export const AdminDashboard: React.FC = () => {
         </nav>
 
         <div className="adm-side-foot">
-          <div className="adm-theme"><ThemeSwitch /><span>{theme === "dark" ? "Dark mode" : "Light mode"}</span></div>
+          <div className="adm-theme">
+            <ThemeSwitch />
+            <span>{theme === "dark" ? "Dark mode" : "Light mode"}</span>
+          </div>
           <div className="adm-account">
             <span className="adm-avatar">{user.email[0]?.toUpperCase() ?? "A"}</span>
-            <span className="adm-email" title={user.email}>{user.email}</span>
-            <button className="adm-signout" onClick={() => logout().then(() => window.location.reload())} aria-label="Sign out" title="Sign out"><Icon name="close" size={14} /></button>
+            <span className="adm-email" title={user.email}>
+              {user.email}
+            </span>
+            <button
+              className="adm-signout"
+              onClick={() => {
+                // Always reload, even on failure — a failed logout usually
+                // means the session was already invalid server-side, and the
+                // cleanest recovery is to drop the UI state and start fresh.
+                logout().finally(() => window.location.reload());
+              }}
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <Icon name="close" size={14} />
+            </button>
           </div>
         </div>
       </aside>
@@ -124,18 +365,72 @@ export const AdminDashboard: React.FC = () => {
           <h1>{activeLabel}</h1>
         </header>
         <div className="adm-body">
-          {tab === "overview" && <AdminOverview />}
-          {tab === "products" && <AdminProducts />}
-          {tab === "categories" && <AdminCategories />}
-          {tab === "orders" && <AdminOrders />}
-          {tab === "customers" && <AdminCustomers />}
-          {tab === "coupons" && <AdminCoupons />}
-          {tab === "reviews" && <AdminReviews />}
-          {tab === "tickets" && <AdminTickets />}
-          {tab === "payments" && <AdminPayments />}
-          {tab === "features" && <AdminFeatures />}
-          {tab === "activity" && <AdminActivity />}
-          {tab === "settings" && <AdminSettings />}
+          {/* Suspense fallback for lazy-loaded tabs (every tab except
+              overview is dynamically imported — see top of file). The
+              spinner matches the loading state used in the auth gate
+              above so the user sees a consistent affordance. */}
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "60px 0",
+                  color: "var(--ink-soft)",
+                }}
+              >
+                <Icon name="spinner" size={24} className="is-spinning" />
+              </div>
+            }
+          >
+            {PREVIEW_PANELS.has(tab) && !SHOW_PREVIEW ? (
+              <div
+                style={{
+                  padding: "60px 24px",
+                  textAlign: "center",
+                  color: "var(--ink-soft)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Icon name="bolt" size={28} />
+                <strong>Coming soon</strong>
+                <span style={{ fontSize: ".88rem", maxWidth: 420 }}>
+                  This panel is part of a future release. Backend support is not yet shipped —
+                  use the other tabs for now.
+                </span>
+              </div>
+            ) : (
+              <>
+                {tab === "overview" && <AdminOverview />}
+                {tab === "products" && <AdminProducts />}
+                {tab === "groups" && <AdminGroups />}
+                {tab === "addons" && <AdminAddons />}
+                {tab === "categories" && <AdminCategories />}
+                {tab === "coupons" && <AdminCoupons />}
+                {tab === "quantity-deals" && <AdminQuantityDeals />}
+                {tab === "bundle-offers" && <AdminBundleOffers />}
+                {tab === "orders" && <AdminOrders />}
+                {tab === "customers" && <AdminCustomers />}
+                {tab === "reviews" && <AdminReviews />}
+                {tab === "abandoned" && <AdminAbandonedCheckouts />}
+                {tab === "tickets" && <AdminTickets />}
+                {tab === "payments" && <AdminPayments />}
+                {tab === "features" && <AdminFeatures />}
+                {tab === "blog" && <AdminBlog />}
+                {tab === "notifications" && <AdminNotifications />}
+                {tab === "blacklist" && <AdminBlacklist />}
+                {tab === "import" && <AdminImport />}
+                {tab === "activity" && <AdminActivity />}
+                {tab === "team" && <AdminTeam />}
+                {tab === "developers" && <AdminDevelopers />}
+                {tab === "settings" && <AdminSettings />}
+              </>
+            )}
+          </Suspense>
         </div>
       </main>
 
@@ -145,7 +440,7 @@ export const AdminDashboard: React.FC = () => {
         .adm-denied { text-align: center; color: var(--price); margin-top: 12px; }
 
         /* ───── Sidebar ───── */
-        .adm-side { position: sticky; top: 0; align-self: flex-start; width: 244px; height: 100vh; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 16px 12px; gap: 14px; overflow-y: auto; z-index: 50; }
+        .adm-side { position: sticky; top: 0; align-self: flex-start; width: 244px; height: 100vh; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 16px 12px; gap: 14px; overflow: hidden; z-index: 50; }
         .adm-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px; }
         .adm-logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         /* Logo cluster — flex row keeps "Nexora · Admin · FREE" on one baseline.
@@ -164,7 +459,9 @@ export const AdminDashboard: React.FC = () => {
         .adm-store-name { flex: 1; }
         .adm-store-link { color: var(--ink-faint); }
 
-        .adm-nav { display: flex; flex-direction: column; gap: 14px; flex: 1; padding-top: 4px; }
+        .adm-nav { display: flex; flex-direction: column; gap: 14px; flex: 1 1 0; min-height: 0; overflow-y: auto; padding-top: 4px; padding-right: 4px; scrollbar-width: thin; }
+        .adm-nav::-webkit-scrollbar { width: 6px; }
+        .adm-nav::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
         .adm-group { display: flex; flex-direction: column; gap: 2px; }
         .adm-group-title { font-size: .68rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em; padding: 4px 12px 6px; }
         .adm-link { display: flex; align-items: center; gap: 11px; padding: 8px 12px; background: none; border: none; color: var(--ink-soft); font-family: var(--font-sans); font-weight: 500; font-size: .88rem; border-radius: var(--radius-sm); cursor: pointer; text-align: left; transition: background .15s, color .15s; }
@@ -185,6 +482,17 @@ export const AdminDashboard: React.FC = () => {
         .adm-pagehead { margin-bottom: 22px; }
         .adm-pagehead h1 { font-size: 1.6rem; font-weight: 700; color: var(--ink); }
         .adm-body { display: flex; flex-direction: column; }
+
+        /* ───── Badge in sidebar ───── */
+        .adm-badge { font-size: .6rem; font-weight: 700; padding: 2px 5px; border-radius: 4px; background: var(--brand); color: #fff; letter-spacing: .04em; flex-shrink: 0; }
+
+        /* ───── Shared section layout ───── */
+        .adm-section { display: flex; flex-direction: column; gap: 18px; }
+        .adm-sec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .adm-sec-head h2 { font-size: 1.4rem; font-weight: 700; color: var(--ink); }
+        .adm-sec-head h3 { font-size: 1rem; font-weight: 700; color: var(--ink); }
+        .adm-sec-head p { font-size: .88rem; color: var(--ink-soft); margin-top: 2px; }
+        .adm-section-label { font-size: .75rem; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--line); padding-bottom: 8px; display: flex; align-items: center; gap: 8px; }
 
         /* ───── Mobile ───── */
         .adm-topbar { display: none; }

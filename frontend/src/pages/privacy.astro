@@ -1,8 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import { PrivacyApp } from '../components/PrivacyApp';
+import { PrivacyApp } from "../components/PrivacyApp";
+import Layout from "../layouts/Layout.astro";
+
 export const prerender = false;
 ---
 <Layout title="Privacy Policy — Nexora">
-  <PrivacyApp client:load />
+  <PrivacyApp client:idle />
 </Layout>

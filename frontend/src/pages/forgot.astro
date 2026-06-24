@@ -1,0 +1,13 @@
+---
+import { ForgotPasswordApp } from "../components/ForgotPasswordApp";
+import Layout from "../layouts/Layout.astro";
+
+// Customer-only password recovery flow. The page itself is renderable
+// without auth (a logged-out user is the entire audience), so prerender
+// is fine — the form is React-hydrated and talks to /api/auth/forgot
+// at submit time.
+export const prerender = false;
+---
+<Layout title="Reset password — Nexora">
+  <ForgotPasswordApp client:load />
+</Layout>

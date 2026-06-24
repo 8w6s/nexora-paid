@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
-import { Icon } from "../Icon";
 import { EmptyState } from "../EmptyState";
+import { Icon } from "../Icon";
 import { useToast } from "../Toast";
 
 interface OrderDetail {
@@ -35,14 +36,20 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }> = ({ orderId, onBack }) => {
+export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }> = ({
+  orderId,
+  onBack,
+}) => {
   const [o, setO] = useState<OrderDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    api.get<OrderDetail>(`/api/admin/orders/${orderId}`).then(setO).catch((e) => setErr(e instanceof Error ? e.message : "Load failed"));
+    api
+      .get<OrderDetail>(`/api/admin/orders/${orderId}`)
+      .then(setO)
+      .catch((e) => setErr(e instanceof Error ? e.message : "Load failed"));
   }, [orderId]);
 
   const resendEmail = async () => {
@@ -57,8 +64,24 @@ export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }>
     }
   };
 
-  if (err) return <div className="aod"><button className="btn btn-ghost" onClick={onBack}><Icon name="arrow-right" size={14} className="flip" /> Back</button><div className="err">{err}</div></div>;
-  if (!o) return <div className="aod"><button className="btn btn-ghost" onClick={onBack}><Icon name="arrow-right" size={14} className="flip" /> Back</button><EmptyState icon="spinner" title="Loading…" compact /></div>;
+  if (err)
+    return (
+      <div className="aod">
+        <button className="btn btn-ghost" onClick={onBack}>
+          <Icon name="arrow-right" size={14} className="flip" /> Back
+        </button>
+        <div className="err">{err}</div>
+      </div>
+    );
+  if (!o)
+    return (
+      <div className="aod">
+        <button className="btn btn-ghost" onClick={onBack}>
+          <Icon name="arrow-right" size={14} className="flip" /> Back
+        </button>
+        <EmptyState icon="spinner" title="Loading…" compact />
+      </div>
+    );
 
   const subtotal = o.items.reduce((s, i) => s + i.priceUsd * i.quantity, 0);
 
@@ -66,8 +89,12 @@ export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }>
     <div className="aod">
       <header className="aod-head">
         <div>
-          <button className="btn btn-ghost" onClick={onBack} type="button"><Icon name="arrow-right" size={14} className="flip" /> Back to orders</button>
-          <h1>Order <span className="mono">{o.id}</span></h1>
+          <button className="btn btn-ghost" onClick={onBack} type="button">
+            <Icon name="arrow-right" size={14} className="flip" /> Back to invoices
+          </button>
+          <h1>
+            Invoice <span className="mono">{o.id}</span>
+          </h1>
           <p className="muted">Created {new Date(o.createdAt).toLocaleString()}</p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -77,9 +104,20 @@ export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }>
               onClick={resendEmail}
               disabled={resending}
               type="button"
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.85rem", height: "34px" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                fontSize: "0.85rem",
+                height: "34px",
+              }}
             >
-              <Icon name={resending ? "spinner" : "envelope"} size={14} className={resending ? "spin" : ""} />
+              <Icon
+                name={resending ? "spinner" : "envelope"}
+                size={14}
+                className={resending ? "spin" : ""}
+              />
               {resending ? "Resending..." : "Resend Email"}
             </button>
           )}
@@ -89,9 +127,18 @@ export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }>
 
       <div className="aod-grid">
         <section className="card aod-pane">
-          <h3><Icon name="box" size={16} variant="badge" /> Items</h3>
+          <h3>
+            <Icon name="box" size={16} variant="badge" /> Items
+          </h3>
           <table className="aod-items">
-            <thead><tr><th>Product</th><th className="num">Qty</th><th className="num">Unit</th><th className="num">Line</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th className="num">Qty</th>
+                <th className="num">Unit</th>
+                <th className="num">Line</th>
+              </tr>
+            </thead>
             <tbody>
               {o.items.map((i) => (
                 <tr key={i.id}>
@@ -103,45 +150,140 @@ export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }>
               ))}
             </tbody>
             <tfoot>
-              <tr><td colSpan={3} className="num muted">Subtotal</td><td className="num">{fmtUsd(subtotal)}</td></tr>
+              <tr>
+                <td colSpan={3} className="num muted">
+                  Subtotal
+                </td>
+                <td className="num">{fmtUsd(subtotal)}</td>
+              </tr>
               {subtotal !== o.totalUsd && (
-                <tr><td colSpan={3} className="num muted">Discount</td><td className="num">−{fmtUsd(subtotal - o.totalUsd)}</td></tr>
+                <tr>
+                  <td colSpan={3} className="num muted">
+                    Discount
+                  </td>
+                  <td className="num">−{fmtUsd(subtotal - o.totalUsd)}</td>
+                </tr>
               )}
-              <tr><td colSpan={3} className="num"><strong>Total</strong></td><td className="num"><strong className="price">{fmtUsd(o.totalUsd)}</strong></td></tr>
+              <tr>
+                <td colSpan={3} className="num">
+                  <strong>Total</strong>
+                </td>
+                <td className="num">
+                  <strong className="price">{fmtUsd(o.totalUsd)}</strong>
+                </td>
+              </tr>
             </tfoot>
           </table>
 
-          <h3 className="sub"><Icon name="key" size={16} variant="badge" /> Delivered keys</h3>
+          <h3 className="sub">
+            <Icon name="key" size={16} variant="badge" /> Delivered keys
+          </h3>
           {o.keys.length === 0 ? (
-            <EmptyState icon="key" title="No keys delivered yet" desc={o.status === "paid" || o.status === "completed" ? "Order is paid but no keys were assigned. May be a service or dynamic delivery product." : "Keys will appear here once the order is paid and confirmed."} compact />
+            <EmptyState
+              icon="key"
+              title="No keys delivered yet"
+              desc={
+                o.status === "paid" || o.status === "completed"
+                  ? "Order is paid but no keys were assigned. May be a service or dynamic delivery product."
+                  : "Keys will appear here once the order is paid and confirmed."
+              }
+              compact
+            />
           ) : (
             <ul className="aod-keys">
               {o.keys.map((k) => (
-                <li key={k.id}><code>{k.code}</code><span className="muted">{k.status}</span></li>
+                <li key={k.id}>
+                  <code>{k.code}</code>
+                  <span className="muted">{k.status}</span>
+                </li>
               ))}
             </ul>
           )}
         </section>
 
         <aside className="card aod-pane aod-side">
-          <h3><Icon name="bell" size={16} variant="badge" /> Customer</h3>
-          <div className="kv-row"><span>Email</span><strong>{o.email}</strong></div>
+          <h3>
+            <Icon name="bell" size={16} variant="badge" /> Customer
+          </h3>
+          <div className="kv-row">
+            <span>Email</span>
+            <strong>{o.email}</strong>
+          </div>
 
-          <h3 className="sub"><Icon name="receipt" size={16} variant="badge" /> Payment</h3>
-          <div className="kv-row"><span>Method</span><strong>Litecoin</strong></div>
-          <div className="kv-row"><span>Amount</span><strong>{o.ltcAmount} LTC</strong></div>
-          <div className="kv-row"><span>Rate</span><strong>${o.ltcRate?.toFixed?.(2) ?? "—"}/LTC <em>({o.rateSource})</em></strong></div>
-          <div className="kv-row"><span>Address</span><code className="addr">{o.ltcAddress}</code></div>
-          <div className="kv-row"><span>Received</span><strong>{(o.receivedLitoshi / 1e8).toFixed(8)} LTC</strong></div>
-          <div className="kv-row"><span>Confirmations</span><strong>{o.confirmations}</strong></div>
-          {o.paidTxId && <div className="kv-row"><span>TX</span><code className="addr">{o.paidTxId}</code></div>}
+          <h3 className="sub">
+            <Icon name="receipt" size={16} variant="badge" /> Payment
+          </h3>
+          <div className="kv-row">
+            <span>Method</span>
+            <strong>Litecoin</strong>
+          </div>
+          <div className="kv-row">
+            <span>Amount</span>
+            <strong>{o.ltcAmount} LTC</strong>
+          </div>
+          <div className="kv-row">
+            <span>Rate</span>
+            <strong>
+              ${o.ltcRate?.toFixed?.(2) ?? "—"}/LTC <em>({o.rateSource})</em>
+            </strong>
+          </div>
+          <div className="kv-row">
+            <span>Address</span>
+            <code className="addr">{o.ltcAddress}</code>
+          </div>
+          <div className="kv-row">
+            <span>Received</span>
+            <strong>{(o.receivedLitoshi / 1e8).toFixed(8)} LTC</strong>
+          </div>
+          <div className="kv-row">
+            <span>Confirmations</span>
+            <strong>{o.confirmations}</strong>
+          </div>
+          {o.paidTxId && (
+            <div className="kv-row">
+              <span>TX</span>
+              <code className="addr">{o.paidTxId}</code>
+            </div>
+          )}
 
-          <h3 className="sub"><Icon name="zap" size={16} variant="badge" /> Timeline</h3>
+          <h3 className="sub">
+            <Icon name="zap" size={16} variant="badge" /> Timeline
+          </h3>
           <ul className="aod-timeline">
-            <li><span className="dot ok" /><div><strong>Created</strong><span>{new Date(o.createdAt).toLocaleString()}</span></div></li>
-            {o.paidAt && <li><span className="dot ok" /><div><strong>Paid</strong><span>{new Date(o.paidAt).toLocaleString()}</span></div></li>}
-            {o.deliveredAt && <li><span className="dot ok" /><div><strong>Delivered</strong><span>{new Date(o.deliveredAt).toLocaleString()}</span></div></li>}
-            {o.expiresAt && !o.paidAt && <li><span className="dot warn" /><div><strong>Expires</strong><span>{new Date(o.expiresAt).toLocaleString()}</span></div></li>}
+            <li>
+              <span className="dot ok" />
+              <div>
+                <strong>Created</strong>
+                <span>{new Date(o.createdAt).toLocaleString()}</span>
+              </div>
+            </li>
+            {o.paidAt && (
+              <li>
+                <span className="dot ok" />
+                <div>
+                  <strong>Paid</strong>
+                  <span>{new Date(o.paidAt).toLocaleString()}</span>
+                </div>
+              </li>
+            )}
+            {o.deliveredAt && (
+              <li>
+                <span className="dot ok" />
+                <div>
+                  <strong>Delivered</strong>
+                  <span>{new Date(o.deliveredAt).toLocaleString()}</span>
+                </div>
+              </li>
+            )}
+            {o.expiresAt && !o.paidAt && (
+              <li>
+                <span className="dot warn" />
+                <div>
+                  <strong>Expires</strong>
+                  <span>{new Date(o.expiresAt).toLocaleString()}</span>
+                </div>
+              </li>
+            )}
           </ul>
         </aside>
       </div>

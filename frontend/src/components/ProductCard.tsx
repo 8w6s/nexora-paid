@@ -1,42 +1,60 @@
-import React, { useRef } from "react";
+import type React from "react";
+import { useRef } from "react";
+import { useT } from "../i18n";
+import { fmtUsd, type Product } from "../lib/api";
 import { useCart } from "./CartContext";
 import { Icon } from "./Icon";
-import { fmtUsd, type Product } from "../lib/api";
 
 export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
   const { addToCart } = useCart();
+  const { t } = useT();
   const btnRef = useRef<HTMLButtonElement>(null);
   const handleAdd = () => {
-    if (btnRef.current) addToCart(product, btnRef.current);
+    if (btnRef.current) addToCart(product, undefined, btnRef.current);
   };
   const out = !product.inStock;
+  const hasImage = product.image && product.image.trim().length > 0;
+
+  // Real anchors for the three navigation surfaces (banner, title, Details
+  // link) so middle-click opens a tab, screen readers announce them as links,
+  // and crawlers can follow them. Add-to-cart stays a <button> because it
+  // mutates state — that's the one true action on this card.
+  const href = `/product/${product.slug}`;
 
   return (
     <article className="product-card">
-      <a href={`/product/${product.slug}`} className="banner" aria-label={`View ${product.name}`}>
-        <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+      <a href={href} className="banner" aria-label={`View ${product.name}`}>
+        {hasImage ? (
+          <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+        ) : (
+          <div className="banner-placeholder">
+            <Icon name="package" size={48} />
+          </div>
+        )}
         <span className="tag-auto banner-tag">
           <Icon name="zap" size={12} />
-          Instant delivery
+          {t("storefront.product.instantDelivery")}
         </span>
-        {out && <span className="sold-out">Out of stock</span>}
+        {out && <span className="sold-out">{t("storefront.product.outOfStock")}</span>}
       </a>
 
       <div className="info">
         <span className="pill cat-pill">{product.category}</span>
-        <a href={`/product/${product.slug}`} className="name-link">
+        <a href={href} className="name-link">
           <h3 className="name">{product.name}</h3>
         </a>
         <p className="desc">{product.description}</p>
 
         <div className="meta">
-          <span>{product.inStock ? `${product.stock} in stock` : "Out of stock"}</span>
+          <span>{product.inStock ? t("storefront.product.inStock", { count: product.stock }) : t("storefront.product.outOfStock")}</span>
         </div>
 
         <div className="footer">
           <span className="price">{fmtUsd(product.priceUsd)}</span>
           <div className="card-actions">
-            <a href={`/product/${product.slug}`} className="btn btn-ghost detail-btn">Details</a>
+            <a href={href} className="btn btn-ghost detail-btn">
+              {t("storefront.product.details")}
+            </a>
             <button
               ref={btnRef}
               className="btn add-btn"
@@ -54,15 +72,18 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
       <style>{`
         .product-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; transition: box-shadow .22s var(--ease), transform .22s var(--ease); }
         .product-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-3px); }
-        .banner { position: relative; aspect-ratio: 16/9; overflow: hidden; background: var(--surface-2); display:block; }
+        .banner { position: relative; aspect-ratio: 16/9; overflow: hidden; background: var(--surface-2); display: block; text-decoration: none; }
         .banner img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s var(--ease); }
         .product-card:hover .banner img { transform: scale(1.05); }
         .banner-tag { position: absolute; left: 10px; bottom: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(4px); }
         .sold-out { position: absolute; inset: 0; background: rgba(31,35,41,.55); color: #fff; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; }
+        .banner-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--surface-2); }
+        .banner-placeholder svg { opacity: 0.35; color: var(--ink-soft); }
         .info { padding: 14px 15px 16px; display: flex; flex-direction: column; flex-grow: 1; }
         .cat-pill { align-self: flex-start; background: var(--tag-soft); color: var(--tag); margin-bottom: 9px; }
-        .name-link { color: inherit; display: block; }
+        .name-link { color: inherit; display: block; text-decoration: none; }
         .name-link:hover .name { color: var(--brand); }
+        .detail-btn { display: inline-flex; align-items: center; text-decoration: none; }
         .name { font-size: 1rem; font-weight: 700; line-height: 1.35; margin-bottom: 6px; transition: color .16s var(--ease); }
         .desc { font-size: .82rem; color: var(--ink-soft); line-height: 1.5; margin-bottom: 12px; flex-grow: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .meta { display: flex; align-items: center; gap: 7px; font-size: .76rem; color: var(--ink-faint); margin-bottom: 12px; }

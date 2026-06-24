@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import type React from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "./Icon";
 
 export interface DropdownOption<T extends string> {
@@ -15,7 +16,13 @@ export interface DropdownOption<T extends string> {
  * and a smooth pop-in animation. Falls back gracefully on focus loss.
  */
 export function Dropdown<T extends string>({
-  value, onChange, options, placeholder, width, size = "md", className,
+  value,
+  onChange,
+  options,
+  placeholder,
+  width,
+  size = "md",
+  className,
 }: {
   value: T;
   onChange: (v: T) => void;
@@ -27,25 +34,38 @@ export function Dropdown<T extends string>({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState<number>(() => Math.max(0, options.findIndex((o) => o.value === value)));
+  const [active, setActive] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const isKeyNavRef = useRef(false);
 
   const current = options.find((o) => o.value === value);
+  const optionsRef = useRef(options);
+  const valueRef = useRef(value);
+  optionsRef.current = options;
+  valueRef.current = value;
+
+  useEffect(() => {
+    if (!open) {
+      setActive(null);
+      return;
+    }
+    const idx = optionsRef.current.findIndex((o) => o.value === valueRef.current);
+    setActive(idx >= 0 ? idx : null);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    setActive(Math.max(0, options.findIndex((o) => o.value === value)));
     const onDoc = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [open, options, value]);
+  }, [open]);
 
   // Scroll the active item into view.
   useEffect(() => {
-    if (!open || !listRef.current) return;
+    if (!open || !listRef.current || !isKeyNavRef.current || active === null) return;
     const el = listRef.current.children[active] as HTMLElement | undefined;
     el?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
@@ -53,11 +73,15 @@ export function Dropdown<T extends string>({
   const move = (delta: number) => {
     const n = options.length;
     if (n === 0) return;
-    let i = active;
-    for (let step = 0; step < n; step++) {
+    let i = active !== null ? active : options.findIndex((o) => o.value === value);
+    if (i < 0) i = 0;
+
+    let step = 0;
+    do {
       i = (i + delta + n) % n;
-      if (!options[i].disabled) break;
-    }
+      step++;
+    } while (options[i].disabled && step < n);
+
     setActive(i);
   };
 
@@ -69,28 +93,68 @@ export function Dropdown<T extends string>({
   };
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen(true); return; }
+    if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      isKeyNavRef.current = true;
+      setOpen(true);
+      return;
+    }
     if (!open) return;
-    if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
-    else if (e.key === "Home") { e.preventDefault(); setActive(0); }
-    else if (e.key === "End") { e.preventDefault(); setActive(options.length - 1); }
-    else if (e.key === "Enter") { e.preventDefault(); choose(active); }
-    else if (e.key === "Tab") { setOpen(false); }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      isKeyNavRef.current = true;
+      move(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      isKeyNavRef.current = true;
+      move(-1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      isKeyNavRef.current = true;
+      setActive(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      isKeyNavRef.current = true;
+      setActive(options.length - 1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (active !== null) choose(active);
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
   };
 
-  const styleW: React.CSSProperties = width ? { width: typeof width === "number" ? `${width}px` : width } : {};
+  const styleW: React.CSSProperties = width
+    ? { width: typeof width === "number" ? `${width}px` : width }
+    : {};
+
+  const handleMouseLeave = () => {
+    isKeyNavRef.current = false;
+    const idx = options.findIndex((o) => o.value === value);
+    setActive(idx >= 0 ? idx : null);
+  };
 
   return (
-    <div ref={rootRef} className={`dd ${size} ${open ? "open" : ""} ${className ?? ""}`} style={styleW} onKeyDown={onKey}>
+    <div
+      ref={rootRef}
+      className={`dd ${size} ${open ? "open" : ""} ${className ?? ""}`}
+      style={styleW}
+      onKeyDown={onKey}
+    >
       <button
         type="button"
         className="dd-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={`${id}-list`}
-        onClick={() => setOpen((o) => !o)}
+        aria-activedescendant={open && active !== null ? `${id}-opt-${active}` : undefined}
+        onClick={() => {
+          isKeyNavRef.current = false;
+          setOpen((o) => !o);
+        }}
       >
         <span className="dd-value">
           {current?.icon && <Icon name={current.icon} size={14} variant="duotone-regular" />}
@@ -100,14 +164,35 @@ export function Dropdown<T extends string>({
       </button>
 
       {open && (
-        <ul ref={listRef} id={`${id}-list`} role="listbox" className="dd-list" tabIndex={-1}>
+        <ul
+          ref={listRef}
+          id={`${id}-list`}
+          role="listbox"
+          className="dd-list"
+          tabIndex={-1}
+          onMouseLeave={handleMouseLeave}
+        >
           {options.map((o, i) => (
-            <li key={String(o.value)} role="option" aria-selected={value === o.value} aria-disabled={o.disabled || undefined}
+            <li
+              key={String(o.value)}
+              id={`${id}-opt-${i}`}
+              role="option"
+              aria-selected={value === o.value}
+              aria-disabled={o.disabled || undefined}
               className={`dd-opt ${i === active ? "active" : ""} ${value === o.value ? "selected" : ""} ${o.disabled ? "disabled" : ""}`}
-              onMouseEnter={() => !o.disabled && setActive(i)}
+              onMouseEnter={() => {
+                if (!o.disabled) {
+                  isKeyNavRef.current = false;
+                  setActive(i);
+                }
+              }}
               onClick={() => choose(i)}
             >
-              {o.icon && <span className="dd-opt-icon"><Icon name={o.icon} size={14} variant="duotone-regular" /></span>}
+              {o.icon && (
+                <span className="dd-opt-icon">
+                  <Icon name={o.icon} size={14} variant="duotone-regular" />
+                </span>
+              )}
               <span className="dd-opt-text">
                 <span className="dd-opt-label">{o.label}</span>
                 {o.desc && <span className="dd-opt-desc">{o.desc}</span>}

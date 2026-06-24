@@ -22,7 +22,7 @@
  *    string in a console banner, so even a stripped license file isn't
  *    enough to anonymize a leak.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
@@ -50,6 +50,16 @@ export interface LicensePayload {
   issuedAt: string;
   /** Optional human note ("v1", "lifetime", customer ref…) */
   note?: string;
+  /** Stable customer identifier — surfaces in support logs + watermarks. */
+  customerId?: string;
+  /** ISO timestamp; license is invalid past this. Absent = no expiry. */
+  expiresAt?: string;
+  /**
+   * Capability allowlist for paid plugins. Absent = grant-all (back-compat
+   * with v1 licenses). Present = only listed plugin ids load. Examples:
+   * ["search-suggest", "admin-bulk", "admin-export"].
+   */
+  features?: string[];
 }
 
 export interface SignedLicense {
@@ -95,7 +105,8 @@ export async function verifyLicense(): Promise<VerifyResult> {
   } catch (e) {
     return { valid: false, reason: `cannot parse license: ${e instanceof Error ? e.message : e}` };
   }
-  if (!signed?.payload || !signed.signature) return { valid: false, reason: "malformed license (missing payload/signature)" };
+  if (!signed?.payload || !signed.signature)
+    return { valid: false, reason: "malformed license (missing payload/signature)" };
   if (typeof signed.payload.email !== "string" || typeof signed.payload.productId !== "string") {
     return { valid: false, reason: "malformed payload (email/productId)" };
   }
@@ -103,7 +114,10 @@ export async function verifyLicense(): Promise<VerifyResult> {
     return { valid: false, reason: `wrong productId: ${signed.payload.productId}` };
   }
   if (LICENSE_PUBKEY_HEX === "00".repeat(32)) {
-    return { valid: false, reason: "no public key embedded in build (placeholder still in license.ts)" };
+    return {
+      valid: false,
+      reason: "no public key embedded in build (placeholder still in license.ts)",
+    };
   }
 
   // ed25519 signs the canonical JSON of payload — buyer email + productId
@@ -121,9 +135,14 @@ export async function verifyLicense(): Promise<VerifyResult> {
   try {
     ok = await ed.verify(sigBytes, msg, pubBytes);
   } catch (e) {
-    return { valid: false, reason: `signature verify error: ${e instanceof Error ? e.message : e}` };
+    return {
+      valid: false,
+      reason: `signature verify error: ${e instanceof Error ? e.message : e}`,
+    };
   }
   if (!ok) return { valid: false, reason: "signature mismatch" };
+
+  
   return { valid: true, email: signed.payload.email, payload: signed.payload };
 }
 

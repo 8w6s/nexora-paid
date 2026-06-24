@@ -6,19 +6,23 @@ let inFlight = false;
 let clickCoords = { x: 0, y: 0 };
 
 if (typeof window !== "undefined") {
-  window.addEventListener("click", (e) => {
-    clickCoords = { x: e.clientX, y: e.clientY };
-  }, { capture: true, passive: true });
+  window.addEventListener(
+    "click",
+    (e) => {
+      clickCoords = { x: e.clientX, y: e.clientY };
+    },
+    { capture: true, passive: true },
+  );
 }
 
 const NOISE_SVG = encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' width='256' height='256'>` +
-  `<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='1' stitchTiles='stitch'/>` +
-  `<feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.8 0'/></filter>` +
-  `<rect width='100%' height='100%' filter='url(#n)'/></svg>`
+    `<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='1' stitchTiles='stitch'/>` +
+    `<feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.8 0'/></filter>` +
+    `<rect width='100%' height='100%' filter='url(#n)'/></svg>`,
 );
 
-let stylesInjected = false;
+const _stylesInjected = false;
 function injectStyles(x: number, y: number, maxRadius: number) {
   let style = document.getElementById("nexora-vt-styles");
   if (!style) {
@@ -72,10 +76,16 @@ function injectStyles(x: number, y: number, maxRadius: number) {
 }
 
 export function runThemeCurtain(next: "light" | "dark", apply: () => void): void {
-  if (typeof document === "undefined") { apply(); return; }
-  if (inFlight) { apply(); return; }
+  if (typeof document === "undefined") {
+    apply();
+    return;
+  }
+  if (inFlight) {
+    apply();
+    return;
+  }
 
-  // @ts-ignore — experimental API
+  // startViewTransition is experimental; the `as any` below already silences TS.
   const startVT = (document as any).startViewTransition?.bind(document);
   if (!startVT) {
     apply();
@@ -86,7 +96,7 @@ export function runThemeCurtain(next: "light" | "dark", apply: () => void): void
   const y = clickCoords.y || window.innerHeight / 2;
   const maxRadius = Math.hypot(
     Math.max(x, window.innerWidth - x),
-    Math.max(y, window.innerHeight - y)
+    Math.max(y, window.innerHeight - y),
   );
 
   injectStyles(x, y, maxRadius);
@@ -111,5 +121,3 @@ export function runThemeCurtain(next: "light" | "dark", apply: () => void): void
     setTimeout(() => overlay.remove(), 850);
   });
 }
-
-

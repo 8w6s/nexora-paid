@@ -23,10 +23,15 @@ export interface PluginManifest {
  * core emits them.
  */
 export interface HookPayloads {
-  "order.created":     { orderId: string; userId: string };
-  "payment.paid":      { orderId: string; userId: string; amountUsd: number };
-  "product.delivered": { orderId: string; userId: string; productId: string; deliveredKeys: string[] };
-  "user.created":      { userId: string; email: string };
+  "order.created": { orderId: string; userId: string };
+  "payment.paid": { orderId: string; userId: string; amountUsd: number };
+  "product.delivered": {
+    orderId: string;
+    userId: string;
+    productId: string;
+    deliveredKeys: string[];
+  };
+  "user.created": { userId: string; email: string };
 }
 
 export type HookName = keyof HookPayloads;
@@ -40,7 +45,11 @@ export type HookName = keyof HookPayloads;
  */
 export interface Plugin {
   manifest: PluginManifest;
-  register?: (app: Elysia<any, any, any, any, any, any, any, any>) => Elysia<any, any, any, any, any, any, any, any> | Promise<Elysia<any, any, any, any, any, any, any, any>>;
+  register?: (
+    app: Elysia<any, any, any, any, any, any, any, any>,
+  ) =>
+    | Elysia<any, any, any, any, any, any, any, any>
+    | Promise<Elysia<any, any, any, any, any, any, any, any>>;
   hooks?: Partial<{ [K in HookName]: (payload: HookPayloads[K]) => Promise<void> | void }>;
   /**
    * Plugin-owned SQL migrations. Each entry is an idempotent `CREATE TABLE

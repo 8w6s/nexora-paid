@@ -23,12 +23,13 @@
  * and acting admin email, so the activity log shows scope without
  * spamming N rows.
  */
-import { t } from "elysia";
+
 import { inArray } from "drizzle-orm";
+import { t } from "elysia";
 import { db } from "../db/connection.ts";
 import { products } from "../db/schema.ts";
-import type { SessionUser } from "../lib/auth.ts";
 import { logAdminAction } from "../lib/audit.ts";
+import type { SessionUser } from "../lib/auth.ts";
 import type { Plugin } from "../lib/plugin/types.ts";
 import { requireAdmin } from "./lib/admin-guard.ts";
 
@@ -47,20 +48,32 @@ async function bulkToggleActive(
   // Dedup and drop empty strings — Elysia validated each is a string but
   // not that they're non-empty or unique.
   const cleanIds = Array.from(new Set(ids.filter((s) => typeof s === "string" && s.length > 0)));
-  if (cleanIds.length === 0) return status(400, { error: "No product IDs provided", code: "EMPTY_IDS" });
+  if (cleanIds.length === 0)
+    return status(400, { error: "No product IDs provided", code: "EMPTY_IDS" });
   if (cleanIds.length > MAX_BULK) {
-    return status(400, { error: `Cannot bulk-${verb} more than ${MAX_BULK} at once`, code: "TOO_MANY" });
+    return status(400, {
+      error: `Cannot bulk-${verb} more than ${MAX_BULK} at once`,
+      code: "TOO_MANY",
+    });
   }
 
   // Look up which IDs actually exist before touching — gives the client
   // an accurate "matched" count and avoids logging a fake bulk op when
   // nothing in the list was real.
-  const matched = await db.select({ id: products.id }).from(products).where(inArray(products.id, cleanIds));
+  const matched = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(inArray(products.id, cleanIds));
   const matchedIds = matched.map((r) => r.id);
-  if (matchedIds.length === 0) return status(404, { error: "No matching products", code: "NOT_FOUND" });
+  if (matchedIds.length === 0)
+    return status(404, { error: "No matching products", code: "NOT_FOUND" });
 
   await db.update(products).set({ active: target }).where(inArray(products.id, matchedIds));
-  await logAdminAction(user.email, `product.bulk_${target ? "activate" : "deactivate"}`, `${matchedIds.length} product(s)`);
+  await logAdminAction(
+    user.email,
+    `product.bulk_${target ? "activate" : "deactivate"}`,
+    `${matchedIds.length} product(s)`,
+  );
 
   return {
     ok: true,

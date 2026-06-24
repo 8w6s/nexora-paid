@@ -1,25 +1,68 @@
-import { Elysia, t } from "elysia";
-import { randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { Elysia, t } from "elysia";
+import * as v from "valibot";
 import { db } from "../db/connection.ts";
-import { products, productKeys, productVariants, orders, orderItems, coupons, users } from "../db/schema.ts";
-import { validateSession, SESSION_COOKIE, type SessionUser, generateOrderToken, verifyOrderToken, hashPassword } from "../lib/auth.ts";
-import { getSetting, getSettingNumber, setSetting } from "../lib/settings.ts";
-import { lockOrderRate } from "../lib/rate.ts";
+import {
+  coupons,
+  orderItems,
+  orders,
+  productKeys,
+  products,
+  productVariants,
+  settings,
+  users,
+} from "../db/schema.ts";
+import {
+  generateOrderToken,
+  hashPassword,
+  SESSION_COOKIE,
+  type SessionUser,
+  validateSession,
+  verifyOrderToken,
+} from "../lib/auth.ts";
 import { deriveReceiveAddress } from "../lib/hd.ts";
 import { reserveKeys } from "../lib/inventory.ts";
 import { hookBus } from "../lib/plugin/hook-bus.ts";
+import { lockOrderRate } from "../lib/rate.ts";
 import { rateLimitCheck, clientIp as resolveClientIp } from "../lib/rate-limit.ts";
+import { getSetting, getSettingNumber, setSetting } from "../lib/settings.ts";
 
 // Hard caps on checkout request shape — defense against memory blowup, qty
 // overflow into coupon math, and per-IP request floods that drain HD address
 // indexes / exchange-rate quota.
-const MAX_LINE_QTY = 100;            // per single cart line
-const MAX_LINES_PER_ORDER = 30;      // per cart
-const CHECKOUT_RATE_MAX = 5;         // 5 checkouts / IP / minute
+const MAX_LINE_QTY = 100; // per single cart line
+const MAX_LINES_PER_ORDER = 30; // per cart
+const CHECKOUT_RATE_MAX = 5; // 5 checkouts / IP / minute
 const CHECKOUT_RATE_WINDOW_MS = 60_000;
-const ORDER_STATUS_RATE_MAX = 60;    // 60 polls / IP / minute (1/sec)
+const ORDER_STATUS_RATE_MAX = 60; // 60 polls / IP / minute (1/sec)
 const ORDER_STATUS_WINDOW_MS = 60_000;
+
+const CheckoutSchema = v.object({
+  items: v.array(
+    v.object({
+      productId: v.string(),
+      variantId: v.optional(v.nullable(v.string())),
+      qty: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_LINE_QTY)),
+    }),
+    [v.minLength(1), v.maxLength(MAX_LINES_PER_ORDER)],
+  ),
+  method: v.optional(v.string()),
+  coupon: v.optional(
+    v.pipe(
+      v.string(),
+      v.transform((s) => s.trim().toUpperCase()),
+    ),
+  ),
+  email: v.optional(
+    v.pipe(
+      v.string(),
+      v.transform((s) => s.trim().toLowerCase()),
+      v.email(),
+      v.maxLength(254),
+    ),
+  ),
+});
 
 function ltcQrUrl(address: string, ltcAmount: string): string {
   // BIP21 litecoin URI rendered as a QR by a public image service (no key needed).
@@ -46,7 +89,18 @@ export const checkoutRoutes = new Elysia()
   /* ───────── Checkout (login optional; server-trusted prices) ───────── */
   .post(
     "/api/checkout",
-    async ({ body, user, status, set, request }) => {
+    async ({ body: rawBody, user, status, set, request }) => {
+      // Validation with Valibot
+      const result = v.safeParse(CheckoutSchema, rawBody);
+      if (!result.success) {
+        return status(400, {
+          error: "Invalid input",
+          code: "VALIDATION_ERROR",
+          details: v.flatten(result.issues).nested,
+        });
+      }
+      const body: any = result.output;
+
       // Per-IP throttle. Each successful checkout burns an HD address index
       // and a rate-lock against the upstream exchange — letting a single IP
       // spam this endpoint exhausts both. 5/min is generous for a real human.
@@ -55,19 +109,11 @@ export const checkoutRoutes = new Elysia()
       if (!rl.allowed) {
         set.status = 429;
         set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
-        return { error: "Too many checkouts, slow down", code: "RATE_LIMITED", retryAfterMs: rl.resetMs };
-      }
-
-      if (body.items.length === 0) return status(400, { error: "Cart is empty", code: "EMPTY_CART" });
-      if (body.items.length > MAX_LINES_PER_ORDER)
-        return status(400, { error: `Max ${MAX_LINES_PER_ORDER} line items per order`, code: "TOO_MANY_LINES" });
-      // Sanitize qty: Elysia validates min=1 already, but it has no max — a
-      // qty of Number.MAX_SAFE_INTEGER would reach the coupon-discount math
-      // (totalUsd * qty) and could integer-overflow the float into Infinity.
-      for (const it of body.items) {
-        if (!Number.isInteger(it.qty) || it.qty < 1 || it.qty > MAX_LINE_QTY) {
-          return status(400, { error: `qty must be 1..${MAX_LINE_QTY}`, code: "BAD_QTY" });
-        }
+        return {
+          error: "Too many checkouts, slow down",
+          code: "RATE_LIMITED",
+          retryAfterMs: rl.resetMs,
+        };
       }
 
       // Wallet must be configured.
@@ -81,21 +127,13 @@ export const checkoutRoutes = new Elysia()
         checkoutEmail = user.email;
         checkoutUserId = user.id;
       } else {
-        if (!body.email || !body.email.trim()) {
-          return status(400, { error: "Email is required for guest checkout", code: "EMAIL_REQUIRED" });
+        const emailNorm = body.email;
+        if (!emailNorm) {
+          return status(400, {
+            error: "Email is required for guest checkout",
+            code: "EMAIL_REQUIRED",
+          });
         }
-        // Length sanity: RFC-5321 caps email at 254 chars total. Reject early
-        // so a 50KB email body doesn't hit argon2id below.
-        if (body.email.length > 254) {
-          return status(400, { error: "Email too long", code: "EMAIL_TOO_LONG" });
-        }
-        // Cheap shape check — a fully RFC-compliant regex isn't worth the
-        // DoS risk; this rejects obvious garbage (no `@`, multiple `@`, no `.`).
-        const emailShape = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailShape.test(body.email.trim())) {
-          return status(400, { error: "Invalid email", code: "BAD_EMAIL" });
-        }
-        const emailNorm = body.email.trim().toLowerCase();
         const existing = (await db.select().from(users).where(eq(users.email, emailNorm)))[0];
         if (existing) {
           checkoutEmail = existing.email;
@@ -108,10 +146,12 @@ export const checkoutRoutes = new Elysia()
           // We catch the conflict, re-read the now-existing row, and proceed
           // with that user id — gracefully reusing instead of returning 500.
           const newId = randomUUID();
-          const randPw = randomUUID() + "-guest-" + Date.now();
+          const randPw = `${randomUUID()}-guest-${Date.now()}`;
           const pwHash = await hashPassword(randPw);
           try {
-            await db.insert(users).values({ id: newId, email: emailNorm, passwordHash: pwHash, role: "customer" });
+            await db
+              .insert(users)
+              .values({ id: newId, email: emailNorm, passwordHash: pwHash, role: "customer" });
             checkoutEmail = emailNorm;
             checkoutUserId = newId;
           } catch (e) {
@@ -130,17 +170,36 @@ export const checkoutRoutes = new Elysia()
 
       // Re-fetch every product from DB (never trust client prices), check active + stock.
       let totalUsd = 0;
-      const lines: { product: typeof products.$inferSelect; variant?: typeof productVariants.$inferSelect; qty: number }[] = [];
+      const lines: {
+        product: typeof products.$inferSelect;
+        variant?: typeof productVariants.$inferSelect;
+        qty: number;
+      }[] = [];
       for (const item of body.items) {
         const p = (await db.select().from(products).where(eq(products.id, item.productId)))[0];
-        if (!p || !p.active) return status(400, { error: `Product ${item.productId} unavailable`, code: "BAD_PRODUCT" });
+        if (!p?.active)
+          return status(400, {
+            error: `Product ${item.productId} unavailable`,
+            code: "BAD_PRODUCT",
+          });
 
         let price = p.priceUsd;
         let vRow;
 
         if (item.variantId) {
-          vRow = (await db.select().from(productVariants).where(and(eq(productVariants.id, item.variantId), eq(productVariants.productId, p.id))))[0];
-          if (!vRow) return status(400, { error: `Variant ${item.variantId} unavailable`, code: "BAD_VARIANT" });
+          vRow = (
+            await db
+              .select()
+              .from(productVariants)
+              .where(
+                and(eq(productVariants.id, item.variantId), eq(productVariants.productId, p.id)),
+              )
+          )[0];
+          if (!vRow)
+            return status(400, {
+              error: `Variant ${item.variantId} unavailable`,
+              code: "BAD_VARIANT",
+            });
           price = vRow.priceUsd;
         }
 
@@ -150,12 +209,17 @@ export const checkoutRoutes = new Elysia()
           .where(
             and(
               eq(productKeys.productId, p.id),
-              item.variantId ? eq(productKeys.variantId, item.variantId) : sql`${productKeys.variantId} IS NULL`,
-              eq(productKeys.status, "available")
-            )
+              item.variantId
+                ? eq(productKeys.variantId, item.variantId)
+                : sql`${productKeys.variantId} IS NULL`,
+              eq(productKeys.status, "available"),
+            ),
           );
         if (Number(avail[0]?.c ?? 0) < item.qty)
-          return status(400, { error: `${p.name}${vRow ? ` (${vRow.name})` : ""} is out of stock`, code: "OUT_OF_STOCK" });
+          return status(400, {
+            error: `${p.name}${vRow ? ` (${vRow.name})` : ""} is out of stock`,
+            code: "OUT_OF_STOCK",
+          });
         totalUsd += price * item.qty;
         lines.push({ product: p, variant: vRow, qty: item.qty });
       }
@@ -166,15 +230,29 @@ export const checkoutRoutes = new Elysia()
       // usedCount field is re-read + incremented INSIDE the order transaction below so
       // two concurrent checkouts racing on a single-use coupon can't both consume it.
       let appliedCoupon: typeof coupons.$inferSelect | null = null;
-      if (body.coupon && body.coupon.trim()) {
-        const c = (await db.select().from(coupons).where(eq(coupons.code, body.coupon.trim().toUpperCase())))[0];
+      if (body.coupon) {
+        const c = (await db.select().from(coupons).where(eq(coupons.code, body.coupon)))[0];
         const now = Date.now();
-        const valid = c && c.active
-          && (c.maxUses == null || c.usedCount < c.maxUses)
-          && (c.expiresAt == null || new Date(c.expiresAt).getTime() > now)
-          && totalUsd >= c.minOrderUsd;
-        if (!valid) return status(400, { error: "Invalid or ineligible coupon", code: "BAD_COUPON" });
-        const discount = c!.type === "percent" ? (totalUsd * c!.value) / 100 : c!.value;
+        const valid =
+          c?.active &&
+          (c.maxUses == null || c.usedCount < c.maxUses) &&
+          (c.expiresAt == null || new Date(c.expiresAt).getTime() > now) &&
+          totalUsd >= c.minOrderUsd;
+        if (!valid)
+          return status(400, { error: "Invalid or ineligible coupon", code: "BAD_COUPON" });
+        // Cap coupon math: percent must be 0..100 and dollar discount cannot
+        // exceed totalUsd. Without these clamps a bad row in `coupons` (or a
+        // future admin-side mistake) could produce a negative subtotal that
+        // gets floored to $0.01 — effectively free goods. The original code
+        // floored to 0.01 but did not validate the inputs that made the
+        // flor necessary.
+        let discount: number;
+        if (c?.type === "percent") {
+          const pct = Math.max(0, Math.min(100, c?.value ?? 0));
+          discount = (totalUsd * pct) / 100;
+        } else {
+          discount = Math.max(0, Math.min(totalUsd, c?.value ?? 0));
+        }
         totalUsd = Math.max(0.01, Math.round((totalUsd - discount) * 100) / 100);
         appliedCoupon = c!;
       }
@@ -187,22 +265,44 @@ export const checkoutRoutes = new Elysia()
         return status(503, { error: "Exchange rate unavailable, try again", code: "NO_RATE" });
       }
 
-      const orderId = `GG-${randomUUID().split("-")[0].toUpperCase()}`;
+      // Order ID: 16-char hex (64 bits) keeps the namespace large enough that
+      // an attacker who knows the base prefix `GG-` still has 2^64 to brute
+      // force per probe. The previous 8-char form was 32 bits — feasible to
+      // enumerate against /api/orders/:id/status (which now rate-limits, but
+      // 60/min/IP × distributed = thousands/sec) to find paid orders by
+      // delivery side-channel. UUIDv4 split was also Unicode-uppercase which
+      // is fine for hex but unnecessarily lossy.
+      const orderId = `GG-${randomBytes(8).toString("hex").toUpperCase()}`;
 
-      // Allocate a unique HD index + address, reserve keys, insert order — all in one transaction.
-      // The orders.address_index / ltc_address UNIQUE constraints are the hard race backstop.
+      // Allocate a unique HD index + address, reserve keys, insert order — all in
       try {
         const result = await db.transaction(async (tx) => {
-          const counter = await getSettingNumber("hd_next_index", 0);
-          const maxRow = await tx.select({ m: sql<number>`coalesce(max(${orders.addressIndex}), -1)` }).from(orders);
+          // HD index MUST be monotonic — never deraddress + addressIndex remains the hard backstop.
+          //
+          // CRITICAL: read the counter via `tx`, not the outer db handle —
+          // `getSettingNumber` queries through the connection pool and can
+          // observe a stale value from before another checkout's commit,
+          // letting two simultaneous orders land on the same addressIndex
+          // (the UNIQUE backstop then fails one of them with a 500).
+          const counterRow = (
+            await tx
+              .select({ value: settings.value })
+              .from(settings)
+              .where(eq(settings.key, "hd_next_index"))
+          )[0];
+          const counter = Number(counterRow?.value ?? 0) || 0;
+          // Backfill: if existing orders went past `counter` (older builds),
+          // jump forward — we never go backward.
+          const maxRow = await tx
+            .select({ m: sql<number>`coalesce(max(${orders.addressIndex}), -1)` })
+            .from(orders);
           const addressIndex = Math.max(counter, Number(maxRow[0]?.m ?? -1) + 1);
           const ltcAddress = deriveReceiveAddress(xpub, addressIndex);
 
-          for (const { product, variant, qty } of lines) {
-            const okk = await reserveKeys(tx as any, product.id, orderId, qty, variant?.id);
-            if (!okk) throw new Error(`OUT_OF_STOCK:${product.name}${variant ? ` (${variant.name})` : ""}`);
-          }
-
+          // Insert order BEFORE reserveKeys: product_keys.order_id has a FK
+          // reference to orders.id, so updating it to a not-yet-existing order
+          // row throws SQLITE_CONSTRAINT_FOREIGNKEY. Items are inserted in the
+          // same order — they share the same FK constraint.
           await tx.insert(orders).values({
             id: orderId,
             userId: checkoutUserId,
@@ -227,6 +327,11 @@ export const checkoutRoutes = new Elysia()
               quantity: qty,
             });
           }
+          for (const { product, variant, qty } of lines) {
+            const okk = await reserveKeys(tx as any, product.id, orderId, qty, variant?.id);
+            if (!okk)
+              throw new Error(`OUT_OF_STOCK:${product.name}${variant ? ` (${variant.name})` : ""}`);
+          }
 
           // Atomic coupon consumption: re-read the row inside this transaction
           // (SQLite serializes write txs, so this picks up another checkout's
@@ -234,18 +339,34 @@ export const checkoutRoutes = new Elysia()
           // still capacity. Throw a sentinel so the surrounding catch maps it
           // to a 400, identical to the pre-check rejection path.
           if (appliedCoupon) {
-            const fresh = (await tx.select().from(coupons).where(eq(coupons.id, appliedCoupon.id)))[0];
-            const stillValid = fresh && fresh.active
-              && (fresh.maxUses == null || fresh.usedCount < fresh.maxUses);
+            const fresh = (
+              await tx.select().from(coupons).where(eq(coupons.id, appliedCoupon.id))
+            )[0];
+            const stillValid =
+              fresh?.active && (fresh.maxUses == null || fresh.usedCount < fresh.maxUses);
             if (!stillValid) throw new Error("COUPON_EXHAUSTED");
-            await tx.update(coupons).set({ usedCount: fresh.usedCount + 1 }).where(eq(coupons.id, fresh.id));
+            await tx
+              .update(coupons)
+              .set({ usedCount: fresh.usedCount + 1 })
+              .where(eq(coupons.id, fresh.id));
           }
+
+          // Advance the monotonic counter INSIDE the transaction so a crash
+          // between the order INSERT and the setting write can't roll back the
+          // address allocation while leaving the counter behind. Previously
+          // this ran post-tx; under heavy concurrency two checkouts could
+          // observe the same `counter`, both succeed via the `max+1` fallback,
+          // and the counter would lag behind reality.
+          await tx
+            .insert(settings)
+            .values({ key: "hd_next_index", value: String(addressIndex + 1) })
+            .onConflictDoUpdate({
+              target: settings.key,
+              set: { value: String(addressIndex + 1) },
+            });
 
           return { addressIndex, ltcAddress };
         });
-
-        // Advance the monotonic counter AFTER a successful insert (UNIQUE backstops a race).
-        await setSetting("hd_next_index", String(result.addressIndex + 1));
 
         // Emit hook for plugins to react (discord notification, analytics, etc.)
         hookBus.emit("order.created", { orderId, userId: checkoutUserId }).catch(() => {});
@@ -266,48 +387,53 @@ export const checkoutRoutes = new Elysia()
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.startsWith("OUT_OF_STOCK"))
-          return status(400, { error: `${msg.split(":")[1] ?? "Item"} is out of stock`, code: "OUT_OF_STOCK" });
+          return status(400, {
+            error: `${msg.split(":")[1] ?? "Item"} is out of stock`,
+            code: "OUT_OF_STOCK",
+          });
         if (msg === "COUPON_EXHAUSTED")
-          return status(400, { error: "Coupon just ran out — try again without it", code: "COUPON_EXHAUSTED" });
+          return status(400, {
+            error: "Coupon just ran out — try again without it",
+            code: "COUPON_EXHAUSTED",
+          });
         console.error("[checkout] failed:", e);
         return status(500, { error: "Checkout failed", code: "CHECKOUT_FAILED" });
       }
     },
     {
       optionalUser: true,
-      body: t.Object({
-        items: t.Array(
-          t.Object({
-            productId: t.String(),
-            variantId: t.Optional(t.Nullable(t.String())),
-            qty: t.Integer({ minimum: 1 })
-          }),
-          { minItems: 1 }
-        ),
-        method: t.Optional(t.String()),
-        coupon: t.Optional(t.String()),
-        email: t.Optional(t.String()),
-      }),
-    }
+    },
   )
 
   /* ───────── Customer orders (IDOR-safe) ───────── */
-  .get("/api/orders", async ({ user }) => {
-    const list = await db.select().from(orders).where(eq(orders.userId, user.id)).orderBy(desc(orders.createdAt));
-    return Promise.all(
-      list.map(async (o) => ({
-        id: o.id,
-        status: o.status,
-        totalUsd: o.totalUsd,
-        ltcAmount: o.ltcAmount,
-        createdAt: o.createdAt,
-        items: await db
-          .select({ name: orderItems.name, quantity: orderItems.quantity, priceUsd: orderItems.priceUsd })
-          .from(orderItems)
-          .where(eq(orderItems.orderId, o.id)),
-      }))
-    );
-  }, { user: true })
+  .get(
+    "/api/orders",
+    async ({ user }) => {
+      const list = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.userId, user.id))
+        .orderBy(desc(orders.createdAt));
+      return Promise.all(
+        list.map(async (o) => ({
+          id: o.id,
+          status: o.status,
+          totalUsd: o.totalUsd,
+          ltcAmount: o.ltcAmount,
+          createdAt: o.createdAt,
+          items: await db
+            .select({
+              name: orderItems.name,
+              quantity: orderItems.quantity,
+              priceUsd: orderItems.priceUsd,
+            })
+            .from(orderItems)
+            .where(eq(orderItems.orderId, o.id)),
+        })),
+      );
+    },
+    { user: true },
+  )
 
   .get(
     "/api/orders/:id",
@@ -320,8 +446,9 @@ export const checkoutRoutes = new Elysia()
       // doesn't exist before touching o.userId.
       const isOwner = !!o && !!user && (o.userId === user.id || user.role === "admin");
       const isTokenValid = verifyOrderToken(id, query?.token);
-      if (!o || (!isOwner && !isTokenValid)) return status(404, { error: "Not found", code: "NOT_FOUND" });
-      
+      if (!o || (!isOwner && !isTokenValid))
+        return status(404, { error: "Not found", code: "NOT_FOUND" });
+
       const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id));
       const delivered =
         o.status === "paid" || o.status === "completed"
@@ -349,7 +476,7 @@ export const checkoutRoutes = new Elysia()
       query: t.Object({
         token: t.Optional(t.String()),
       }),
-    }
+    },
   )
 
   // Lightweight polling endpoint for the pay page (DB only; watcher updates it).
@@ -360,7 +487,11 @@ export const checkoutRoutes = new Elysia()
       // is automation. Bucketing by IP+orderId would be tighter but a single
       // bucket per IP is enough to stop a stampede.
       const ip = resolveClientIp(request);
-      const rl = rateLimitCheck(`order-status:${ip}`, ORDER_STATUS_RATE_MAX, ORDER_STATUS_WINDOW_MS);
+      const rl = rateLimitCheck(
+        `order-status:${ip}`,
+        ORDER_STATUS_RATE_MAX,
+        ORDER_STATUS_WINDOW_MS,
+      );
       if (!rl.allowed) {
         set.status = 429;
         set.headers["Retry-After"] = String(Math.ceil(rl.resetMs / 1000));
@@ -369,7 +500,8 @@ export const checkoutRoutes = new Elysia()
       const o = (await db.select().from(orders).where(eq(orders.id, id)))[0];
       const isOwner = user && o && (o.userId === user.id || user.role === "admin");
       const isTokenValid = verifyOrderToken(id, query?.token);
-      if (!o || (!isOwner && !isTokenValid)) return status(404, { error: "Not found", code: "NOT_FOUND" });
+      if (!o || (!isOwner && !isTokenValid))
+        return status(404, { error: "Not found", code: "NOT_FOUND" });
 
       const requiredConf = await getSettingNumber("required_confirmations", 2);
       return {
@@ -378,7 +510,10 @@ export const checkoutRoutes = new Elysia()
         requiredConfirmations: requiredConf,
         receivedLitoshi: o.receivedLitoshi,
         expectedLitoshi: o.expectedLitoshi,
-        expiresInSec: Math.max(0, Math.floor((new Date(o.expiresAt).getTime() - Date.now()) / 1000)),
+        expiresInSec: Math.max(
+          0,
+          Math.floor((new Date(o.expiresAt).getTime() - Date.now()) / 1000),
+        ),
       };
     },
     {
@@ -386,5 +521,5 @@ export const checkoutRoutes = new Elysia()
       query: t.Object({
         token: t.Optional(t.String()),
       }),
-    }
+    },
   );

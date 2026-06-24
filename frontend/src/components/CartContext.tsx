@@ -1,20 +1,29 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
 import anime from "animejs";
+import type React from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { Product } from "../lib/api";
 
 export type { Product };
 
 export interface CartItem {
   product: Product;
+  variant?: {
+    id: string;
+    name: string;
+    priceUsd: number;
+    compareAtPrice: number | null;
+    stock: number;
+    inStock: boolean;
+  };
   quantity: number;
 }
 
 interface CartContextType {
   cart: CartItem[];
   isCartOpen: boolean;
-  addToCart: (product: Product, startEl?: HTMLElement) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addToCart: (product: Product, selectedVariant?: any, startEl?: HTMLElement) => void;
+  removeFromCart: (productId: string, variantId?: string) => void;
+  updateQuantity: (productId: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   getCartTotal: () => number;
   setIsCartOpen: (open: boolean) => void;
@@ -35,9 +44,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setCart(parsed);
-      } catch (e) {
-        console.error("Failed to read cart", e);
-      }
+      } catch (_e) {}
     }
   }, []);
 
@@ -47,19 +54,30 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(CART_KEY, JSON.stringify(newCart));
   };
 
-  const addToCart = (product: Product, startEl?: HTMLElement) => {
-    const existing = cart.find((item) => item.product.id === product.id);
+  const addToCart = (product: Product, selectedVariant?: any, startEl?: HTMLElement) => {
+    const existing = cart.find(
+      (item) =>
+        item.product.id === product.id &&
+        (!selectedVariant || item.variant?.id === selectedVariant.id),
+    );
     const newCart = cart.map((item) => ({ ...item }));
 
+    const maxStock = selectedVariant ? selectedVariant.stock : product.stock;
+
     if (existing) {
-      const current = newCart.find((item) => item.product.id === product.id)!;
-      if (current.quantity >= product.stock) return; // respect stock as max
+      const current = newCart.find(
+        (item) =>
+          item.product.id === product.id &&
+          (!selectedVariant || item.variant?.id === selectedVariant.id),
+      )!;
+      if (current.quantity >= maxStock) return; // respect stock as max
       current.quantity += 1;
       // keep product snapshot fresh (price/stock may have changed)
       current.product = product;
+      if (selectedVariant) current.variant = selectedVariant;
     } else {
-      if (product.stock <= 0) return;
-      newCart.push({ product, quantity: 1 });
+      if (maxStock <= 0) return;
+      newCart.push({ product, variant: selectedVariant, quantity: 1 });
     }
 
     saveCart(newCart);
@@ -105,19 +123,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    const newCart = cart.filter((item) => item.product.id !== productId);
+  const removeFromCart = (productId: string, variantId?: string) => {
+    const newCart = cart.filter(
+      (item) => !(item.product.id === productId && (!variantId || item.variant?.id === variantId)),
+    );
     saveCart(newCart);
   };
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = (productId: string, quantity: number, variantId?: string) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, variantId);
       return;
     }
     const newCart = cart.map((item) => {
-      if (item.product.id === productId) {
-        return { ...item, quantity: Math.min(quantity, item.product.stock) };
+      if (item.product.id === productId && (!variantId || item.variant?.id === variantId)) {
+        const maxStock = item.variant ? item.variant.stock : item.product.stock;
+        return { ...item, quantity: Math.min(quantity, maxStock) };
       }
       return item;
     });
@@ -129,7 +150,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const getCartTotal = () => {
-    return cart.reduce((total, item) => total + item.product.priceUsd * item.quantity, 0);
+    return cart.reduce((total, item) => {
+      const price = item.variant ? item.variant.priceUsd : item.product.priceUsd;
+      return total + price * item.quantity;
+    }, 0);
   };
 
   return (

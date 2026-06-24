@@ -1,32 +1,170 @@
-# Nexora — backend (Elysia/Bun/SQLite) + frontend (Astro SSR).
-# SQLite persists via the named volume mounted at /app/sqlite.db's directory.
+# Nexora — production-grade self-hosted stack.
+#
+# Three deployment modes (pick one — no rebuild needed to switch):
+#
+#   1) LOCAL / DEV (default)
+#        docker compose up
+#      Open http://localhost — Caddy serves on :80 (no HTTPS).
+#
+#   2) PUBLIC DOMAIN with auto-HTTPS  (recommended for production)
+#        DOMAIN=shop.example.com ADMIN_EMAIL=you@example.com docker compose up -d
+#      Caddy gets a Let's Encrypt cert automatically. Point DNS A/AAAA to this host.
+#
+#   3) CLOUDFLARE TUNNEL  (no open ports, works behind NAT/CGNAT)
+#        CLOUDFLARE_TUNNEL_TOKEN=... docker compose --profile tunnel up -d
+#      No need to open 80/443. CF terminates TLS, tunnels to caddy:80 internally.
+#
+# SQLite persists in the `nexora-db` named volume.
+# Caddy cert/key data persists in `caddy-data` (do NOT delete — re-issuing certs
+# repeatedly hits Let's Encrypt rate limits).
+#
+# Container hardening (added v1.1 — see docs/SECURITY_ARCHITECTURE.md §19):
+#   - cap_drop: ALL  → drop every Linux capability by default.
+#   - cap_add only what each service actually needs (Caddy: NET_BIND_SERVICE for
+#     ports <1024; backend/frontend/cloudflared: none).
+#   - security_opt: no-new-privileges  → blocks setuid escalation if a payload
+#     ever lands inside a container.
+#   - tmpfs /tmp                       → ephemeral scratch, gone on restart.
+#   - mem_limit + pids_limit per service → bound blast radius. A memory leak,
+#     fork bomb, or compromised payload cannot exhaust the host. Conservative
+#     defaults; raise via env (e.g. NEXORA_BACKEND_MEM=1g) if a real workload needs it.
+#   We deliberately do NOT set `read_only: true` yet — SQLite needs to write
+#   the WAL/SHM sidecars in /app/data, Caddy writes ACME state in /data, and
+#   Astro SSR uses node_modules/.cache. Read-only root FS lands in v1.2.
+
 services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      # Skipped when running with --profile tunnel; harmless to leave exposed.
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: "${DOMAIN:-localhost}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@localhost}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    # Caddy needs NET_BIND_SERVICE to bind :80/:443 as a non-root user.
+    # Everything else stays dropped. ACME renewals + on-disk cert state work
+    # against the caddy-data volume, so read_only is NOT enabled here.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    # Caddy as a thin reverse proxy sits well under 128m even at sustained
+    # 1k req/s. pids_limit guards against a runaway ACME / cert-renewal loop.
+    mem_limit: ${NEXORA_CADDY_MEM:-128m}
+    pids_limit: 64
+    # Wait for backend to pass its healthcheck before Caddy starts routing.
+    # Without `condition: service_healthy` the first request after `up` races
+    # against backend boot (migrations + integrity + recovery) and returns 502.
+    # Frontend has no healthcheck endpoint; we accept `service_started` there.
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
   backend:
     build: ./backend
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       PORT: "3000"
       NODE_ENV: production
-      PUBLIC_ORIGIN: "${PUBLIC_SITE_URL:-http://localhost:4321}"
+      # When behind Caddy on a real domain, PUBLIC_ORIGIN should match.
+      PUBLIC_ORIGIN: "${PUBLIC_ORIGIN:-http://localhost}"
       ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@nexora.local}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me}"
+      # Caddy sets X-Forwarded-* — backend must trust it to read real client IP
+      # (otherwise per-IP rate limits all see the same docker network address).
+      TRUST_PROXY: "true"
+      # SQLite lives under /app/data so the named volume only persists the
+      # DB file, not the entire source tree. Mounting `nexora-db:/app` would
+      # shadow the COPY'd code on first boot and freeze it across rebuilds.
+      DB_PATH: /app/data/sqlite.db
       # Optional: ADMIN_PASSWORD_HASH, LTC_XPUB, EMAIL_PROVIDER, RESEND_API_KEY, SMTP_*
     volumes:
-      - nexora-db:/app
+      - nexora-db:/app/data
     restart: unless-stopped
+    # Backend binds :3000 (exposed only inside the docker network) so it
+    # never needs NET_BIND_SERVICE. SQLite WAL/SHM writes go to the
+    # nexora-db named volume; /tmp is small ephemeral scratch.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    # Bun + Elysia + SQLite watcher under normal load sits ~150-250m.
+    mem_limit: ${NEXORA_BACKEND_MEM:-512m}
+    pids_limit: 256
+    # Health probe via /api/health. oven/bun:1 base does NOT ship curl/wget,
+    # but `bun` itself is guaranteed present — fetch against localhost is the
+    # most reliable test that doesn't add a dependency. start_period covers
+    # cold-boot work: migrations + integrity verify + recoverStuckOrders +
+    # watcher prime. Caddy waits on this so the first request after `up` does
+    # not 502 against a backend mid-boot.
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   frontend:
     build:
       context: ./frontend
       args:
-        PUBLIC_API_ORIGIN: "${PUBLIC_API_ORIGIN:-http://localhost:3000}"
-        PUBLIC_SITE_URL: "${PUBLIC_SITE_URL:-http://localhost:4321}"
-    ports:
-      - "4321:4321"
+        # Same-origin: API calls go to /api/* on the same host as the page.
+        # Caddy routes /api/* to backend, everything else to frontend.
+        PUBLIC_API_ORIGIN: "${PUBLIC_API_ORIGIN:-}"
+        PUBLIC_SITE_URL: "${PUBLIC_SITE_URL:-http://localhost}"
+    expose:
+      - "4321"
     depends_on:
       - backend
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    # Astro SSR is mostly idle template rendering; 256m is generous.
+    mem_limit: ${NEXORA_FRONTEND_MEM:-256m}
+    pids_limit: 128
+
+  # Optional: Cloudflare Tunnel — enable with `--profile tunnel`.
+  # User pastes their tunnel token (from CF Zero Trust dashboard); cloudflared
+  # forwards traffic to caddy:80 inside the docker network. No ports exposed.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - caddy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # cloudflared is a single-purpose tunnel client; 64m + 32 pids is plenty.
+    mem_limit: ${NEXORA_CF_MEM:-64m}
+    pids_limit: 32
 
 volumes:
   nexora-db:
+  caddy-data:
+  caddy-config:

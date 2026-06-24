@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import type React from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { Icon } from "./Icon";
 
@@ -47,7 +48,9 @@ export const SearchBox: React.FC = () => {
     const myReq = ++reqIdRef.current;
     const t = setTimeout(async () => {
       try {
-        const res = await api.get<{ items: Suggestion[] }>(`/api/products/suggest?q=${encodeURIComponent(term)}`);
+        const res = await api.get<{ items: Suggestion[] }>(
+          `/api/products/suggest?q=${encodeURIComponent(term)}`,
+        );
         // Drop stale responses (user kept typing after this request fired).
         if (myReq !== reqIdRef.current) return;
         setItems(res.items ?? []);
@@ -105,7 +108,8 @@ export const SearchBox: React.FC = () => {
     }
   };
 
-  const activeId = open && highlight >= 0 && items[highlight] ? `${listboxId}-opt-${highlight}` : undefined;
+  const activeId =
+    open && highlight >= 0 && items[highlight] ? `${listboxId}-opt-${highlight}` : undefined;
 
   return (
     <div className="sf-search" ref={wrapRef}>
@@ -114,7 +118,10 @@ export const SearchBox: React.FC = () => {
         ref={inputRef}
         type="search"
         value={q}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKey}
         placeholder="Search products…"
@@ -127,20 +134,24 @@ export const SearchBox: React.FC = () => {
         className="sf-search-input"
       />
       {open && items.length > 0 && (
-        <ul id={listboxId} role="listbox" className="sf-search-list">
+        <ul id={listboxId} className="sf-search-list">
           {items.map((s, i) => (
             <li
               key={s.id}
               id={`${listboxId}-opt-${i}`}
-              role="option"
               aria-selected={i === highlight}
               className={`sf-search-opt${i === highlight ? " is-active" : ""}`}
               onMouseEnter={() => setHighlight(i)}
-              onMouseDown={(e) => { e.preventDefault(); goToProduct(s); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                goToProduct(s);
+              }}
             >
-              {s.image
-                ? <img src={s.image} alt="" className="sf-search-thumb" loading="lazy" />
-                : <span className="sf-search-thumb sf-search-thumb-placeholder" />}
+              {s.image ? (
+                <img src={s.image} alt="" className="sf-search-thumb" loading="lazy" />
+              ) : (
+                <span className="sf-search-thumb sf-search-thumb-placeholder" />
+              )}
               <span className="sf-search-name">{s.name}</span>
               <span className="sf-search-price">${s.priceUsd.toFixed(2)}</span>
             </li>

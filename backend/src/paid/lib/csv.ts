@@ -25,7 +25,10 @@ export function todayStamp(now: Date): string {
 
 // Assemble a full CSV body from columns + rows. Header line + CRLF +
 // joined rows + trailing CRLF (some tools expect newline-terminated).
-export function csvBody<C extends string>(columns: readonly C[], rows: Record<string, unknown>[]): string {
+export function csvBody<C extends string>(
+  columns: readonly C[],
+  rows: Record<string, unknown>[],
+): string {
   const header = columns.join(",");
   const body = rows.map((r) => columns.map((col) => csvCell(r[col])).join(",")).join("\r\n");
   return `${header}\r\n${body}${rows.length ? "\r\n" : ""}`;

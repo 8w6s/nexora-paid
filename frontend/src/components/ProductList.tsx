@@ -1,23 +1,34 @@
-import React, { useEffect, useRef, useState } from "react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n";
 import { api, type Product } from "../lib/api";
-import { ProductCard } from "./ProductCard";
-import { SkProductGrid, SkeletonStyles } from "./Skeleton";
 import { staggerIn } from "../lib/motion";
-import { Icon } from "./Icon";
 import { Checkbox } from "./Checkbox";
 import { Dropdown } from "./Dropdown";
+import { Icon } from "./Icon";
+import { ProductCard } from "./ProductCard";
+import { SkeletonStyles, SkProductGrid } from "./Skeleton";
 
-interface Category { name: string; count: number; }
+interface Category {
+  name: string;
+  count: number;
+}
 type SortKey = "newest" | "best" | "price-asc" | "price-desc" | "name";
-const SORTS: { value: SortKey; label: string; icon: React.ComponentProps<typeof Icon>["name"]; desc?: string }[] = [
-  { value: "newest",     label: "Newest",         icon: "zap",      desc: "Most recently listed first" },
-  { value: "best",       label: "Best selling",   icon: "star",     desc: "By units sold" },
-  { value: "price-asc",  label: "Price: low → high", icon: "arrow-right" },
+const SORTS: {
+  value: SortKey;
+  label: string;
+  icon: React.ComponentProps<typeof Icon>["name"];
+  desc?: string;
+}[] = [
+  { value: "newest", label: "Newest", icon: "zap", desc: "Most recently listed first" },
+  { value: "best", label: "Best selling", icon: "star", desc: "By units sold" },
+  { value: "price-asc", label: "Price: low → high", icon: "arrow-right" },
   { value: "price-desc", label: "Price: high → low", icon: "arrow-right" },
-  { value: "name",       label: "Name A–Z",       icon: "box" },
+  { value: "name", label: "Name A–Z", icon: "box" },
 ];
 
 export const ProductList: React.FC = () => {
+  const { t } = useT();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,33 +46,42 @@ export const ProductList: React.FC = () => {
   const firstLoad = useRef(true);
 
   // Load category chips once.
-  useEffect(() => { api.get<Category[]>("/api/categories").then(setCategories).catch(() => {}); }, []);
+  useEffect(() => {
+    api
+      .get<Category[]>("/api/categories")
+      .then(setCategories)
+      .catch(() => {});
+  }, []);
 
   // Re-fetch products server-side when filters change (search debounced).
   useEffect(() => {
-    const t = setTimeout(async () => {
-      try {
-        const params = new URLSearchParams();
-        if (category !== "All") params.set("category", category);
-        if (sort !== "newest") params.set("sort", sort);
-        if (inStockOnly) params.set("inStock", "true");
-        if (search.trim()) params.set("q", search.trim());
-        const qs = params.toString();
-        setProducts(await api.get<Product[]>(`/api/products${qs ? `?${qs}` : ""}`));
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load products");
-      } finally {
-        setLoading(false);
-      }
-    }, firstLoad.current ? 0 : 220);
+    const timer = setTimeout(
+      async () => {
+        try {
+          const params = new URLSearchParams();
+          if (category !== "All") params.set("category", category);
+          if (sort !== "newest") params.set("sort", sort);
+          if (inStockOnly) params.set("inStock", "true");
+          if (search.trim()) params.set("q", search.trim());
+          const qs = params.toString();
+          setProducts(await api.get<Product[]>(`/api/products${qs ? `?${qs}` : ""}`));
+          setError(null);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : t("storefront.errors.generic"));
+        } finally {
+          setLoading(false);
+        }
+      },
+      firstLoad.current ? 0 : 220,
+    );
     firstLoad.current = false;
-    return () => clearTimeout(t);
-  }, [category, sort, inStockOnly, search]);
+    return () => clearTimeout(timer);
+  }, [category, sort, inStockOnly, search, t]);
 
   // Stagger cards in whenever the result set changes.
   useEffect(() => {
-    if (gridRef.current && products.length) staggerIn(gridRef.current.querySelectorAll(".product-card"));
+    if (gridRef.current && products.length)
+      staggerIn(gridRef.current.querySelectorAll(".product-card"));
   }, [products]);
 
   return (
@@ -69,11 +89,26 @@ export const ProductList: React.FC = () => {
       <div className="toolbar">
         <div className="search">
           <Icon name="search" size={17} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products…" aria-label="Search products" />
-          {search && <button className="clear" onClick={() => setSearch("")} aria-label="Clear search"><Icon name="close" size={14} /></button>}
+          <input
+            value={search}
+            name="search"
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("common.search")}
+            aria-label={t("common.search")}
+          />
+          {search && (
+            <button className="clear" onClick={() => setSearch("")} aria-label="Clear search">
+              <Icon name="close" size={14} />
+            </button>
+          )}
         </div>
         <div className="toolbar-right">
-          <Checkbox checked={inStockOnly} onChange={setInStockOnly} label="In stock only" size={20} />
+          <Checkbox
+            checked={inStockOnly}
+            onChange={setInStockOnly}
+            label={t("storefront.product.inStockOnly")}
+            size={20}
+          />
           <Dropdown<SortKey>
             value={sort as SortKey}
             onChange={(v) => setSort(v)}
@@ -84,9 +119,18 @@ export const ProductList: React.FC = () => {
       </div>
 
       <div className="chips">
-        <button className={`chip ${category === "All" ? "active" : ""}`} onClick={() => setCategory("All")}>All</button>
+        <button
+          className={`chip ${category === "All" ? "active" : ""}`}
+          onClick={() => setCategory("All")}
+        >
+          {t("storefront.product.allCategories")}
+        </button>
         {categories.map((c) => (
-          <button key={c.name} className={`chip ${category === c.name ? "active" : ""}`} onClick={() => setCategory(c.name)}>
+          <button
+            key={c.name}
+            className={`chip ${category === c.name ? "active" : ""}`}
+            onClick={() => setCategory(c.name)}
+          >
             {c.name} <span className="chip-n">{c.count}</span>
           </button>
         ))}
@@ -95,12 +139,20 @@ export const ProductList: React.FC = () => {
       {loading ? (
         <SkProductGrid count={8} />
       ) : error ? (
-        <div className="pl-state"><Icon name="box" size={30} /><p>{error}</p></div>
+        <div className="pl-state">
+          <Icon name="box" size={30} />
+          <p>{error}</p>
+        </div>
       ) : products.length === 0 ? (
-        <div className="pl-state"><Icon name="search" size={30} /><p>No products match your search.</p></div>
+        <div className="pl-state">
+          <Icon name="search" size={30} />
+          <p>{t("storefront.product.noResults")}</p>
+        </div>
       ) : (
         <div className="grid" ref={gridRef}>
-          {products.map((p) => <ProductCard key={p.id} product={p} />)}
+          {products.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
         </div>
       )}
 

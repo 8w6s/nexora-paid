@@ -1,3 +1,4 @@
+import { logger } from "../logger.ts";
 import type { HookName, HookPayloads } from "./types.ts";
 
 type Handler<K extends HookName> = (payload: HookPayloads[K]) => Promise<void> | void;
@@ -31,7 +32,15 @@ export class HookBus {
       try {
         await s.handler(payload);
       } catch (e) {
-        console.error(`[plugin/hook] ${s.pluginId} ${hook} threw: ${e instanceof Error ? e.message : e}`);
+        // Comment above promised pluginId + hook name in the log — previously
+        // the catch was empty, so a misbehaving plugin failed silently and
+        // the operator had no signal at all. Surface it now.
+        logger.error("plugin hook handler threw", {
+          pluginId: s.pluginId,
+          hook,
+          error: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack : undefined,
+        });
       }
     }
   }

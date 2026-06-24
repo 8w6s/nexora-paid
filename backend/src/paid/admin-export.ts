@@ -18,8 +18,9 @@
  * iter 10 refactor: requireAdmin + csvCell hoisted to paid/lib/. This
  * module now only owns the route + the orders-specific column list.
  */
-import { t } from "elysia";
+
 import { desc, eq } from "drizzle-orm";
+import { t } from "elysia";
 import { db } from "../db/connection.ts";
 import { orders } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
@@ -44,7 +45,13 @@ const CSV_COLUMNS = [
 // silently treated as "no filter" rather than passed through to drizzle —
 // avoids surprising query failures from typos or hostile inputs.
 const ORDER_STATUSES = new Set([
-  "pending", "awaiting_payment", "underpaid", "paid", "completed", "expired", "cancelled",
+  "pending",
+  "awaiting_payment",
+  "underpaid",
+  "paid",
+  "completed",
+  "expired",
+  "cancelled",
 ]);
 
 export const adminExportPlugin: Plugin = {
@@ -64,7 +71,11 @@ export const adminExportPlugin: Plugin = {
         const q = query as Record<string, string>;
         const statusFilter = q.status && ORDER_STATUSES.has(q.status) ? q.status : null;
         const rows = statusFilter
-          ? await db.select().from(orders).where(eq(orders.status, statusFilter as never)).orderBy(desc(orders.createdAt))
+          ? await db
+              .select()
+              .from(orders)
+              .where(eq(orders.status, statusFilter as never))
+              .orderBy(desc(orders.createdAt))
           : await db.select().from(orders).orderBy(desc(orders.createdAt));
 
         const csv = csvBody(CSV_COLUMNS, rows as Record<string, unknown>[]);
@@ -73,7 +84,11 @@ export const adminExportPlugin: Plugin = {
         set.headers["content-type"] = "text/csv; charset=utf-8";
         set.headers["content-disposition"] = `attachment; filename="nexora-orders-${stamp}.csv"`;
 
-        await logAdminAction(auth.user.email, "orders.csv_export", `${rows.length} row(s)${statusFilter ? ` (status=${statusFilter})` : ""}`);
+        await logAdminAction(
+          auth.user.email,
+          "orders.csv_export",
+          `${rows.length} row(s)${statusFilter ? ` (status=${statusFilter})` : ""}`,
+        );
         return csv;
       },
       {

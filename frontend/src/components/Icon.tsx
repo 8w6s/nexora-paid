@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 
 type IconName =
   | "cart"
@@ -13,6 +13,8 @@ type IconName =
   | "receipt"
   | "home"
   | "arrow-right"
+  | "arrow-left"
+  | "arrow-up"
   | "package"
   | "shield"
   | "truck"
@@ -28,17 +30,23 @@ type IconName =
   | "moon"
   | "pencil"
   | "folder"
+  | "menu"
   | "users"
   | "tag"
   | "credit-card"
   | "activity"
-  | "settings";
+  | "settings"
+  | "globe"
+  | "envelope"
+  | "link";
 
 interface IconProps {
   name: IconName;
   size?: number;
   className?: string;
-  /** FA visual style: "duotone" (soft 2-tone, default), "regular" (thin rounded), "badge" (icon in a round tinted chip). */
+  /** Inline style passthrough — callers occasionally need to nudge color/opacity per-instance. */
+  style?: React.CSSProperties;
+  /** FA visual style. */
   variant?: "duotone" | "regular" | "duotone-regular" | "badge";
 }
 
@@ -86,6 +94,8 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   "arrow-right": <path d="M5 12h14M12 5l7 7-7 7" />,
+  "arrow-left": <path d="M19 12H5M12 19l-7-7 7-7" />,
+  "arrow-up": <path d="M12 19V5M5 12l7-7 7 7" />,
   package: (
     <>
       <path d="M16.5 9.4 7.5 4.21" />
@@ -128,12 +138,34 @@ const paths: Record<IconName, React.ReactNode> = {
   ),
   zap: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
   bolt: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
-  star: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14l-5-4.87 6.91-1.01L12 2z" />,
-  ticket: <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4 2 2 0 0 1 2-2 2 2 0 0 0 0-4z" />,
-  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></>,
+  star: (
+    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14l-5-4.87 6.91-1.01L12 2z" />
+  ),
+  ticket: (
+    <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4 2 2 0 0 1 2-2 2 2 0 0 0 0-4z" />
+  ),
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </>
+  ),
   moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
-  pencil: <><path d="M3 21l3.75-.75L20.5 6.5l-3-3L3.75 17.25 3 21z" /><path d="M15 5.5l3 3" /><path d="M5 19l-1 1" /></>,
+  pencil: (
+    <>
+      <path d="M3 21l3.75-.75L20.5 6.5l-3-3L3.75 17.25 3 21z" />
+      <path d="M15 5.5l3 3" />
+      <path d="M5 19l-1 1" />
+    </>
+  ),
   folder: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />,
+  menu: (
+    <>
+      <path d="M3 12h18" />
+      <path d="M3 6h18" />
+      <path d="M3 18h18" />
+    </>
+  ),
   users: (
     <>
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -155,6 +187,25 @@ const paths: Record<IconName, React.ReactNode> = {
     </>
   ),
   activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </>
+  ),
+  envelope: (
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-10 6L2 7" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -165,18 +216,54 @@ const paths: Record<IconName, React.ReactNode> = {
 
 // Map our icon names → Font Awesome icon names (used when a FA Pro Kit is loaded).
 const faName: Record<IconName, string> = {
-  cart: "cart-shopping", search: "magnifying-glass", plus: "plus", minus: "minus",
-  trash: "trash", close: "xmark", check: "circle-check", spinner: "spinner-third",
-  box: "box", receipt: "receipt", home: "house", "arrow-right": "arrow-right",
-  package: "box-open", shield: "shield-check", truck: "truck", key: "key",
-  mail: "envelope", bell: "bell", copy: "copy", zap: "bolt", bolt: "bolt",
-  star: "star", ticket: "ticket", sun: "sun", moon: "moon", pencil: "pencil",
-  folder: "folder", users: "users", tag: "tag", "credit-card": "credit-card",
-  activity: "chart-line", settings: "gear",
+  cart: "cart-shopping",
+  search: "magnifying-glass",
+  plus: "plus",
+  minus: "minus",
+  trash: "trash",
+  close: "xmark",
+  check: "circle-check",
+  spinner: "spinner-third",
+  box: "box-taped",
+  receipt: "receipt",
+  home: "house",
+  "arrow-right": "arrow-right",
+  "arrow-left": "arrow-left",
+  "arrow-up": "arrow-up",
+  package: "box-open",
+  shield: "shield-check",
+  truck: "truck",
+  key: "key",
+  mail: "envelope",
+  bell: "bell",
+  copy: "copy",
+  zap: "bolt",
+  bolt: "bolt",
+  star: "star",
+  ticket: "ticket",
+  sun: "sun",
+  moon: "moon",
+  pencil: "pencil",
+  folder: "folder",
+  menu: "bars",
+  users: "users",
+  tag: "tag",
+  "credit-card": "credit-card",
+  activity: "chart-line",
+  settings: "gear",
+  globe: "globe",
+  envelope: "envelope",
+  link: "link",
 };
 
-export const Icon: React.FC<IconProps> = ({ name, size = 20, className, variant = "duotone-regular" }) => {
-  const svg = (
+export const Icon: React.FC<IconProps> = ({
+  name,
+  size = 20,
+  className,
+  style,
+  variant = "duotone-regular",
+}) => {
+  const _svg = (
     <svg
       width={size}
       height={size}
@@ -187,6 +274,7 @@ export const Icon: React.FC<IconProps> = ({ name, size = 20, className, variant 
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       {paths[name]}
@@ -198,17 +286,26 @@ export const Icon: React.FC<IconProps> = ({ name, size = 20, className, variant 
   // resolving Hydration Mismatch completely.
   const spin = name === "spinner" ? " fa-spin" : "";
   const styleClass =
-    variant === "regular" ? "fa-regular"
-    : variant === "duotone-regular" || variant === "badge" ? "fa-duotone fa-regular"
-    : "fa-duotone";
+    variant === "regular"
+      ? "fa-regular"
+      : variant === "duotone-regular" || variant === "badge"
+        ? "fa-duotone fa-regular"
+        : "fa-duotone";
   const iconEl = (
-    <i className={`${styleClass} fa-${faName[name]}${spin} ${variant === "badge" ? "" : (className ?? "")}`}
-       style={{ fontSize: variant === "badge" ? size : size, lineHeight: 1 }} aria-hidden="true" />
+    <i
+      className={`${styleClass} fa-${faName[name]}${spin} ${variant === "badge" ? "" : (className ?? "")}`}
+      style={{ fontSize: size, lineHeight: 1, ...style }}
+      aria-hidden="true"
+    />
   );
 
   if (variant === "badge") {
     return (
-      <span className={`icon-badge ${className ?? ""}`} style={{ width: size * 2, height: size * 2 }} aria-hidden="true">
+      <span
+        className={`icon-badge ${className ?? ""}`}
+        style={{ width: size * 2, height: size * 2 }}
+        aria-hidden="true"
+      >
         {iconEl}
         <BadgeStyles />
       </span>
