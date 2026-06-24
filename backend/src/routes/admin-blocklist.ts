@@ -84,9 +84,16 @@ export const adminBlocklistRoutes = new Elysia({ prefix: "/api/admin" })
 const BLOCKLIST_WRITE_MAX = 60;
 const BLOCKLIST_WRITE_WINDOW_MS = 60_000;
 
-function gateRateLimit(request: Request, set: { status?: number }): { error: string; code: string } | null {
+function gateRateLimit(
+  request: Request,
+  set: { status?: number },
+): { error: string; code: string } | null {
   const ip = clientIp(request);
-  const rl = rateLimitCheck(`admin-blocklist-write:${ip}`, BLOCKLIST_WRITE_MAX, BLOCKLIST_WRITE_WINDOW_MS);
+  const rl = rateLimitCheck(
+    `admin-blocklist-write:${ip}`,
+    BLOCKLIST_WRITE_MAX,
+    BLOCKLIST_WRITE_WINDOW_MS,
+  );
   if (!rl.allowed) {
     set.status = 429;
     return { error: "Too many blocklist writes", code: "RATE_LIMITED" };
