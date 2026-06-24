@@ -5,10 +5,9 @@
  * NOT exposed to non-admin sessions. Every mutation is appended to audit_log.
  *
  * Safety net (NOT an attempt at full SQL sandbox — admin already has the
- * keys to the kingdom; the guard rails exist to prevent fot-guns):
+ * keys to the kingdom; the guard rails exist to prevent foot-guns):
  *   - statements containing ATTACH / DETACH refused
  *   - PRAGMA load_extension refused
- *   - per-statement timeout via Bun's setImmediate-free fast path (best-effort)
  *   - result rows capped at 5000
  *   - statement length capped at 64 KB
  *   - audit_log itself is read-only via this route (UPDATE/DELETE on it rejected)
@@ -25,7 +24,7 @@ const MAX_ROWS = 5000;
 const FORBIDDEN_PATTERNS: Array<{ re: RegExp; reason: string }> = [
   { re: /\battach\s+database\b/i, reason: "ATTACH DATABASE is not permitted" },
   { re: /\bdetach\s+database\b/i, reason: "DETACH DATABASE is not permitted" },
-  { re: /load_extension\s*\(/i, reason: "load_extension() is not permited" },
+  { re: /load_extension\s*\(/i, reason: "load_extension() is not permitted" },
   { re: /\bpragma\s+(journal_mode|locking_mode|foreign_keys|key|rekey)\b/i, reason: "writable PRAGMA is not permitted" },
 ];
 
@@ -144,7 +143,7 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         set.status = 400;
-        // Log refusal too — useful for spotting accidental fot-guns.
+        // Log refusal too — useful for spotting accidental foot-guns.
         try {
           recordAudit(getRawDb(), {
             actorEmail: user?.email,

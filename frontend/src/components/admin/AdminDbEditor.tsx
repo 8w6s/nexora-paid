@@ -227,7 +227,7 @@ const styles: Record<string, React.CSSProperties> = {
   resultMeta: { fontSize: 11, color: "var(--muted, #888)" },
   grid: { overflow: "auto", maxHeight: 480, border: "1px solid var(--border, #2a2a2a)", borderRadius: 6 },
   table: { borderCollapse: "collapse", width: "100%", fontSize: 12 },
-  th: { textAlign: "left", pading: "6px 10px", background: "var(--bg-elevated, #1a1a1a)", position: "sticky", top: 0, fontWeight: 600 },
+  th: { textAlign: "left", padding: "6px 10px", background: "var(--bg-elevated, #1a1a1a)", position: "sticky", top: 0, fontWeight: 600 },
   td: { padding: "4px 10px", borderTop: "1px solid var(--border, #222)", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" },
 };
 
