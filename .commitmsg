@@ -1,18 +1,22 @@
-feat(admin-blocklist): rate-limit blocklist writes (60/min/IP)
+test(tenant): expand jail coverage to 18 cases
 
-Roadmap item 16 (partial — admin-blocklist was the only admin*.ts
-route missing rateLimitCheck). 60 writes/min per IP shared across
-add/remove for blacklist + whitelist combined.
+Roadmap item 13 continuation — thicken the tenant jail suite to
+match handshake (12) + snapshot-crypto (13) coverage levels.
 
-Rationale: a hostile admin cookie (CSRF or session theft) shouldn't
-be able to flood the blocklist table — each entry costs a row + an
-audit_log mirror entry, so a tight burst could pollute both stores
-with thousands of bogus rows.
++8 cases (10 -> 18):
+  - empty string resolves to USERSPACE_ROOT itself (boundary)
+  - nested traversal "a/b/../../../etc/passwd" rejected
+  - redundant-slash normalization "uploads///a.png"
+  - dotted segments "uploads/./a.png" flattened
+  - null byte at start of path rejected
+  - null byte at end of path rejected
+  - tenantInfo() exposes app/userspace/dataRoot + machine-id
+  - app jail rejects userspace-style traversal
 
-Implementation:
-- New gateRateLimit() helper folded into addEntry + deleteEntry.
-- Bucket key = `admin-blocklist-write:${ip}` (shared across add+del).
-- 429 with code RATE_LIMITED matches the shape of every other
-  admin route's rate-limit response.
+Why these specifically: the jail is the single most security-load-bearing
+function in tenant.ts. Any path-handling regression silently allows
+arbitrary FS read/write from a customer admin upload. Test cases
+mirror real exploit shapes (encoded traversal, embedded nulls, multi-slash).
 
-Build: 510 modules. 80/80 lib tests pass.
+Total lib tests now 88/0 (was 80/0).
+Build: 510 modules.
