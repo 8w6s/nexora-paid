@@ -28,6 +28,7 @@ import { clearCatalogCache, productRoutes } from "./routes/products.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { adminTicketRoutes, ticketRoutes } from "./routes/tickets.ts";
+import { adminDbRoutes } from "./routes/admin-db.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 
@@ -403,6 +404,7 @@ const app = (await loadPlugins(baseApp))
   .use(admin2faRoutes)
   .use(adminBlocklistRoutes)
   .use(adminTicketRoutes)
+  .use(adminDbRoutes)
 
   // ─── Checkout + setup ─────
   .use(checkoutRoutes)
