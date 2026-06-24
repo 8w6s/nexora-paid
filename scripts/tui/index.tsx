@@ -1,43 +1,69 @@
-import { writeFileSync, appendFileSync, readFileSync, existsSync } from "fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 const ERR_LOG = "scripts/tui-error.log";
 const CONSOLE_LOG = "scripts/tui-console.log";
-try { writeFileSync(ERR_LOG, ""); } catch {}
-try { writeFileSync(CONSOLE_LOG, ""); } catch {}
+try {
+  writeFileSync(ERR_LOG, "");
+} catch {}
+try {
+  writeFileSync(CONSOLE_LOG, "");
+} catch {}
 
 const fmt = (lvl: string, args: unknown[]) =>
   `[${lvl}] ${args
     .map((a) =>
-      a instanceof Error ? a.stack ?? a.message : typeof a === "object" ? JSON.stringify(a) : String(a),
+      a instanceof Error
+        ? (a.stack ?? a.message)
+        : typeof a === "object"
+          ? JSON.stringify(a)
+          : String(a),
     )
     .join(" ")}` + String.fromCharCode(10);
 
 process.on("uncaughtException", (e) => {
-  try { appendFileSync(ERR_LOG, `[uncaught] ${(e as Error).stack ?? e}` + String.fromCharCode(10)); } catch {}
+  try {
+    appendFileSync(ERR_LOG, `[uncaught] ${(e as Error).stack ?? e}` + String.fromCharCode(10));
+  } catch {}
 });
 process.on("unhandledRejection", (e) => {
-  try { appendFileSync(ERR_LOG, `[unhandled] ${(e as any)?.stack ?? e}` + String.fromCharCode(10)); } catch {}
+  try {
+    appendFileSync(ERR_LOG, `[unhandled] ${(e as any)?.stack ?? e}` + String.fromCharCode(10));
+  } catch {}
 });
 
 console.error = (...args: unknown[]) => {
-  try { appendFileSync(CONSOLE_LOG, fmt("error", args)); } catch {}
-  try { appendFileSync(ERR_LOG, fmt("error", args)); } catch {}
+  try {
+    appendFileSync(CONSOLE_LOG, fmt("error", args));
+  } catch {}
+  try {
+    appendFileSync(ERR_LOG, fmt("error", args));
+  } catch {}
 };
 console.warn = (...args: unknown[]) => {
-  try { appendFileSync(CONSOLE_LOG, fmt("warn", args)); } catch {}
+  try {
+    appendFileSync(CONSOLE_LOG, fmt("warn", args));
+  } catch {}
 };
 console.log = (...args: unknown[]) => {
-  try { appendFileSync(CONSOLE_LOG, fmt("log", args)); } catch {}
+  try {
+    appendFileSync(CONSOLE_LOG, fmt("log", args));
+  } catch {}
 };
 
-import { render, useKeyboard, useRenderer } from "@opentui/solid";
-import { createSignal, onCleanup, onMount, For, Show, createEffect } from "solid-js";
 import { TextAttributes } from "@opentui/core";
-import { theme } from "./theme";
-import { StarryBackground } from "./starry-background";
+import { render, useKeyboard, useRenderer } from "@opentui/solid";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Logo } from "./logo";
-import { startProcess, type Status, type ProcHandle, type LogLine, type LogLevel } from "./processes";
+import {
+  type LogLevel,
+  type LogLine,
+  type ProcHandle,
+  type Status,
+  startProcess,
+} from "./processes";
+import { StarryBackground } from "./starry-background";
+import { theme } from "./theme";
 
 const STATUS_FG: Record<Status, typeof theme.ok> = {
   stopped: theme.off,
@@ -137,7 +163,8 @@ function clock() {
 }
 
 function openUrl(url: string): boolean {
-  const cmd = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
+  const cmd =
+    process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
   const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
   try {
     Bun.spawn([cmd, ...args], { stdout: "ignore", stderr: "ignore", stdin: "ignore" });
@@ -154,8 +181,8 @@ async function copyToClipboard(text: string): Promise<boolean> {
     process.platform === "win32"
       ? [["clip"]]
       : process.platform === "darwin"
-      ? [["pbcopy"]]
-      : [["xclip", "-selection", "clipboard"], ["wl-copy"]];
+        ? [["pbcopy"]]
+        : [["xclip", "-selection", "clipboard"], ["wl-copy"]];
   for (const cmd of cmds) {
     try {
       const proc = Bun.spawn(cmd, { stdin: "pipe", stdout: "ignore", stderr: "ignore" });
@@ -229,9 +256,15 @@ function StatusPill(props: {
       onMouseOut={() => setHover(false)}
     >
       <StatusDot status={props.status} />
-      <text fg={props.accent} attributes={TextAttributes.BOLD} selectable={false}>{props.label}</text>
-      <text fg={theme.textMuted} selectable={false}>{STATUS_LABEL[props.status()]}</text>
-      <text fg={theme.textDim} selectable={false}>· {props.host}</text>
+      <text fg={props.accent} attributes={TextAttributes.BOLD} selectable={false}>
+        {props.label}
+      </text>
+      <text fg={theme.textMuted} selectable={false}>
+        {STATUS_LABEL[props.status()]}
+      </text>
+      <text fg={theme.textDim} selectable={false}>
+        · {props.host}
+      </text>
     </box>
   );
 }
@@ -269,17 +302,25 @@ function HealthChip(props: {
       onMouseOut={() => setHover(false)}
     >
       <StatusDot status={props.beStatus} />
-      <text fg={theme.primary} attributes={TextAttributes.BOLD} selectable={false}>BE</text>
+      <text fg={theme.primary} attributes={TextAttributes.BOLD} selectable={false}>
+        BE
+      </text>
       <text fg={theme.textDim} selectable={false}>
         {beLat() === null ? "—" : `${beLat()}ms`}
       </text>
-      <text fg={theme.textMuted} selectable={false}>│</text>
+      <text fg={theme.textMuted} selectable={false}>
+        │
+      </text>
       <StatusDot status={props.feStatus} />
-      <text fg={theme.accent} attributes={TextAttributes.BOLD} selectable={false}>FE</text>
+      <text fg={theme.accent} attributes={TextAttributes.BOLD} selectable={false}>
+        FE
+      </text>
       <text fg={theme.textDim} selectable={false}>
         {feLat() === null ? "—" : `${feLat()}ms`}
       </text>
-      <text fg={theme.textMuted} selectable={false}>│</text>
+      <text fg={theme.textMuted} selectable={false}>
+        │
+      </text>
       <text fg={overall().color} attributes={TextAttributes.BOLD} selectable={false}>
         {overall().label}
       </text>
@@ -330,10 +371,7 @@ function App() {
   const saveBundle = () => {
     try {
       const ts = new Date();
-      const stamp = ts
-        .toISOString()
-        .replace(/[:.]/g, "-")
-        .replace(/Z$/, "");
+      const stamp = ts.toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
       const fname = `nexora-support-${stamp}.txt`;
       const path = resolve(process.cwd(), fname);
       const fmtLine = (l: LogLine) =>
@@ -474,7 +512,9 @@ function App() {
     beHandle?.kill();
     feHandle?.kill();
     if (toastTimer) clearTimeout(toastTimer);
-    try { renderer.destroy?.(); } catch {}
+    try {
+      renderer.destroy?.();
+    } catch {}
     process.stdout.write("\x1b[0m\x1b[?25h\x1b[?1049l\x1b]110\x07\x1b]111\x07\x1b]112\x07");
     process.exit(0);
   };
@@ -503,7 +543,11 @@ function App() {
   };
 
   useKeyboard((key: any) => {
-    if (key.name === "q" || (key.name === "c" && key.ctrl) || (key.ctrl && key.sequence === "\x03")) {
+    if (
+      key.name === "q" ||
+      (key.name === "c" && key.ctrl) ||
+      (key.ctrl && key.sequence === "\x03")
+    ) {
       exitClean();
       return;
     }
@@ -526,9 +570,17 @@ function App() {
     }
     if (key.name === "k") {
       const view = logsOpen();
-      if (view === "be") { setBeLogs([]); flash("backend logs cleared"); }
-      else if (view === "fe") { setFeLogs([]); flash("frontend logs cleared"); }
-      else { setBeLogs([]); setFeLogs([]); flash("all logs cleared"); }
+      if (view === "be") {
+        setBeLogs([]);
+        flash("backend logs cleared");
+      } else if (view === "fe") {
+        setFeLogs([]);
+        flash("frontend logs cleared");
+      } else {
+        setBeLogs([]);
+        setFeLogs([]);
+        flash("all logs cleared");
+      }
     }
     if (key.name === "tab" && logsOpen() !== "none") {
       setLogsOpen((v) => (v === "be" ? "fe" : "be"));
@@ -592,10 +644,24 @@ function App() {
         <box flexDirection="row" gap={2}>
           <NavButton label="Frontend" hotkey="o" onActivate={() => open(FE_URL, "frontend")} />
           <NavButton label="Admin" hotkey="a" onActivate={() => open(ADMIN_URL, "admin")} />
-          <NavButton label="Health" hotkey="H" accent={theme.ok} onActivate={() => setHealthOpen(true)} />
-          <NavButton label="Database" hotkey="d" accent={theme.accent} onActivate={() => setDbOpen(true)} />
+          <NavButton
+            label="Health"
+            hotkey="H"
+            accent={theme.ok}
+            onActivate={() => setHealthOpen(true)}
+          />
+          <NavButton
+            label="Database"
+            hotkey="d"
+            accent={theme.accent}
+            onActivate={() => setDbOpen(true)}
+          />
           <NavButton label="Restart" hotkey="r" accent={theme.warn} onActivate={restartAll} />
-          <NavButton label="Logs" hotkey="l" onActivate={() => setLogsOpen((v) => (v === "none" ? "be" : "none"))} />
+          <NavButton
+            label="Logs"
+            hotkey="l"
+            onActivate={() => setLogsOpen((v) => (v === "none" ? "be" : "none"))}
+          />
           <NavButton label="Help" hotkey="?" onActivate={() => setShowHelp((v) => !v)} />
           <NavButton label="Quit" hotkey="q" accent={theme.err} onActivate={exitClean} />
         </box>
@@ -654,8 +720,13 @@ function App() {
           onRestart={() => (logsOpen() === "be" ? restartBackend() : restartFrontend())}
           onClear={() => {
             const w = logsOpen();
-            if (w === "be") { setBeLogs([]); flash("backend logs cleared"); }
-            else if (w === "fe") { setFeLogs([]); flash("frontend logs cleared"); }
+            if (w === "be") {
+              setBeLogs([]);
+              flash("backend logs cleared");
+            } else if (w === "fe") {
+              setFeLogs([]);
+              flash("frontend logs cleared");
+            }
           }}
           onSave={saveBundle}
           onCopy={async () => {
@@ -713,20 +784,46 @@ function App() {
           <text fg={theme.textMuted} selectable={false}>
             ───────────────────────────────────
           </text>
-          <text fg={theme.text} selectable={false}>click any button — or use the hotkey shown</text>
+          <text fg={theme.text} selectable={false}>
+            click any button — or use the hotkey shown
+          </text>
           <box height={1} />
-          <text fg={theme.text} selectable={false}>o            open frontend (localhost:4321)</text>
-          <text fg={theme.text} selectable={false}>a            open admin panel</text>
-          <text fg={theme.text} selectable={false}>H            toggle health overlay (live ping)</text>
-          <text fg={theme.text} selectable={false}>d            toggle database editor overlay</text>
-          <text fg={theme.text} selectable={false}>r            restart both services</text>
-          <text fg={theme.text} selectable={false}>l            cycle logs overlay (BE → FE → off)</text>
-          <text fg={theme.text} selectable={false}>k            clear focused logs</text>
-          <text fg={theme.text} selectable={false}>s            save support bundle (in logs view)</text>
-          <text fg={theme.text} selectable={false}>tab          switch BE/FE in logs overlay</text>
-          <text fg={theme.text} selectable={false}>? / h        toggle this help</text>
-          <text fg={theme.text} selectable={false}>esc          close any overlay</text>
-          <text fg={theme.text} selectable={false}>q / ctrl-c   quit</text>
+          <text fg={theme.text} selectable={false}>
+            o open frontend (localhost:4321)
+          </text>
+          <text fg={theme.text} selectable={false}>
+            a open admin panel
+          </text>
+          <text fg={theme.text} selectable={false}>
+            H toggle health overlay (live ping)
+          </text>
+          <text fg={theme.text} selectable={false}>
+            d toggle database editor overlay
+          </text>
+          <text fg={theme.text} selectable={false}>
+            r restart both services
+          </text>
+          <text fg={theme.text} selectable={false}>
+            l cycle logs overlay (BE → FE → off)
+          </text>
+          <text fg={theme.text} selectable={false}>
+            k clear focused logs
+          </text>
+          <text fg={theme.text} selectable={false}>
+            s save support bundle (in logs view)
+          </text>
+          <text fg={theme.text} selectable={false}>
+            tab switch BE/FE in logs overlay
+          </text>
+          <text fg={theme.text} selectable={false}>
+            ? / h toggle this help
+          </text>
+          <text fg={theme.text} selectable={false}>
+            esc close any overlay
+          </text>
+          <text fg={theme.text} selectable={false}>
+            q / ctrl-c quit
+          </text>
           <text fg={theme.textMuted} selectable={false}>
             ───────────────────────────────────
           </text>
@@ -760,37 +857,70 @@ function HealthOverlay(props: {
     <box flexDirection="column" gap={0} paddingTop={1}>
       <box flexDirection="row" gap={2}>
         <StatusDot status={p.status} />
-        <text fg={p.accent} attributes={TextAttributes.BOLD} selectable={false}>{p.label}</text>
-        <text fg={theme.textDim} selectable={false}>{p.url}</text>
+        <text fg={p.accent} attributes={TextAttributes.BOLD} selectable={false}>
+          {p.label}
+        </text>
+        <text fg={theme.textDim} selectable={false}>
+          {p.url}
+        </text>
       </box>
       <Show
         when={p.health() !== null}
-        fallback={<text fg={theme.textMuted} selectable={false}>  no probe yet — first ping after 3s</text>}
+        fallback={
+          <text fg={theme.textMuted} selectable={false}>
+            {" "}
+            no probe yet — first ping after 3s
+          </text>
+        }
       >
         <box flexDirection="row" gap={2}>
-          <text fg={theme.textMuted} selectable={false}>  proc:</text>
-          <text fg={STATUS_FG[p.status()]} selectable={false}>{STATUS_LABEL[p.status()]}</text>
-          <text fg={theme.textMuted} selectable={false}>· http:</text>
+          <text fg={theme.textMuted} selectable={false}>
+            {" "}
+            proc:
+          </text>
+          <text fg={STATUS_FG[p.status()]} selectable={false}>
+            {STATUS_LABEL[p.status()]}
+          </text>
+          <text fg={theme.textMuted} selectable={false}>
+            · http:
+          </text>
           <text
             fg={p.health()!.ok ? theme.ok : theme.err}
             attributes={TextAttributes.BOLD}
             selectable={false}
           >
-            {p.health()!.code === 0 ? "NO RESPONSE" : `${p.health()!.code} ${p.health()!.ok ? "OK" : "DOWN"}`}
+            {p.health()!.code === 0
+              ? "NO RESPONSE"
+              : `${p.health()!.code} ${p.health()!.ok ? "OK" : "DOWN"}`}
           </text>
-          <text fg={theme.textMuted} selectable={false}>· latency:</text>
+          <text fg={theme.textMuted} selectable={false}>
+            · latency:
+          </text>
           <text
-            fg={p.health()!.latency < 100 ? theme.ok : p.health()!.latency < 500 ? theme.warn : theme.err}
+            fg={
+              p.health()!.latency < 100
+                ? theme.ok
+                : p.health()!.latency < 500
+                  ? theme.warn
+                  : theme.err
+            }
             attributes={TextAttributes.BOLD}
             selectable={false}
           >
             {p.health()!.latency}ms
           </text>
-          <text fg={theme.textMuted} selectable={false}>· checked:</text>
-          <text fg={theme.textDim} selectable={false}>{fmtAge(p.health()!.checkedAt)}</text>
+          <text fg={theme.textMuted} selectable={false}>
+            · checked:
+          </text>
+          <text fg={theme.textDim} selectable={false}>
+            {fmtAge(p.health()!.checkedAt)}
+          </text>
         </box>
         <Show when={p.health()!.err !== undefined}>
-          <text fg={theme.err} selectable={false}>  error: {p.health()!.err}</text>
+          <text fg={theme.err} selectable={false}>
+            {" "}
+            error: {p.health()!.err}
+          </text>
         </Show>
       </Show>
     </box>
@@ -813,15 +943,33 @@ function HealthOverlay(props: {
       zIndex={90}
     >
       <box flexDirection="row" gap={2}>
-        <text fg={theme.ok} attributes={TextAttributes.BOLD} selectable={false}>HEALTH MONITOR</text>
+        <text fg={theme.ok} attributes={TextAttributes.BOLD} selectable={false}>
+          HEALTH MONITOR
+        </text>
         <box flexGrow={1} />
-        <text fg={theme.textMuted} selectable={false}>auto-refresh every 5s</text>
+        <text fg={theme.textMuted} selectable={false}>
+          auto-refresh every 5s
+        </text>
         <box width={1} />
         <NavButton label="Close (esc)" hotkey="" accent={theme.err} onActivate={props.onClose} />
       </box>
-      <text fg={theme.border} selectable={false}>────────────────────────────────────</text>
-      <Row label="BACKEND" accent={theme.primary} status={props.beStatus} health={props.beHealth} url={`${BE_URL}/api/health`} />
-      <Row label="FRONTEND" accent={theme.accent} status={props.feStatus} health={props.feHealth} url={FE_URL} />
+      <text fg={theme.border} selectable={false}>
+        ────────────────────────────────────
+      </text>
+      <Row
+        label="BACKEND"
+        accent={theme.primary}
+        status={props.beStatus}
+        health={props.beHealth}
+        url={`${BE_URL}/api/health`}
+      />
+      <Row
+        label="FRONTEND"
+        accent={theme.accent}
+        status={props.feStatus}
+        health={props.feHealth}
+        url={FE_URL}
+      />
       <box height={1} />
       <text fg={theme.textDim} selectable={false}>
         {"latency tier: <100ms ok · <500ms warn · ≥500ms slow"}
@@ -915,16 +1063,24 @@ function DbOverlay(props: { onClose: () => void; flash: (msg: string) => void })
         <NavButton label="Refresh" hotkey="" onActivate={refresh} />
         <NavButton label="Close (esc)" hotkey="" accent={theme.err} onActivate={props.onClose} />
       </box>
-      <text fg={theme.border} selectable={false}>────────────────────────────────────</text>
+      <text fg={theme.border} selectable={false}>
+        ────────────────────────────────────
+      </text>
 
       <Show when={error() !== null}>
-        <text fg={theme.err} selectable={false}>error: {error()}</text>
+        <text fg={theme.err} selectable={false}>
+          error: {error()}
+        </text>
       </Show>
 
       <box flexDirection="row" flexGrow={1} gap={1}>
         <box flexDirection="column" width="22%" flexShrink={0}>
-          <text fg={theme.textMuted} selectable={false}>TABLES</text>
-          <text fg={theme.border} selectable={false}>──────────────</text>
+          <text fg={theme.textMuted} selectable={false}>
+            TABLES
+          </text>
+          <text fg={theme.border} selectable={false}>
+            ──────────────
+          </text>
           <scrollbox flexGrow={1} viewportOptions={{ paddingRight: 0 }}>
             <For each={tables()}>
               {(t) => (
@@ -956,17 +1112,28 @@ function DbOverlay(props: { onClose: () => void; flash: (msg: string) => void })
                 page {page() + 1}/{totalPages()} · {total()} rows total
               </text>
               <box flexGrow={1} />
-              <NavButton label="← prev" hotkey="" onActivate={() => loadTable(active()!, Math.max(0, page() - 1))} />
-              <NavButton label="next →" hotkey="" onActivate={() => loadTable(active()!, Math.min(totalPages() - 1, page() + 1))} />
+              <NavButton
+                label="← prev"
+                hotkey=""
+                onActivate={() => loadTable(active()!, Math.max(0, page() - 1))}
+              />
+              <NavButton
+                label="next →"
+                hotkey=""
+                onActivate={() => loadTable(active()!, Math.min(totalPages() - 1, page() + 1))}
+              />
             </box>
-            <text fg={theme.border} selectable={false}>────────────────────────</text>
+            <text fg={theme.border} selectable={false}>
+              ────────────────────────
+            </text>
             <DataTable columns={columns()} rows={rows()} />
           </Show>
         </box>
       </box>
     </box>
   );
-}function TableListItem(props: {
+}
+function TableListItem(props: {
   name: string;
   count: number;
   active: () => boolean;
@@ -992,10 +1159,7 @@ function DbOverlay(props: { onClose: () => void; flash: (msg: string) => void })
         {props.name}
       </text>
       <box flexGrow={1} />
-      <text
-        fg={props.active() ? theme.background : theme.textMuted}
-        selectable={false}
-      >
+      <text fg={props.active() ? theme.background : theme.textMuted} selectable={false}>
         {props.count}
       </text>
     </box>
@@ -1034,11 +1198,7 @@ function DataTable(props: { columns: string[]; rows: Record<string, unknown>[] }
         <box flexDirection="row" flexShrink={0}>
           <For each={props.columns}>
             {(c) => (
-              <text
-                fg={theme.accent}
-                attributes={TextAttributes.BOLD}
-                selectable={false}
-              >
+              <text fg={theme.accent} attributes={TextAttributes.BOLD} selectable={false}>
                 {padRight(c.length > COL_W - 1 ? c.slice(0, COL_W - 1) : c, COL_W)}
               </text>
             )}
@@ -1065,7 +1225,9 @@ function DataTable(props: { columns: string[]; rows: Record<string, unknown>[] }
           )}
         </For>
         <Show when={props.rows.length === 0}>
-          <text fg={theme.textMuted} selectable={false}>(no rows)</text>
+          <text fg={theme.textMuted} selectable={false}>
+            (no rows)
+          </text>
         </Show>
       </box>
     </scrollbox>
@@ -1118,8 +1280,7 @@ function LogRow(props: { line: LogLine }) {
         selectable={false}
       >
         {" "}
-        {LEVEL_LABEL[props.line.level]}
-        {" "}
+        {LEVEL_LABEL[props.line.level]}{" "}
       </text>
       <text fg={theme.text} wrapMode="word">
         {props.line.text}
@@ -1179,12 +1340,26 @@ function LogsOverlay(props: {
     >
       {/* Header — tabs + actions */}
       <box flexDirection="row" gap={1} flexShrink={0} paddingLeft={1} paddingRight={1}>
-        <Tab label="BACKEND" active={() => props.which() === "be"} accent={theme.primary} onActivate={() => props.onSwitch("be")} />
-        <Tab label="FRONTEND" active={() => props.which() === "fe"} accent={theme.accent} onActivate={() => props.onSwitch("fe")} />
+        <Tab
+          label="BACKEND"
+          active={() => props.which() === "be"}
+          accent={theme.primary}
+          onActivate={() => props.onSwitch("be")}
+        />
+        <Tab
+          label="FRONTEND"
+          active={() => props.which() === "fe"}
+          accent={theme.accent}
+          onActivate={() => props.onSwitch("fe")}
+        />
         <box flexGrow={1} />
         <StatusDot status={status} />
-        <text fg={theme.textMuted} selectable={false}>{STATUS_LABEL[status()]}</text>
-        <text fg={theme.textMuted} selectable={false}>· {lines().length} lines</text>
+        <text fg={theme.textMuted} selectable={false}>
+          {STATUS_LABEL[status()]}
+        </text>
+        <text fg={theme.textMuted} selectable={false}>
+          · {lines().length} lines
+        </text>
         <box width={2} />
         <NavButton label="Copy" hotkey="" accent={theme.ok} onActivate={props.onCopy} />
         <NavButton label="Save (s)" hotkey="" accent={theme.ok} onActivate={props.onSave} />
@@ -1194,17 +1369,64 @@ function LogsOverlay(props: {
       </box>
 
       {/* Filter chips row */}
-      <box flexDirection="row" gap={1} flexShrink={0} paddingLeft={1} paddingRight={1} paddingTop={1}>
-        <text fg={theme.textMuted} selectable={false}>filter:</text>
-        <FilterChip label="all" count={lines().length} active={() => filter() === "all"} accent={theme.text} onActivate={() => setFilter("all")} />
-        <FilterChip label="ok" count={counts().ok} active={() => filter() === "ok"} accent={theme.ok} onActivate={() => setFilter("ok")} />
-        <FilterChip label="info" count={counts().info} active={() => filter() === "info"} accent={theme.primary} onActivate={() => setFilter("info")} />
-        <FilterChip label="warn" count={counts().warn} active={() => filter() === "warn"} accent={theme.warn} onActivate={() => setFilter("warn")} />
-        <FilterChip label="err" count={counts().error} active={() => filter() === "error"} accent={theme.err} onActivate={() => setFilter("error")} />
-        <FilterChip label="dbg" count={counts().debug} active={() => filter() === "debug"} accent={theme.off} onActivate={() => setFilter("debug")} />
+      <box
+        flexDirection="row"
+        gap={1}
+        flexShrink={0}
+        paddingLeft={1}
+        paddingRight={1}
+        paddingTop={1}
+      >
+        <text fg={theme.textMuted} selectable={false}>
+          filter:
+        </text>
+        <FilterChip
+          label="all"
+          count={lines().length}
+          active={() => filter() === "all"}
+          accent={theme.text}
+          onActivate={() => setFilter("all")}
+        />
+        <FilterChip
+          label="ok"
+          count={counts().ok}
+          active={() => filter() === "ok"}
+          accent={theme.ok}
+          onActivate={() => setFilter("ok")}
+        />
+        <FilterChip
+          label="info"
+          count={counts().info}
+          active={() => filter() === "info"}
+          accent={theme.primary}
+          onActivate={() => setFilter("info")}
+        />
+        <FilterChip
+          label="warn"
+          count={counts().warn}
+          active={() => filter() === "warn"}
+          accent={theme.warn}
+          onActivate={() => setFilter("warn")}
+        />
+        <FilterChip
+          label="err"
+          count={counts().error}
+          active={() => filter() === "error"}
+          accent={theme.err}
+          onActivate={() => setFilter("error")}
+        />
+        <FilterChip
+          label="dbg"
+          count={counts().debug}
+          active={() => filter() === "debug"}
+          accent={theme.off}
+          onActivate={() => setFilter("debug")}
+        />
       </box>
 
-      <text fg={theme.border} selectable={false}>────────────────────────────────────</text>
+      <text fg={theme.border} selectable={false}>
+        ────────────────────────────────────
+      </text>
 
       <scrollbox
         flexGrow={1}
@@ -1214,9 +1436,7 @@ function LogsOverlay(props: {
         viewportOptions={{ paddingRight: 0 }}
         scrollbarOptions={{ visible: true, showArrows: false }}
       >
-        <For each={visible()}>
-          {(line) => <LogRow line={line} />}
-        </For>
+        <For each={visible()}>{(line) => <LogRow line={line} />}</For>
         <Show when={visible().length === 0}>
           <text fg={theme.textMuted} selectable={false}>
             {lines().length === 0 ? "waiting for output..." : `no ${filter()} entries`}
@@ -1227,7 +1447,12 @@ function LogsOverlay(props: {
   );
 }
 
-function Tab(props: { label: string; active: () => boolean; accent: typeof theme.primary; onActivate: () => void }) {
+function Tab(props: {
+  label: string;
+  active: () => boolean;
+  accent: typeof theme.primary;
+  onActivate: () => void;
+}) {
   return (
     <box
       paddingLeft={2}
