@@ -61,9 +61,7 @@ export async function uploadBufferToCatbox(
     throw new Error("catbox: refusing to upload empty file");
   }
   if (bytes.byteLength > MAX_BYTES) {
-    throw new Error(
-      `catbox: file too large (${bytes.byteLength} > ${MAX_BYTES} bytes)`,
-    );
+    throw new Error(`catbox: file too large (${bytes.byteLength} > ${MAX_BYTES} bytes)`);
   }
   const safeName = sanitizeFilename(filename);
   const userhash = opts.userhash ?? Bun.env.CATBOX_USERHASH ?? "";

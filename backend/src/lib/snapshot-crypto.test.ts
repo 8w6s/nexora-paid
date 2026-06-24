@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { encryptSnapshot, decryptSnapshot, type KeyMaterial } from "./snapshot-crypto.ts";
+import { decryptSnapshot, encryptSnapshot, type KeyMaterial } from "./snapshot-crypto.ts";
 
 const KM: KeyMaterial = {
   licenseSecret: "license-secret-which-is-long-enough-for-test",
@@ -18,7 +18,9 @@ describe("snapshot-crypto", () => {
 
   it("decrypt fails when license-secret changes", () => {
     const enc = encryptSnapshot(Buffer.from("x"), KM);
-    expect(() => decryptSnapshot(enc, { ...KM, licenseSecret: KM.licenseSecret + "tamper" })).toThrow();
+    expect(() =>
+      decryptSnapshot(enc, { ...KM, licenseSecret: KM.licenseSecret + "tamper" }),
+    ).toThrow();
   });
 
   it("decrypt fails when machine-id changes", () => {
@@ -48,8 +50,12 @@ describe("snapshot-crypto", () => {
   });
 
   it("rejects key material that is too short", () => {
-    expect(() => encryptSnapshot(Buffer.from("x"), { licenseSecret: "short", machineId: KM.machineId })).toThrow();
-    expect(() => encryptSnapshot(Buffer.from("x"), { licenseSecret: KM.licenseSecret, machineId: "x" })).toThrow();
+    expect(() =>
+      encryptSnapshot(Buffer.from("x"), { licenseSecret: "short", machineId: KM.machineId }),
+    ).toThrow();
+    expect(() =>
+      encryptSnapshot(Buffer.from("x"), { licenseSecret: KM.licenseSecret, machineId: "x" }),
+    ).toThrow();
   });
 
   it("produces different ciphertexts for same plaintext", () => {

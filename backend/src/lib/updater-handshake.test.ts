@@ -1,5 +1,11 @@
-import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { signRequest, verifyRequest, HEADER_TS, HEADER_NONCE, HEADER_AUTH } from "./updater-handshake.ts";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  HEADER_AUTH,
+  HEADER_NONCE,
+  HEADER_TS,
+  signRequest,
+  verifyRequest,
+} from "./updater-handshake.ts";
 
 const PSK = "x".repeat(64);
 
