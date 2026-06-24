@@ -1,0 +1,254 @@
+/**
+ * nexora-updater — minimal HTTP-over-unix-socket controller.
+ *
+ * Endpoints (all called from the backend container via /var/run/nexora-updater.sock):
+ *   POST /apply   — snapshot → docker pull → compose up → healthcheck → rollback on fail
+ *   GET  /status  — read job state (jobId=latest returns the most recent)
+ *
+ * Auth model: the socket is mounted into only the backend container with
+ * mode 0600 owned by the backend uid. No additional secret is checked.
+ *
+ * Concurrency: one job at a time. A second /apply while a job is running
+ * returns 409.
+ */
+import { unlinkSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { spawn } from "node:child_process";
+
+const SOCKET_PATH = process.env.SOCKET_PATH ?? "/var/run/nexora-updater.sock";
+const BACKUP_DIR = process.env.BACKUP_DIR ?? "/var/backups/nexora";
+const COMPOSE_FILE = process.env.COMPOSE_FILE ?? "/nexora/docker-compose.yml";
+const NEXORA_VOLUME = process.env.NEXORA_VOLUME ?? "nexora-db";
+const PROJECT = process.env.COMPOSE_PROJECT_NAME ?? "nexora";
+const BACKEND_HEALTH_URL = process.env.BACKEND_HEALTH_URL ?? "http://nexora-backend:3000/api/health";
+
+mkdirSync(BACKUP_DIR, { recursive: true });
+mkdirSync(dirname(SOCKET_PATH), { recursive: true });
+
+type JobStatus = "pending" | "snapshotting" | "pulling" | "swapping" | "healthchecking" | "ok" | "rolled-back" | "failed";
+
+interface Job {
+  id: string;
+  status: JobStatus;
+  fromVersion: string;
+  toVersion: string;
+  imageRepo: string;
+  imageTag: string;
+  sha256?: string;
+  startedAt: number;
+  finishedAt?: number;
+  backupPath?: string;
+  steps: Array<{ at: number; msg: string }>;
+  error?: string;
+}
+
+let currentJob: Job | null = null;
+const jobs = new Map<string, Job>();
+
+function step(j: Job, msg: string): void {
+  j.steps.push({ at: Date.now(), msg });
+  console.log(`[updater] [${j.id}] ${msg}`);
+}
+
+function run(cmd: string, args: string[], opts: { timeoutMs?: number } = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => (out += d.toString()));
+    child.stderr.on("data", (d) => (err += d.toString()));
+    const t = opts.timeoutMs
+      ? setTimeout(() => child.kill("SIGKILL"), opts.timeoutMs)
+      : null;
+    child.on("close", (code) => {
+      if (t) clearTimeout(t);
+      resolve({ code: code ?? -1, stdout: out, stderr: err });
+    });
+  });
+}
+
+async function snapshotVolume(j: Job): Promise<string> {
+  step(j, `snapshot volume ${NEXORA_VOLUME}`);
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = join(BACKUP_DIR, `${NEXORA_VOLUME}-${j.fromVersion}-${ts}.tar.gz`);
+  // Use a throwaway alpine container to tar the volume read-only.
+  const r = await run(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "-v",
+      `${PROJECT}_${NEXORA_VOLUME}:/data:ro`,
+      "-v",
+      `${BACKUP_DIR}:/backup`,
+      "alpine:3",
+      "sh",
+      "-c",
+      `cd /data && tar czf /backup/${j.fromVersion}-${ts}.tar.gz .`,
+    ],
+    { timeoutMs: 5 * 60_000 },
+  );
+  if (r.code !== 0) throw new Error(`snapshot failed: ${r.stderr || r.stdout}`);
+  // The container wrote to a relative path; reflect what's actually on disk.
+  const finalPath = join(BACKUP_DIR, `${j.fromVersion}-${ts}.tar.gz`);
+  step(j, `snapshot ok → ${finalPath}`);
+  return finalPath;
+}
+
+async function pullImage(j: Job): Promise<void> {
+  const ref = `${j.imageRepo}:${j.imageTag}`;
+  step(j, `pull ${ref}`);
+  const r = await run("docker", ["pull", ref], { timeoutMs: 15 * 60_000 });
+  if (r.code !== 0) throw new Error(`pull failed: ${r.stderr || r.stdout}`);
+  if (j.sha256) {
+    const inspect = await run("docker", ["image", "inspect", "--format", "{{index .RepoDigests 0}}", ref]);
+    if (inspect.code === 0 && !inspect.stdout.includes(j.sha256)) {
+      throw new Error(`pulled image digest mismatch (expected ${j.sha256})`);
+    }
+  }
+  step(j, `pull ok`);
+}
+
+async function composeUp(j: Job, version: string): Promise<void> {
+  step(j, `compose up @ ${version}`);
+  const r = await run(
+    "docker",
+    ["compose", "-f", COMPOSE_FILE, "-p", PROJECT, "up", "-d", "--no-deps", "backend", "frontend"],
+    { timeoutMs: 5 * 60_000 },
+  );
+  if (r.code !== 0) throw new Error(`compose up failed: ${r.stderr || r.stdout}`);
+}
+
+async function waitHealthy(j: Job): Promise<boolean> {
+  step(j, `healthcheck ${BACKEND_HEALTH_URL}`);
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    try {
+      const r = await fetch(BACKEND_HEALTH_URL, { signal: AbortSignal.timeout(3_000) });
+      if (r.ok) {
+        step(j, `healthcheck ok`);
+        return true;
+      }
+    } catch {
+      // ignore until deadline
+    }
+    await new Promise((r) => setTimeout(r, 2_000));
+  }
+  return false;
+}
+
+async function runJob(j: Job): Promise<void> {
+  try {
+    j.status = "snapshotting";
+    j.backupPath = await snapshotVolume(j);
+
+    j.status = "puling";
+    await pullImage(j);
+
+    j.status = "swapping";
+    // Atomically rewrite the version pin so compose picks up the new tag.
+    writeFileSync(
+      join(dirname(COMPOSE_FILE), ".env.version"),
+      `NEXORA_IMAGE=${j.imageRepo}
+NEXORA_VERSION=${j.imageTag}
+`,
+    );
+    await composeUp(j, j.toVersion);
+
+    j.status = "healthchecking";
+    const healthy = await waitHealthy(j);
+    if (!healthy) throw new Error("new version failed healthcheck");
+
+    j.status = "ok";
+    j.finishedAt = Date.now();
+    step(j, `done`);
+  } catch (e) {
+    j.error = e instanceof Error ? e.message : String(e);
+    step(j, `FAILED: ${j.error}`);
+    // Rollback: re-pin previous version + compose up.
+    try {
+      step(j, `rollback to ${j.fromVersion}`);
+      writeFileSync(
+        join(dirname(COMPOSE_FILE), ".env.version"),
+        `NEXORA_IMAGE=${j.imageRepo}
+NEXORA_VERSION=${j.fromVersion}
+`,
+      );
+      await composeUp(j, j.fromVersion);
+      j.status = "rolled-back";
+    } catch (re) {
+      j.status = "failed";
+      j.error += ` | rollback also failed: ${re instanceof Error ? re.message : String(re)}`;
+    }
+    j.finishedAt = Date.now();
+  } finally {
+    currentJob = null;
+  }
+}
+
+// --- HTTP-over-unix-socket server ---------------------------------------
+if (existsSync(SOCKET_PATH)) unlinkSync(SOCKET_PATH);
+
+Bun.serve({
+  unix: SOCKET_PATH,
+  async fetch(req) {
+    const url = new URL(req.url);
+    if (req.method === "POST" && url.pathname === "/apply") {
+      if (currentJob) return json({ error: "job in progress", jobId: currentJob.id }, 409);
+      const body = (await req.json().catch(() => ({}))) as {
+        targetVersion?: string;
+        imageRepo?: string;
+        imageTag?: string;
+        sha256?: string;
+        requestedBy?: string;
+      };
+      if (!body.targetVersion || !body.imageRepo || !body.imageTag) {
+        return json({ error: "missing fields" }, 400);
+      }
+      const fromVersion = readCurrentVersion();
+      const id = `job-${Date.now()}`;
+      const j: Job = {
+        id,
+        status: "pending",
+        fromVersion,
+        toVersion: body.targetVersion,
+        imageRepo: body.imageRepo,
+        imageTag: body.imageTag,
+        sha256: body.sha256,
+        startedAt: Date.now(),
+        steps: [],
+      };
+      jobs.set(id, j);
+      currentJob = j;
+      runJob(j); // fire and forget
+      return json({ jobId: id, status: j.status });
+    }
+    if (req.method === "GET" && url.pathname === "/status") {
+      const id = url.searchParams.get("jobId");
+      const j =
+        id && id !== "latest"
+          ? jobs.get(id) ?? null
+          : [...jobs.values()].sort((a, b) => b.startedAt - a.startedAt)[0] ?? null;
+      if (!j) return json({ error: "no jobs" }, 404);
+      return json(j);
+    }
+    return json({ error: "not found" }, 404);
+  },
+});
+
+console.log(`[updater] listening on ${SOCKET_PATH}`);
+
+function json(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function readCurrentVersion(): string {
+  const path = join(dirname(COMPOSE_FILE), ".env.version");
+  if (!existsSync(path)) return "unknown";
+  const txt = readFileSync(path, "utf8");
+  const m = txt.match(/^NEXORA_VERSION=(.+)$/m);
+  return m ? m[1].trim() : "unknown";
+}

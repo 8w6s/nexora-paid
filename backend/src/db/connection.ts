@@ -75,4 +75,37 @@ function runMigrations(db: Database): void {
 
 runMigrations(sqlite);
 
+// Downgrade guard: refuse to boot if DB was migrated by a newer build.
+// Compares highest applied migration index against SCHEMA_VERSION baked in.
+function assertNoDowngrade(database: Database): void {
+  try {
+    const mod = require("../lib/app-version.ts");
+    const schemaVersion = mod.SCHEMA_VERSION as number;
+    const rows = database.query("SELECT filename FROM _migrations").all() as Array<{
+      filename: string;
+    }>;
+    let dbMax = 0;
+    for (const r of rows) {
+      const m = r.filename.match(/^(\d+)_/);
+      if (m) {
+        const n = Number(m[1]);
+        if (n > dbMax) dbMax = n;
+      }
+    }
+    if (dbMax > schemaVersion) {
+      console.error(
+        `[boot] FATAL: DB migrated to schema ${dbMax} but this build only knows up to ${schemaVersion}.`,
+      );
+      console.error(
+        "[boot] Likely cause: downgraded Docker image after an update. Pull latest image or restore pre-update backup.",
+      );
+      process.exit(1);
+    }
+  } catch (e) {
+    if (Bun.env.NEXORA_DEBUG_BOOT) console.warn("[boot] downgrade guard skipped:", e);
+  }
+}
+
+assertNoDowngrade(sqlite);
+
 export const db = drizzle(sqlite, { schema });

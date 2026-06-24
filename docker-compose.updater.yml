@@ -1,0 +1,43 @@
+# Overlay file for in-place updates. Combine with the base compose:
+#   docker compose -f docker-compose.yml -f docker-compose.updater.yml up -d
+#
+# This adds:
+#   - the `updater` service (host-side controller)
+#   - the unix socket bind-mount into the backend
+#   - version pin loaded from .env.version (rewritten by the updater on apply)
+services:
+  backend:
+    image: "${NEXORA_IMAGE:-ghcr.io/8w6s/nexora-backend}:${NEXORA_VERSION:-latest}"
+    build: null
+    volumes:
+      - nexora-db:/app/data
+      - updater-sock:/var/run/nexora-updater-host
+
+  frontend:
+    image: "${NEXORA_IMAGE_FRONTEND:-ghcr.io/8w6s/nexora-frontend}:${NEXORA_VERSION:-latest}"
+    build: null
+
+  updater:
+    image: "ghcr.io/8w6s/nexora-updater:${NEXORA_UPDATER_VERSION:-latest}"
+    restart: unless-stopped
+    environment:
+      SOCKET_PATH: /var/run/nexora-updater/sock
+      COMPOSE_FILE: /nexora/docker-compose.yml
+      COMPOSE_PROJECT_NAME: "${COMPOSE_PROJECT_NAME:-nexora}"
+      NEXORA_VOLUME: nexora-db
+      BACKEND_HEALTH_URL: http://backend:3000/api/health
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/nexora:ro
+      - updater-sock:/var/run/nexora-updater
+      - nexora-backups:/var/backups/nexora
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 64
+
+volumes:
+  updater-sock:
+  nexora-backups:

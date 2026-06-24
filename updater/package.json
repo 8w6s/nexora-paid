@@ -1,0 +1,9 @@
+{
+  "name": "nexora-updater",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.ts",
+  "scripts": {
+    "start": "bun server.ts"
+  }
+}

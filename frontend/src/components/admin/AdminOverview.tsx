@@ -6,6 +6,7 @@ import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { AdminLicenseCard } from "./AdminLicenseCard";
+import { AdminUpdateCard } from "./AdminUpdateCard";
 
 interface RecentOrder {
   id: string;
@@ -103,6 +104,7 @@ export const AdminOverview: React.FC = () => {
   return (
     <div className="ov">
       <AdminLicenseCard />
+      <AdminUpdateCard />
       <div className="cards">
         <div className="stat card">
           <span>Revenue (paid)</span>
