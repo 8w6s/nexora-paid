@@ -102,6 +102,58 @@ else
 fi
 
 echo ""
+echo "=== v1.1 — Updater handshake + tenant + GHCR ==="
+# Updater PSK — required for backend ↔ updater HMAC handshake.
+PSK_LEN=$(docker compose -f "$COMPOSE_FILE" exec -T backend sh -c 'echo -n "${NEXORA_UPDATER_PSK:-}" | wc -c' 2>/dev/null | tr -d '\r ' || echo "0")
+if [ "$PSK_LEN" -ge 32 ]; then
+  pass "NEXORA_UPDATER_PSK length=$PSK_LEN (≥32)"
+elif [ "$PSK_LEN" -gt 0 ]; then
+  fail "NEXORA_UPDATER_PSK length=$PSK_LEN — need ≥32 chars (generate: openssl rand -hex 32)"
+else
+  warn "NEXORA_UPDATER_PSK not set — in-place /api/admin/update/apply will refuse"
+fi
+
+# Same PSK MUST be present in the updater container (otherwise verify fails).
+UPDATER_CID=$(docker compose -f "$COMPOSE_FILE" ps -q updater 2>/dev/null || true)
+if [ -n "$UPDATER_CID" ]; then
+  pass "updater container running ($UPDATER_CID)"
+  UPDATER_PSK_LEN=$(docker compose -f "$COMPOSE_FILE" exec -T updater sh -c 'echo -n "${NEXORA_UPDATER_PSK:-}" | wc -c' 2>/dev/null | tr -d '\r ' || echo "0")
+  if [ "$UPDATER_PSK_LEN" = "$PSK_LEN" ] && [ "$PSK_LEN" -ge 32 ]; then
+    pass "updater PSK matches backend length=$UPDATER_PSK_LEN"
+  elif [ "$UPDATER_PSK_LEN" -gt 0 ] && [ "$UPDATER_PSK_LEN" != "$PSK_LEN" ]; then
+    fail "updater PSK length differs from backend ($UPDATER_PSK_LEN vs $PSK_LEN) — handshakes WILL fail"
+  fi
+else
+  warn "updater container not running — auto-update unavailable (manual docker compose still works)"
+fi
+
+# Tenant layout — license.lic + machine-id must exist in /data/app for
+# encrypted snapshots to derive the right key.
+LICENSE_PRESENT=$(docker compose -f "$COMPOSE_FILE" exec -T backend sh -c '[ -f /data/app/license.lic ] && echo y || echo n' 2>/dev/null | tr -d '\r ' || echo "n")
+if [ "$LICENSE_PRESENT" = "y" ]; then
+  pass "/data/app/license.lic present"
+else
+  warn "/data/app/license.lic missing — snapshots will fall back to plain .tar.gz (no encryption)"
+fi
+
+MACHINE_ID_LEN=$(docker compose -f "$COMPOSE_FILE" exec -T backend sh -c 'test -f /data/app/machine-id && wc -c < /data/app/machine-id || echo 0' 2>/dev/null | tr -d '\r ' || echo "0")
+if [ "$MACHINE_ID_LEN" -ge 8 ]; then
+  pass "/data/app/machine-id present (${MACHINE_ID_LEN}B)"
+else
+  warn "/data/app/machine-id missing — ensureMachineId() will mint on next boot (snapshots from before that boot become undecryptable)"
+fi
+
+# GHCR token — needed when the updater pulls a per-customer private image.
+GHCR_TOKEN_LEN=$(docker compose -f "$COMPOSE_FILE" exec -T backend sh -c 'echo -n "${GHCR_TOKEN:-${NEXORA_GHCR_TOKEN:-}}" | wc -c' 2>/dev/null | tr -d '\r ' || echo "0")
+if [ "$GHCR_TOKEN_LEN" -ge 20 ]; then
+  pass "GHCR_TOKEN length=$GHCR_TOKEN_LEN (set)"
+elif [ "$GHCR_TOKEN_LEN" -gt 0 ]; then
+  warn "GHCR_TOKEN length=$GHCR_TOKEN_LEN — looks too short for a real PAT (≥20 expected)"
+else
+  warn "GHCR_TOKEN not set — public-image customers OK; private per-customer image customers MUST set this"
+fi
+
+echo ""
 echo "=== Integrity / License (via /api/admin/system/health) ==="
 if [ -n "$ADMIN_COOKIE" ]; then
   RESP=$(curl -s --max-time 10 -H "Cookie: $ADMIN_COOKIE" "$HEALTH_URL" || echo "")

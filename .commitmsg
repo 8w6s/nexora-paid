@@ -1,37 +1,27 @@
-feat(scripts): nxs-restore-drill — read-only encrypted-snapshot drill
+docs(go-live): add v1.1 PSK + tenant + GHCR pre-flight checks
 
-Roadmap item 18. Counterpart to scripts/nexora-restore-drill.sh
-(which only handles plain .db backups). Verifies an encrypted .nxs
-snapshot can actually be decrypted on the customer's machine BEFORE
-the disaster — because the encrypted-snapshot path is the one the
-customer will actually run on update failure.
+Roadmap item 19. Extends scripts/nexora-go-live-check.sh with the
+v1.1 secrets/state surface so the operator can't flip DNS with a
+half-configured updater path.
 
-scripts/nexora-nxs-restore-drill.ts
-  bun run scripts/nexora-nxs-restore-drill.ts <snapshot.nxs>
-    [--license-secret=<hex>] [--machine-id=<id>]
-    [--extract=<out.tar.gz>]
+New checks:
+  - NEXORA_UPDATER_PSK length on backend (≥32 chars, openssl rand
+    -hex 32 hint surfaced on fail).
+  - NEXORA_UPDATER_PSK on the updater container too, and that the
+    two lengths match — a length mismatch guarantees handshake
+    failure, surface as FAIL not WARN.
+  - updater container running check (warn-only — auto-update is
+    optional; manual docker compose still works without it).
+  - /data/app/license.lic presence (warn — encrypted snapshots
+    fall back to plain tar.gz without it).
+  - /data/app/machine-id presence + size (warn — ensureMachineId()
+    will mint on next boot but pre-existing snapshots break).
+  - GHCR_TOKEN / NEXORA_GHCR_TOKEN length (warn — only required
+    for private per-customer image customers).
 
-Behavior:
-  - Read-only by default. With --extract, writes plaintext tar.gz
-    (which the operator can then expand into a scratch volume to
-    practice the full restore).
-  - license-secret + machine-id resolve from flag → env → file in
-    that order (license.lic, /etc/machine-id, /data/app/machine-id).
-  - Pre-checks NXS1 magic before key derivation (cheap fail).
-  - Verifies plaintext starts with gzip magic (0x1f 0x8b) — catches
-    cross-version drift where the key matches but the format doesn't.
+Severity choices:
+  - PSK mismatch is FAIL: handshakes break silently if lengths drift.
+  - Everything else WARN: degraded but operational paths.
 
-Exit codes:
-  0 PASS — decrypts, auth-tag verifies, plaintext is tar.gz
-  1 FATAL — args / file missing / required material not found
-  2 FAIL — wrong magic / decrypt failed (wrong key / wrong machine
-            / tampering)
-  3 FAIL — decrypts but plaintext format wrong (cross-version drift)
-
-Why a TS script and not a shell wrapper:
-  - The crypto matches backend/src/lib/snapshot-crypto.ts exactly
-    by IMPORTING from it. A bash + openssl reimpl would drift the
-    moment we tweak HKDF salt/info strings.
-
-Reuses existing lib code — no new prod-path surface, no test churn.
-Build still 510 modules. Lib tests 88/88 untouched.
+Syntax: bash -n passes.
+No prod code touched — pure script + docs surface.
