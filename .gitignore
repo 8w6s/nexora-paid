@@ -57,4 +57,32 @@ CONTEXT.md
 issued/
 *.license
 
+# Signed integrity manifest — built per-customer per-release by
+# scripts/build-manifest.ts, shipped alongside the Paid tarball. Never
+# committed: each customer build has a unique signature, and committing
+# one would leak the build_id + customer_id watermark of whichever
+# customer's manifest happened to be at the dev machine.
+/manifest.signed.json
+/manifest.*.signed.json
+
 .dev-logs/
+
+# Maintainer-only scratch dirs / reference assets — never shipped
+NOTES.md
+SELLAUTH_REFERENCE.md
+mimocode-src/
+.mimocode/
+ss/
+nexora.zip
+*.zip
+tree.txt
+screenshot_*.png
+sellauth_*.png
+
+# Stray empty marker files from interactive shells
+cd
+backend/Check
+backend/Show
+
+# TUI runtime logs
+scripts/tui-*.log
