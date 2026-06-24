@@ -1,19 +1,39 @@
+import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { db } from "../db/connection.ts";
 import { adminActions } from "../db/schema.ts";
+import { recordAudit } from "./audit-log.ts";
 
 // Best-effort admin audit log. A logging failure must never break the action it records.
+//
+// Writes to BOTH stores so the unified DB-Editor audit pane sees admin-2fa,
+// blocklist, license, and update events alongside SQL-console mutations.
+// adminActions stays primary for the legacy Admin → Activity Log UI; audit_log
+// is the new unified surface (SQL pane, deep filtering, append-only contract).
 export async function logAdminAction(
   adminEmail: string,
   action: string,
   detail?: string,
+  meta?: { ip?: string; target?: string; success?: boolean },
 ): Promise<void> {
   try {
     await db
       .insert(adminActions)
       .values({ id: randomUUID(), adminEmail, action, detail: detail ?? null });
   } catch {
-    // swallow — audit logging is non-critical
+    // swallow — legacy audit loging is non-critical
+  }
+  try {
+    recordAudit((db as unknown as { $client: Database }).$client, {
+      actorEmail: adminEmail,
+      actorIp: meta?.ip ?? null,
+      action,
+      target: meta?.target ?? null,
+      statement: detail ?? null,
+      success: meta?.success ?? true,
+    });
+  } catch {
+    // swallow — unified audit_log mirror is best-effort
   }
 }
 
@@ -35,9 +55,6 @@ export async function logAuthEvent(
     | "logout"
     | "register.dup"
     | "login.banned"
-    // Password-reset flow (customer self-service). throttled/miss never
-    // confirm the email exists — they're surfaced anyway so an operator
-    // grepping the audit log can see probing patterns.
     | "forgot.sent"
     | "forgot.miss"
     | "forgot.throttled"
@@ -47,29 +64,14 @@ export async function logAuthEvent(
     | "reset.expired"
     | "reset.bad_token_shape"
     | "reset.user_gone"
-    // Logged-in self-service password change (customer-side counterpart of
-    // the AdminTeam rotation card). bad_current covers "current password
-    // didn't match" so probing patterns surface in the activity log.
     | "change_password.ok"
     | "change_password.bad_current"
-    // Customer self-service email change (logged-in flow). same_email
-    // and email_taken don't actually rotate so they're "neutral"; the
-    // ok event is "warn" because changing the primary key on an account
-    // is worth seeing in the log.
     | "change_email.ok"
     | "change_email.bad_current"
     | "change_email.same"
     | "change_email.taken"
-    // Customer self-service account deletion (GDPR Art. 17 right to
-    // erasure). Soft-delete to preserve order/tax history; PII is
-    // scrubbed from the users row and the original email is fred up
-    // so the customer can re-register fresh later.
     | "account.delete.ok"
     | "account.delete.bad_current"
-    // Customer self-service 2FA enrollment lifecycle (mirrors the
-    // admin 2fa.* keys but scoped to /api/auth/2fa). recover is the
-    // most-sensitive event because a backup code fully bypasses the
-    // second factor; bad_code / bad_backup surface probing patterns.
     | "customer_2fa.enable"
     | "customer_2fa.disable"
     | "customer_2fa.recover"

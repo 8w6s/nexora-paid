@@ -1,21 +1,27 @@
-test(crypto): expand handshake + snapshot-crypto edge coverage
+feat(audit): mirror logAdminAction into unified audit_log table
 
-Roadmap item 13 (partial — tenant jail already well-covered, this
-commit thickens the handshake + snapshot-crypto suites).
+Roadmap item 14 (partial — admin-side routes already call logAdminAction;
+this commit threads them through audit_log so the DB-Editor audit pane
+sees them too).
 
-handshake (+5 cases, 7 -> 12):
-  - consecutive sign calls produce distinct nonces (replay defense
-    sanity check)
-  - HMAC differs across bodies (binding-to-body sanity)
-  - 1 MB body verifies without truncation
-  - non-numeric ts rejected (parseInt NaN path)
-  - future skew >30s rejected symmetrically with past skew
+backend/src/lib/audit.ts → logAdminAction()
+  - Existing adminActions insert preserved as primary (legacy Activity
+    Log UI still reads from there).
+  - New: mirror every call to audit_log via recordAudit(), with the
+    optional meta = { ip, target, success } passed through to the
+    unified record.
+  - Both writes are independent try/catch — a failure in one doesn't
+    poison the other (audit logging never breaks the action it records).
 
-snapshot-crypto (+4 cases, 9 -> 13):
-  - empty buffer round-trips (boundary)
-  - 1 MB payload round-trips (chunked AEAD path)
-  - tampered nonce rejected (GCM auth failure surface)
-  - tampered magic rejected with /magic/ error code (early reject)
+Optional meta param is backward-compatible: every existing call site
+keeps working without changes. Routes that want to surface IP/target
+in the unified pane can opt in at their leisure.
 
-Total lib tests now 80/0 (was 71/0).
-Build: 510 modules. No production code touched.
+Why mirror instead of refactor everything onto recordAudit?
+  - Switching the legacy Activity Log UI is a separate concern.
+  - adminActions has its own pagination/search shaped for that UI;
+    audit_log is shaped for SQL-style filtering.
+  - Two tables, one write call — small redundancy cost, no risk of
+    breaking the legacy admin dashboard.
+
+Build: 510 modules. 80/80 lib tests pass.
