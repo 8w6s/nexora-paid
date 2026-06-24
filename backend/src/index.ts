@@ -30,6 +30,7 @@ import { setupRoutes } from "./routes/setup.ts";
 import { adminTicketRoutes, ticketRoutes } from "./routes/tickets.ts";
 import { adminDbRoutes } from "./routes/admin-db.ts";
 import { adminTablesRoutes } from "./routes/admin-tables.ts";
+import { healthRoutes } from "./routes/health.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 
@@ -217,7 +218,7 @@ const baseApp = new Elysia()
     }
   })
 
-  .get("/api/health", () => ({ ok: true }))
+  .use(healthRoutes)
 
   // Client error sink. Hardened post-audit:
   //  1) Per-IP rate limit (30/min) so a hostile client can't drown the log
