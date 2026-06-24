@@ -4,6 +4,7 @@ import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { APP_VERSION } from "../lib/app-version.ts";
 import { signRequest } from "../lib/updater-handshake.ts";
+import { ensureMachineId, readLicenseSecret } from "../lib/tenant.ts";
 
 const FILESERVER_URL =
   Bun.env.NEXORA_FILESERVER_URL ??
@@ -147,12 +148,25 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
         };
       }
       try {
+        // Try to attach key material so the updater can encrypt the snapshot.
+        // Missing license/machine-id is non-fatal: snapshot will be written
+        // as plain .tar.gz and a warning logged.
+        let licenseSecret: string | undefined;
+        let machineId: string | undefined;
+        try {
+          licenseSecret = readLicenseSecret();
+          machineId = ensureMachineId();
+        } catch (e) {
+          console.warn("[admin-update] snapshot will be unencrypted:", e);
+        }
         const bodyStr = JSON.stringify({
           targetVersion: manifest.latest,
           imageRepo: manifest.imageRepo,
           imageTag: manifest.imageTag,
           sha256: manifest.sha256,
           requestedBy: user?.email ?? "admin",
+          licenseSecret,
+          machineId,
         });
         let authHeaders: Record<string, string>;
         try {

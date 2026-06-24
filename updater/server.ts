@@ -15,6 +15,7 @@ import { unlinkSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "
 import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 import { verifyRequest } from "./handshake.ts";
+import { encryptFileInPlace, type KeyMaterial } from "./snapshot-crypto.ts";
 
 const SOCKET_PATH = process.env.SOCKET_PATH ?? "/var/run/nexora-updater.sock";
 const BACKUP_DIR = process.env.BACKUP_DIR ?? "/var/backups/nexora";
@@ -68,32 +69,32 @@ function run(cmd: string, args: string[], opts: { timeoutMs?: number } = {}): Pr
   });
 }
 
-async function snapshotVolume(j: Job): Promise<string> {
+async function snapshotVolume(j: Job, keyMaterial: KeyMaterial | null): Promise<string> {
   step(j, `snapshot volume ${NEXORA_VOLUME}`);
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupPath = join(BACKUP_DIR, `${NEXORA_VOLUME}-${j.fromVersion}-${ts}.tar.gz`);
-  // Use a throwaway alpine container to tar the volume read-only.
+  const plainName = `${j.fromVersion}-${ts}.tar.gz`;
+  const plainPath = join(BACKUP_DIR, plainName);
   const r = await run(
     "docker",
     [
-      "run",
-      "--rm",
-      "-v",
-      `${PROJECT}_${NEXORA_VOLUME}:/data:ro`,
-      "-v",
-      `${BACKUP_DIR}:/backup`,
-      "alpine:3",
-      "sh",
-      "-c",
-      `cd /data && tar czf /backup/${j.fromVersion}-${ts}.tar.gz .`,
+      "run", "--rm",
+      "-v", `${PROJECT}_${NEXORA_VOLUME}:/data:ro`,
+      "-v", `${BACKUP_DIR}:/backup`,
+      "alpine:3", "sh", "-c",
+      `cd /data && tar czf /backup/${plainName} .`,
     ],
     { timeoutMs: 5 * 60_000 },
   );
   if (r.code !== 0) throw new Error(`snapshot failed: ${r.stderr || r.stdout}`);
-  // The container wrote to a relative path; reflect what's actually on disk.
-  const finalPath = join(BACKUP_DIR, `${j.fromVersion}-${ts}.tar.gz`);
-  step(j, `snapshot ok → ${finalPath}`);
-  return finalPath;
+  if (!keyMaterial) {
+    step(j, `snapshot ok (unencrypted) → ${plainPath}`);
+    return plainPath;
+  }
+  const encPath = join(BACKUP_DIR, `${j.fromVersion}-${ts}.nxs`);
+  step(j, `encrypt snapshot → ${encPath}`);
+  await encryptFileInPlace(plainPath, encPath, keyMaterial);
+  step(j, `snapshot ok (encrypted) → ${encPath}`);
+  return encPath;
 }
 
 async function pullImage(j: Job): Promise<void> {
@@ -166,10 +167,10 @@ async function waitHealthy(j: Job): Promise<boolean> {
   return false;
 }
 
-async function runJob(j: Job): Promise<void> {
+async function runJob(j: Job, km: KeyMaterial | null): Promise<void> {
   try {
     j.status = "snapshotting";
-    j.backupPath = await snapshotVolume(j);
+    j.backupPath = await snapshotVolume(j, km);
 
     j.status = "pulling";
     await pullImage(j);
@@ -240,6 +241,8 @@ Bun.serve({
         imageTag?: string;
         sha256?: string;
         requestedBy?: string;
+        licenseSecret?: string;
+        machineId?: string;
       };
       try {
         body = JSON.parse(rawBody || "{}");
@@ -249,6 +252,10 @@ Bun.serve({
       if (!body.targetVersion || !body.imageRepo || !body.imageTag) {
         return json({ error: "missing fields" }, 400);
       }
+      const km: KeyMaterial | null =
+        body.licenseSecret && body.machineId
+          ? { licenseSecret: body.licenseSecret, machineId: body.machineId }
+          : null;
       const fromVersion = readCurrentVersion();
       const id = `job-${Date.now()}`;
       const j: Job = {
@@ -264,8 +271,8 @@ Bun.serve({
       };
       jobs.set(id, j);
       currentJob = j;
-      runJob(j); // fire and forget
-      return json({ jobId: id, status: j.status });
+      runJob(j, km); // fire and forget
+      return json({ jobId: id, status: j.status, encrypted: !!km });
     }
     if (req.method === "GET" && url.pathname === "/status") {
       const id = url.searchParams.get("jobId");
