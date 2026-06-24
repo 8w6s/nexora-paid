@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 
@@ -27,10 +27,26 @@ interface QueryError {
   error: string;
   code: string;
 }
+interface AuditRow {
+  id: number;
+  at: number;
+  actor_email: string | null;
+  actor_ip: string | null;
+  action: string;
+  target: string | null;
+  statement: string | null;
+  rows_affected: number | null;
+  elapsed_ms: number | null;
+  success: number;
+  error: string | null;
+}
+
+type Pane = "query" | "audit";
 
 const SAMPLE = "SELECT * FROM users LIMIT 50;";
 
 export function AdminDbEditor(): React.ReactElement {
+  const [pane, setPane] = useState<Pane>("query");
   const [tables, setTables] = useState<SchemaTable[]>([]);
   const [statement, setStatement] = useState(() => {
     try { return localStorage.getItem("nx.db-editor.stmt") ?? SAMPLE; } catch { return SAMPLE; }
@@ -38,6 +54,8 @@ export function AdminDbEditor(): React.ReactElement {
   const [result, setResult] = useState<QueryResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -50,6 +68,23 @@ export function AdminDbEditor(): React.ReactElement {
   useEffect(() => {
     try { localStorage.setItem("nx.db-editor.stmt", statement); } catch { /* ignore */ }
   }, [statement]);
+
+  const loadAudit = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const r = await api("/api/admin/db/audit?limit=200");
+      const d = (await r.json()) as { rows: AuditRow[] };
+      setAuditRows(d.rows ?? []);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (pane === "audit") loadAudit();
+  }, [pane, loadAudit]);
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -76,7 +111,6 @@ export function AdminDbEditor(): React.ReactElement {
 
   const onKey = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Ctrl/Cmd + Enter = run query (common SQL-tool convention).
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         run();
@@ -127,62 +161,131 @@ export function AdminDbEditor(): React.ReactElement {
       </aside>
 
       <section style={styles.main}>
-        <div style={styles.toolbar}>
-          <button type="button" onClick={run} disabled={running} style={styles.btnPrimary}>
-            {running ? "Running…" : "Run (Ctrl+Enter)"}
+        <div style={styles.tabs}>
+          <button
+            type="button"
+            style={{ ...styles.tab, ...(pane === "query" ? styles.tabActive : {}) }}
+            onClick={() => setPane("query")}
+          >
+            SQL
           </button>
-          <span style={styles.warn} title="Write queries land in audit_log immediately">
-            full-SQL · all writes audited
-          </span>
+          <button
+            type="button"
+            style={{ ...styles.tab, ...(pane === "audit" ? styles.tabActive : {}) }}
+            onClick={() => setPane("audit")}
+          >
+            Audit log
+          </button>
         </div>
-        <textarea
-          ref={taRef}
-          value={statement}
-          onChange={(e) => setStatement(e.target.value)}
-          onKeyDown={onKey}
-          spellCheck={false}
-          style={styles.editor}
-          placeholder="SELECT * FROM users LIMIT 50;"
-        />
 
-        {err ? (
-          <div style={styles.err}>
-            <Icon name="alert-triangle" size={14} /> {err}
-          </div>
-        ) : null}
-
-        {result ? (
-          <div style={styles.resultWrap}>
-            <div style={styles.resultMeta}>
-              {result.columns.length > 0
-                ? `${totalRows}${moreCount} rows · ${result.elapsedMs}ms`
-                : `${result.rowsAffected} row(s) affected · ${result.elapsedMs}ms`}
-              {result.truncated ? " · truncated at 5000" : ""}
+        {pane === "query" ? (
+          <>
+            <div style={styles.toolbar}>
+              <button type="button" onClick={run} disabled={running} style={styles.btnPrimary}>
+                {running ? "Running…" : "Run (Ctrl+Enter)"}
+              </button>
+              <span style={styles.warn} title="Write queries land in audit_log immediately">
+                full-SQL · all writes audited
+              </span>
             </div>
-            {result.columns.length > 0 ? (
+            <textarea
+              ref={taRef}
+              value={statement}
+              onChange={(e) => setStatement(e.target.value)}
+              onKeyDown={onKey}
+              spellCheck={false}
+              style={styles.editor}
+              placeholder="SELECT * FROM users LIMIT 50;"
+            />
+
+            {err ? (
+              <div style={styles.err}>
+                <Icon name="alert-triangle" size={14} /> {err}
+              </div>
+            ) : null}
+
+            {result ? (
+              <div style={styles.resultWrap}>
+                <div style={styles.resultMeta}>
+                  {result.columns.length > 0
+                    ? `${totalRows}${moreCount} rows · ${result.elapsedMs}ms`
+                    : `${result.rowsAffected} row(s) affected · ${result.elapsedMs}ms`}
+                  {result.truncated ? " · truncated at 5000" : ""}
+                </div>
+                {result.columns.length > 0 ? (
+                  <div style={styles.grid}>
+                    <table style={styles.table}>
+                      <thead>
+                        <tr>
+                          {result.columns.map((c) => (
+                            <th key={c} style={styles.th}>{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.rows.map((row, i) => (
+                          <tr key={i}>
+                            {result.columns.map((c) => (
+                              <td key={c} style={styles.td}>{formatCell(row[c])}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div style={styles.auditWrap}>
+            <div style={styles.toolbar}>
+              <button type="button" onClick={loadAudit} disabled={auditLoading} style={styles.btnPrimary}>
+                {auditLoading ? "Loading…" : "Refresh"}
+              </button>
+              <span style={styles.warn}>Latest 200 entries, newest first</span>
+            </div>
+            {auditRows.length === 0 ? (
+              <div style={styles.muted}>
+                {auditLoading ? "Loading…" : "No audit entries yet — run a query in the SQL tab."}
+              </div>
+            ) : (
               <div style={styles.grid}>
                 <table style={styles.table}>
                   <thead>
                     <tr>
-                      {result.columns.map((c) => (
-                        <th key={c} style={styles.th}>{c}</th>
-                      ))}
+                      <th style={styles.th}>When</th>
+                      <th style={styles.th}>Actor</th>
+                      <th style={styles.th}>Action</th>
+                      <th style={styles.th}>Statement</th>
+                      <th style={styles.th}>Rows</th>
+                      <th style={styles.th}>ms</th>
+                      <th style={styles.th}>OK</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {result.rows.map((row, i) => (
-                      <tr key={i}>
-                        {result.columns.map((c) => (
-                          <td key={c} style={styles.td}>{formatCell(row[c])}</td>
-                        ))}
+                    {auditRows.map((r) => (
+                      <tr key={r.id}>
+                        <td style={styles.td} title={new Date(r.at).toISOString()}>
+                          {new Date(r.at).toLocaleString()}
+                        </td>
+                <td style={styles.td}>{r.actor_email ?? "—"}</td>
+                        <td style={styles.td}>{r.action}</td>
+                        <td style={{ ...styles.td, whiteSpace: "normal", maxWidth: 480 }}>
+                          <code style={styles.code}>{r.statement ?? ""}</code>
+                          {r.error ? <div style={styles.errInline}>{r.error}</div> : null}
+                        </td>
+                        <td style={styles.td}>{r.rows_affected ?? "—"}</td>
+                        <td style={styles.td}>{r.elapsed_ms ?? "—"}</td>
+                        <td style={styles.td}>{r.success ? "✓" : "✗"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            ) : null}
+            )}
           </div>
-        ) : null}
+        )}
       </section>
     </div>
   );
@@ -208,6 +311,9 @@ const styles: Record<string, React.CSSProperties> = {
   colType: { opacity: 0.6 },
   muted: { color: "var(--muted, #888)", fontSize: 12, padding: "6px" },
   main: { display: "flex", flexDirection: "column", gap: 8, minWidth: 0 },
+  tabs: { display: "flex", gap: 4, borderBottom: "1px solid var(--border, #2a2a2a)", marginBottom: 4 },
+  tab: { padding: "6px 14px", background: "transparent", color: "var(--muted, #888)", border: 0, borderBottom: "2px solid transparent", cursor: "pointer" },
+  tabActive: { color: "var(--fg, #ddd)", borderBottomColor: "var(--accent, #3b82f6)" },
   toolbar: { display: "flex", alignItems: "center", gap: 12 },
   btnPrimary: { padding: "6px 14px", background: "var(--accent, #3b82f6)", color: "#fff", border: 0, borderRadius: 6, cursor: "pointer" },
   warn: { fontSize: 11, color: "var(--muted, #888)" },
@@ -223,12 +329,15 @@ const styles: Record<string, React.CSSProperties> = {
     resize: "vertical",
   },
   err: { padding: 8, background: "rgba(220,40,40,0.1)", border: "1px solid rgba(220,40,40,0.4)", borderRadius: 6, fontSize: 12 },
+  errInline: { fontSize: 11, color: "#e57373", marginTop: 4 },
   resultWrap: { display: "flex", flexDirection: "column", gap: 6 },
   resultMeta: { fontSize: 11, color: "var(--muted, #888)" },
+  auditWrap: { display: "flex", flexDirection: "column", gap: 6 },
   grid: { overflow: "auto", maxHeight: 480, border: "1px solid var(--border, #2a2a2a)", borderRadius: 6 },
   table: { borderCollapse: "collapse", width: "100%", fontSize: 12 },
   th: { textAlign: "left", padding: "6px 10px", background: "var(--bg-elevated, #1a1a1a)", position: "sticky", top: 0, fontWeight: 600 },
   td: { padding: "4px 10px", borderTop: "1px solid var(--border, #222)", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" },
+  code: { fontFamily: "ui-monospace, monospace", fontSize: 11, color: "var(--fg, #ddd)" },
 };
 
 export default AdminDbEditor;
