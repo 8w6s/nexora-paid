@@ -9,11 +9,15 @@ dist/
 **/.vite/
 
 # Database (local dev / seed lại được)
+sqlite.db
+sqlite.db-shm
+sqlite.db-wal
 backend/sqlite.db
 backend/sqlite.db-shm
 backend/sqlite.db-wal
 backend/*.db
 backend/sqlite.db.bak-*
+*.sqlite.db
 
 # Logs
 *.log
