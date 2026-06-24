@@ -1,22 +1,11 @@
-test(tenant): expand jail coverage to 18 cases
+fix(admin-blocklist): apply rate-limit to DELETE handler too
 
-Roadmap item 13 continuation — thicken the tenant jail suite to
-match handshake (12) + snapshot-crypto (13) coverage levels.
+Found in cycle 5 audit-window read: the previous commit added a
+rate-limit `request` arg to deleteEntry's call sites but forgot
+to declare it on the function itself, so DELETE bypassed the
+60/min cap that POST honored.
 
-+8 cases (10 -> 18):
-  - empty string resolves to USERSPACE_ROOT itself (boundary)
-  - nested traversal "a/b/../../../etc/passwd" rejected
-  - redundant-slash normalization "uploads///a.png"
-  - dotted segments "uploads/./a.png" flattened
-  - null byte at start of path rejected
-  - null byte at end of path rejected
-  - tenantInfo() exposes app/userspace/dataRoot + machine-id
-  - app jail rejects userspace-style traversal
+Signature alignment only; no behavior change for the happy path.
+DELETE now joins POST under the same `admin-blocklist-write` bucket.
 
-Why these specifically: the jail is the single most security-load-bearing
-function in tenant.ts. Any path-handling regression silently allows
-arbitrary FS read/write from a customer admin upload. Test cases
-mirror real exploit shapes (encoded traversal, embedded nulls, multi-slash).
-
-Total lib tests now 88/0 (was 80/0).
-Build: 510 modules.
+Build: 510 modules. 88/88 lib tests pass.

@@ -168,7 +168,10 @@ async function deleteEntry(
   id: string,
   set: { status?: number },
   adminEmail: string,
+  request: Request,
 ) {
+  const gated = gateRateLimit(request, set);
+  if (gated) return gated;
   const target = (
     await db
       .select()
