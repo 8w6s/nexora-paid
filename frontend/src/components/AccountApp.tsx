@@ -1,5 +1,7 @@
 import type React from "react";
 import { useEffect } from "react";
+import { useT } from "../i18n";
+import { LocaleProvider } from "../i18n/LocaleProvider";
 import { Account2FACard } from "./Account2FACard";
 import { AccountDangerCard } from "./AccountDangerCard";
 import { AccountEmailCard } from "./AccountEmailCard";
@@ -18,6 +20,7 @@ import { ToastProvider } from "./Toast";
 // redirect back to /account so they land here after re-auth.
 const AccountInner: React.FC = () => {
   const { user, loading } = useAuth();
+  const { t } = useT();
 
   useEffect(() => {
     if (!loading && !user && typeof window !== "undefined") {
@@ -29,7 +32,7 @@ const AccountInner: React.FC = () => {
   if (loading || !user) {
     return (
       <main className="container account-shell">
-        <p style={{ color: "var(--ink-soft)" }}>Loading…</p>
+        <p style={{ color: "var(--ink-soft)" }}>{t("common.loading")}</p>
       </main>
     );
   }
@@ -37,9 +40,9 @@ const AccountInner: React.FC = () => {
   return (
     <main className="container account-shell">
       <header className="account-head">
-        <h1>Account</h1>
+        <h1>{t("storefront.account.title")}</h1>
         <p className="sub">
-          Signed in as <strong>{user.email}</strong>.
+          {t("storefront.account.signedInAsLabel")} <strong>{user.email}</strong>.
         </p>
       </header>
 
@@ -66,16 +69,18 @@ const AccountInner: React.FC = () => {
 // theme / cart / auth all behave consistently when navigating into the
 // account page from anywhere in the storefront.
 export const AccountApp: React.FC = () => (
-  <ConfigProvider>
-    <ToastProvider>
-      <AuthProvider>
-        <CartProvider>
-          <Navbar />
-          <AccountInner />
-          <SiteFooter />
-          <CartDrawer />
-        </CartProvider>
-      </AuthProvider>
-    </ToastProvider>
-  </ConfigProvider>
+  <LocaleProvider>
+    <ConfigProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Navbar />
+            <AccountInner />
+            <SiteFooter />
+            <CartDrawer />
+          </CartProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ConfigProvider>
+  </LocaleProvider>
 );

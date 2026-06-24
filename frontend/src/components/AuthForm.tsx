@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { Icon } from "./Icon";
@@ -7,20 +8,13 @@ import { PasswordInput } from "./PasswordInput";
 
 export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => {
   const { login, register } = useAuth();
+  const { t } = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // 2FA second-step state. The first submit is email+password; if the backend
-  // signals TOTP_REQUIRED, we flip needs2fa=true and re-render the form with a
-  // code input. Email/password stays in state so the user doesn't retype.
   const [code, setCode] = useState("");
   const [needs2fa, setNeeds2fa] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // querySearch must start as "" to match the SSR'd HTML (server has no
-  // window.location). After hydration we read the real query string and the
-  // switch links update to preserve ?redirect=... — without this two-pass
-  // approach React reports a hydration mismatch on every login page hit
-  // arived at via a redirect.
   const [querySearch, setQuerySearch] = useState("");
   useEffect(() => {
     setQuerySearch(window.location.search);
@@ -40,14 +34,11 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
       else await register(email.trim(), password);
       window.location.assign(redirectTarget());
     } catch (err) {
-      // TOTP_REQUIRED is not a hard failure — the password was right, the
-      // server just wants the second factor. Promote to step 2 instead of
-      // showing a red error banner.
       if (err instanceof ApiRequestError && err.code === "TOTP_REQUIRED") {
         setNeeds2fa(true);
         setError(null);
       } else {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+        setError(err instanceof Error ? err.message : t("storefront.errors.generic"));
       }
       setBusy(false);
     }
@@ -58,15 +49,15 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
   return (
     <main className="container auth-page">
       <div className="auth-card card">
-        <h1>{isLogin ? "Sign in" : "Create your account"}</h1>
+        <h1>{isLogin ? t("storefront.auth.signIn") : t("storefront.auth.createAccount")}</h1>
         <p className="sub">
-          {isLogin ? "Welcome back to Nexora." : "Sign up to buy digital goods with Litecoin."}
+          {isLogin ? t("storefront.auth.welcomeBack") : t("storefront.auth.signupHint")}
         </p>
         <form onSubmit={submit}>
           {!needs2fa && (
             <>
               <label>
-                <span>Email</span>
+                <span>{t("storefront.auth.email")}</span>
                 <input
                   id="auth-email"
                   name="email"
@@ -80,7 +71,7 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
                 />
               </label>
               <label>
-                <span>Password</span>
+                <span>{t("storefront.auth.password")}</span>
                 <PasswordInput
                   id="auth-password"
                   name="password"
@@ -88,7 +79,11 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
                   onChange={setPassword}
                   required
                   minLength={isLogin ? undefined : 8}
-                  placeholder={isLogin ? "Your password" : "At least 8 characters"}
+                  placeholder={
+                    isLogin
+                      ? t("storefront.auth.passwordPlaceholder")
+                : t("storefront.auth.passwordHint")
+                  }
                   autoComplete={isLogin ? "current-password" : "new-password"}
                 />
               </label>
@@ -96,7 +91,7 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
           )}
           {needs2fa && (
             <label>
-              <span>Two-factor code</span>
+              <span>{t("storefront.auth.twoFactorCode")}</span>
               <input
                 id="auth-totp"
                 name="totp"
@@ -112,7 +107,7 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
                 autoComplete="one-time-code"
                 autoFocus
               />
-              <span className="hint">Open your authenticator app and enter the 6-digit code.</span>
+              <span className="hint">{t("storefront.auth.twoFactorHint")}</span>
             </label>
           )}
           {error && <div className="auth-error">{error}</div>}
@@ -125,10 +120,16 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
             {busy ? (
               <>
                 <Icon name="spinner" size={17} className="is-spinning" />
-                <span>Please wait…</span>
+                <span>{t("common.loading")}</span>
               </>
             ) : (
-              <span>{needs2fa ? "Verify & sign in" : isLogin ? "Sign in" : "Create account"}</span>
+              <span>
+                {needs2fa
+                  ? t("storefront.auth.verifyAndSignIn")
+                  : isLogin
+                    ? t("storefront.auth.signIn")
+                    : t("storefront.auth.createAccount")}
+              </span>
             )}
           </button>
           {needs2fa && (
@@ -142,30 +143,26 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
               }}
               style={{ alignSelf: "center" }}
             >
-              Back
+              {t("common.back")}
             </button>
           )}
         </form>
         {!needs2fa && isLogin && (
-          // "Forgot password?" sits below the credential fields and above
-          // the create-account switch — Sellauth + Whop both put it here
-          // and it's where users instinctively look. Real <a> with href so
-          // it's keyboard-focusable and middle-clickable, not a span+onClick.
           <p className="forgot-line">
-            <a href="/forgot">Forgot your password?</a>
+            <a href="/forgot">{t("storefront.auth.forgotPassword")}</a>
           </p>
         )}
         {!needs2fa && (
           <p className="switch">
             {isLogin ? (
               <>
-                No account?{" "}
-                <a href={`/register${querySearch}`}>Create one</a>
+                {t("storefront.auth.noAccount")}{" "}
+                <a href={`/register${querySearch}`}>{t("storefront.auth.createOne")}</a>
               </>
             ) : (
               <>
-                Already have an account?{" "}
-                <a href={`/login${querySearch}`}>Sign in</a>
+                {t("storefront.auth.haveAccount")}{" "}
+                <a href={`/login${querySearch}`}>{t("storefront.auth.signIn")}</a>
               </>
             )}
           </p>

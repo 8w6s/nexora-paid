@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { Icon } from "./Icon";
 import { useToast } from "./Toast";
@@ -15,16 +16,8 @@ interface CustomerSession {
   current: boolean;
 }
 
-/**
- * Squeeze a User-Agent string down to "<Browser> · <OS>" for the table
- * cell — same heuristic as the admin AdminSessionsCard so the customer
- * device list reads identically. Real UAs are long and noisy; an
- * at-a-glance "Chrome · Windows" is what Sellauth and Whop show.
- */
 function summarizeUserAgent(ua: string | null): string {
   if (!ua) return "Unknown";
-  // Order matters: Edg, OPR, and Firefox all contain "Chrome" too, so
-  // derivative-browser tokens go first and Chrome / Safari fall through.
   const browser = ua.includes("Edg/")
     ? "Edge"
     : ua.includes("OPR/")
@@ -50,14 +43,8 @@ function summarizeUserAgent(ua: string | null): string {
   return os ? `${browser} · ${os}` : browser;
 }
 
-/**
- * Customer-facing active-sessions card. Lives on the /account page below
- * AccountPasswordCard. Mirrors the admin AdminSessionsCard shape so
- * "Logout other devices" + per-row revoke behave identically across both
- * audiences. Sellauth shows the same panel ("Logged in devices") on the
- * user profile and we match that surface 1:1.
- */
 export const AccountSessionsCard: React.FC = () => {
+  const { t } = useT();
   const toast = useToast();
   const [list, setList] = useState<CustomerSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +64,7 @@ export const AccountSessionsCard: React.FC = () => {
   }, []);
 
   const revokeOthers = async () => {
-    if (!window.confirm("Sign out of every other device?")) return;
+    if (!window.confirm(t("storefront.sessions.confirmRevokeOthers"))) return;
     setBusy(true);
     try {
       const res = await api.post<{ ok: boolean; revokedSessions: number }>(
@@ -87,27 +74,27 @@ export const AccountSessionsCard: React.FC = () => {
       const n = res?.revokedSessions ?? 0;
       toast.success(
         n > 0
-          ? `Signed out of ${n} other device${n === 1 ? "" : "s"}.`
-          : "No other sessions to sign out.",
+          ? t("storefront.sessions.revokedCount", { count: n })
+          : t("storefront.sessions.noOthers"),
       );
       load();
     } catch (err) {
       if (err instanceof ApiRequestError) toast.error(err.message);
-      else toast.error("Failed to sign out other devices.");
+      else toast.error(t("storefront.sessions.revokeFailed"));
     } finally {
       setBusy(false);
     }
   };
 
   const revokeOne = async (id: string) => {
-    if (!window.confirm("Sign this device out?")) return;
+    if (!window.confirm(t("storefront.sessions.confirmRevokeOne"))) return;
     try {
       await api.post(`/api/auth/sessions/${id}/revoke`, {});
-      toast.success("Device signed out.");
+      toast.success(t("storefront.sessions.deviceSignedOut"));
       load();
     } catch (err) {
       if (err instanceof ApiRequestError) toast.error(err.message);
-      else toast.error("Failed to sign out device.");
+      else toast.error(t("storefront.sessions.revokeFailed"));
     }
   };
 
@@ -117,8 +104,8 @@ export const AccountSessionsCard: React.FC = () => {
     <section className="card sessions-card">
       <header className="sessions-head">
         <div>
-          <h2>Logged-in devices</h2>
-          <p className="sub">Devices currently signed in to your account.</p>
+          <h2>{t("storefront.sessions.title")}</h2>
+          <p className="sub">{t("storefront.sessions.hint")}</p>
         </div>
         <button
           type="button"
@@ -129,12 +116,12 @@ export const AccountSessionsCard: React.FC = () => {
           {busy ? (
             <>
               <Icon name="spinner" size={14} className="is-spinning" />
-              <span>Signing out…</span>
+              <span>{t("common.loading")}</span>
             </>
           ) : (
             <>
               <Icon name="close" size={14} />
-              <span>Sign out other devices</span>
+              <span>{t("storefront.sessions.signOutOthers")}</span>
             </>
           )}
         </button>
@@ -145,7 +132,7 @@ export const AccountSessionsCard: React.FC = () => {
           <Icon name="spinner" size={20} className="is-spinning" />
         </div>
       ) : list.length === 0 ? (
-        <p className="muted">No active sessions.</p>
+        <p className="muted">{t("storefront.sessions.empty")}</p>
       ) : (
         <ul className="sessions-list">
           {list.map((s) => (
@@ -153,19 +140,23 @@ export const AccountSessionsCard: React.FC = () => {
               <div className="sessions-row">
                 <div className="sessions-meta">
                   <div className="sessions-device">
-                    <span title={s.userAgent ?? ""}>{summarizeUserAgent(s.userAgent)}</span>
+                <span title={s.userAgent ?? ""}>{summarizeUserAgent(s.userAgent)}</span>
                     {s.current && (
-                      <span className="sessions-badge">This device</span>
+                      <span className="sessions-badge">{t("storefront.sessions.thisDevice")}</span>
                     )}
                   </div>
                   <div className="sessions-detail">
-                    <code>{s.lastIp ?? s.ipAddress ?? "Unknown IP"}</code>
+                    <code>{s.lastIp ?? s.ipAddress ?? t("storefront.sessions.unknownIp")}</code>
                     <span className="sessions-dot">·</span>
-                    <span>Last seen {new Date(s.lastSeenAt).toLocaleString()}</span>
+                    <span>
+                      {t("storefront.sessions.lastSeen", {
+                        when: new Date(s.lastSeenAt).toLocaleString(),
+                      })}
+                    </span>
                   </div>
                   {s.lastIp && s.ipAddress && s.lastIp !== s.ipAddress && (
                     <div className="sessions-roam">
-                      Started from <code>{s.ipAddress}</code>
+                      {t("storefront.sessions.startedFrom")} <code>{s.ipAddress}</code>
                     </div>
                   )}
                 </div>
@@ -174,9 +165,9 @@ export const AccountSessionsCard: React.FC = () => {
                     type="button"
                     className="btn btn-ghost btn-sm"
                     onClick={() => revokeOne(s.id)}
-                    aria-label="Sign out this device"
+                    aria-label={t("storefront.sessions.signOutThisDevice")}
                   >
-                    Sign out
+                    {t("storefront.sessions.signOut")}
                   </button>
                 )}
               </div>

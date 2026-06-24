@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useRef } from "react";
+import { LocaleProvider } from "../i18n/LocaleProvider";
 import { fadeRise } from "../lib/motion";
 import { AuthProvider } from "./AuthContext";
 import { CartProvider } from "./CartContext";
@@ -17,25 +18,27 @@ export const App: React.FC = () => {
     fadeRise(heroRef.current, { duration: 560 });
   }, []);
   return (
-    <ConfigProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <CartProvider>
-            <Navbar />
-            <main className="container page">
-              <div ref={heroRef}>
-                <StorefrontHeader />
-              </div>
-              <ProductList />
-            </main>
-            <SiteFooter />
-            <CartDrawer />
-            <style>{`
-        .page { padding: 22px 20px 0; }
-      `}</style>
-          </CartProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </ConfigProvider>
+    <LocaleProvider>
+      <ConfigProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <CartProvider>
+              <Navbar />
+              <main className="container page">
+                <div ref={heroRef}>
+                  <StorefrontHeader />
+                </div>
+                <ProductList />
+              </main>
+              <SiteFooter />
+              <CartDrawer />
+              <style>{`
+          .page { padding: 22px 20px 0; }
+        `}</style>
+            </CartProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </ConfigProvider>
+    </LocaleProvider>
   );
 };

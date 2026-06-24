@@ -81,7 +81,7 @@ Use **new private key** to sign:
 ```bash
 bun scripts/sign-license.ts 
   --email customer@example.com 
-  --productId nexora 
+  --productId nexora-paid 
   --output customer-license.json
 ```
 

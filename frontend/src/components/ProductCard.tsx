@@ -1,11 +1,13 @@
 import type React from "react";
 import { useRef } from "react";
+import { useT } from "../i18n";
 import { fmtUsd, type Product } from "../lib/api";
 import { useCart } from "./CartContext";
 import { Icon } from "./Icon";
 
 export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
   const { addToCart } = useCart();
+  const { t } = useT();
   const btnRef = useRef<HTMLButtonElement>(null);
   const handleAdd = () => {
     if (btnRef.current) addToCart(product, undefined, btnRef.current);
@@ -31,9 +33,9 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         )}
         <span className="tag-auto banner-tag">
           <Icon name="zap" size={12} />
-          Instant delivery
+          {t("storefront.product.instantDelivery")}
         </span>
-        {out && <span className="sold-out">Out of stock</span>}
+        {out && <span className="sold-out">{t("storefront.product.outOfStock")}</span>}
       </a>
 
       <div className="info">
@@ -44,14 +46,14 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         <p className="desc">{product.description}</p>
 
         <div className="meta">
-          <span>{product.inStock ? `${product.stock} in stock` : "Out of stock"}</span>
+          <span>{product.inStock ? t("storefront.product.inStock", { count: product.stock }) : t("storefront.product.outOfStock")}</span>
         </div>
 
         <div className="footer">
           <span className="price">{fmtUsd(product.priceUsd)}</span>
           <div className="card-actions">
             <a href={href} className="btn btn-ghost detail-btn">
-              Details
+              {t("storefront.product.details")}
             </a>
             <button
               ref={btnRef}

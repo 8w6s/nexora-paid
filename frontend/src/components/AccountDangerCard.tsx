@@ -1,28 +1,15 @@
 import type React from "react";
 import { useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { Icon } from "./Icon";
 import { PasswordInput } from "./PasswordInput";
 import { useToast } from "./Toast";
 
-/**
- * GDPR Article 17 right-to-erasure surface. Soft-deletes via the
- * /api/auth/delete-account backend route — orders survive (operator
- * needs them for tax records) but the users row is anonymized so
- * the customer's PII is gone from the live system.
- *
- * Defense-in-depth against accidental clicks:
- *  - Card collapsed by default; user must click "Delete account" once
- *    to expand the actual form.
- *  - Confirmation field requires typing the literal word DELETE so a
- *    mistyped current-password and an autofilled email can't combine
- *    into a one-click erasure.
- *  - Current password required so a stolen cookie alone can't trigger
- *    the deletion (which would lock out the legitimate owner).
- */
 export const AccountDangerCard: React.FC = () => {
   const { user } = useAuth();
+  const { t } = useT();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState("");
@@ -38,28 +25,25 @@ export const AccountDangerCard: React.FC = () => {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (confirm.trim() !== "DELETE") {
-      toast.error('Type DELETE to confirm');
+      toast.error(t("storefront.account.typeDeleteToConfirm"));
       return;
     }
     if (!current) {
-      toast.error("Current password is required");
+      toast.error(t("storefront.account.currentPasswordRequired"));
       return;
     }
     setBusy(true);
     try {
       await api.post("/api/auth/delete-account", { currentPassword: current });
-      // Backend has cleared the cookie. Land on homepage with a
-      // goodbye toast — going to /login would feel hostile after
-      // the user just intentionally walked away.
-      toast.success("Account deleted. Goodbye!");
+      toast.success(t("storefront.account.deleteSuccess"));
       window.setTimeout(() => window.location.assign("/"), 1200);
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        if (err.code === "BAD_CURRENT") toast.error("Current password is incorrect");
-        else if (err.code === "DELETE_FAILED") toast.error("Could not delete account, try again");
-        else toast.error(err.message || "Could not delete account");
+        if (err.code === "BAD_CURRENT") toast.error(t("storefront.account.badCurrentPassword"));
+        else if (err.code === "DELETE_FAILED") toast.error(t("storefront.account.deleteFailed"));
+        else toast.error(err.message || t("storefront.account.deleteFailed"));
       } else {
-        toast.error(err instanceof Error ? err.message : "Could not delete account");
+        toast.error(err instanceof Error ? err.message : t("storefront.account.deleteFailed"));
       }
       setBusy(false);
     }
@@ -68,21 +52,13 @@ export const AccountDangerCard: React.FC = () => {
   return (
     <section className="card danger-card">
       <div className="danger-head">
-        <h2>Delete account</h2>
-        <p className="sub">
-          Permanently anonymise your account. Your order history is preserved (the operator
-          needs it for tax records) but your email address, password, and 2FA are wiped from
-          the live system. This action cannot be undone.
-        </p>
+        <h2>{t("storefront.account.deleteAccount")}</h2>
+        <p className="sub">{t("storefront.account.deleteHint")}</p>
       </div>
       {!open ? (
         <div className="danger-actions">
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={() => setOpen(true)}
-          >
-            Delete my account
+          <button type="button" className="btn btn-danger" onClick={() => setOpen(true)}>
+            {t("storefront.account.deleteMyAccount")}
           </button>
         </div>
       ) : (
@@ -90,16 +66,15 @@ export const AccountDangerCard: React.FC = () => {
           <div className="danger-warn">
             <Icon name="shield" size={18} />
             <div>
-              <strong>You're about to delete <span className="ink-strong">{user?.email}</span>.</strong>
+              <strong>
+                {t("storefront.account.deleteWarning", { email: user?.email ?? "" })}
+              </strong>
               <br />
-              You will not be able to sign in again. Type <code>DELETE</code> below and enter
-              your current password to proceed.
+              {t("storefront.account.deleteWarningSub")}
             </div>
           </div>
           <label>
-            <span>
-              Type <code>DELETE</code> to confirm
-            </span>
+            <span>{t("storefront.account.typeDeleteLabel")}</span>
             <input
               className="input"
               type="text"
@@ -112,23 +87,18 @@ export const AccountDangerCard: React.FC = () => {
             />
           </label>
           <label>
-            <span>Current password</span>
+            <span>{t("storefront.account.currentPassword")}</span>
             <PasswordInput
               value={current}
               onChange={setCurrent}
               required
-              placeholder="To confirm it's really you"
+              placeholder={t("storefront.account.confirmIdentity")}
               autoComplete="current-password"
             />
           </label>
           <div className="danger-actions">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={reset}
-              disabled={busy}
-            >
-              Cancel
+            <button type="button" className="btn btn-ghost" onClick={reset} disabled={busy}>
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
@@ -138,10 +108,10 @@ export const AccountDangerCard: React.FC = () => {
               {busy ? (
                 <>
                   <Icon name="spinner" size={16} className="is-spinning" />
-                  <span>Deleting…</span>
+                  <span>{t("common.loading")}</span>
                 </>
               ) : (
-                <span>Permanently delete</span>
+                <span>{t("storefront.account.permanentlyDelete")}</span>
               )}
             </button>
           </div>

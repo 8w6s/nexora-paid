@@ -1,5 +1,13 @@
 import type React from "react";
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Icon } from "./Icon";
 
 type Tone = "success" | "error" | "info";
@@ -21,23 +29,48 @@ const Ctx = createContext<ToastCtx | null>(null);
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<ToastItem[]>([]);
   const idRef = useRef(0);
+  // Track auto-dismiss timers so we can flush them on unmount — otherwise a
+  // late-firing setTimeout would call setItems on an unmounted provider.
+  const timersRef = useRef<Map<number, number>>(new Map());
 
-  const remove = useCallback((id: number) => setItems((xs) => xs.filter((x) => x.id !== id)), []);
+  const remove = useCallback((id: number) => {
+    const t = timersRef.current.get(id);
+    if (t !== undefined) {
+      window.clearTimeout(t);
+      timersRef.current.delete(id);
+    }
+    setItems((xs) => xs.filter((x) => x.id !== id));
+  }, []);
+
   const push = useCallback(
     (text: string, tone: Tone = "success") => {
       const id = ++idRef.current;
       setItems((xs) => [...xs, { id, tone, text }]);
-      window.setTimeout(() => remove(id), 3800);
+      const t = window.setTimeout(() => remove(id), 3800);
+      timersRef.current.set(id, t);
     },
     [remove],
   );
 
-  const value: ToastCtx = {
-    push,
-    success: (t) => push(t, "success"),
-    error: (t) => push(t, "error"),
-    info: (t) => push(t, "info"),
-  };
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((t) => {
+        window.clearTimeout(t);
+      });
+      timersRef.current.clear();
+    };
+  }, []);
+
+  // Memoize so consumers don't re-render on every parent render.
+  const value = useMemo<ToastCtx>(
+    () => ({
+      push,
+      success: (t) => push(t, "success"),
+      error: (t) => push(t, "error"),
+      info: (t) => push(t, "info"),
+    }),
+    [push],
+  );
 
   return (
     <Ctx.Provider value={value}>

@@ -43,11 +43,15 @@ const privHex = readFileSync(PRIV_PATH, "utf-8").trim();
 const privBytes = hexToBytes(privHex);
 
 const ttlDays = args.ttl ? Number(args.ttl) : NaN;
-const expiresAt = Number.isFinite(ttlDays) && ttlDays > 0
-  ? new Date(Date.now() + ttlDays * 86_400_000).toISOString()
-  : args.expires;
+const expiresAt =
+  Number.isFinite(ttlDays) && ttlDays > 0
+    ? new Date(Date.now() + ttlDays * 86_400_000).toISOString()
+    : args.expires;
 const features = args.features
-  ? args.features.split(",").map((s) => s.trim()).filter(Boolean)
+  ? args.features
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
   : undefined;
 
 const payload = {

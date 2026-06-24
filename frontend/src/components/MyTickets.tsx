@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { Icon } from "./Icon";
 import { SkeletonStyles, SkRows } from "./Skeleton";
@@ -24,13 +25,13 @@ interface TicketDetail extends Ticket {
 }
 
 export const MyTickets: React.FC = () => {
+  const { t } = useT();
   const [list, setList] = useState<Ticket[] | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [view, setView] = useState<"list" | "new" | "thread">("list");
   const [active, setActive] = useState<TicketDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // New-ticket form
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
@@ -39,8 +40,8 @@ export const MyTickets: React.FC = () => {
   const loadList = () => {
     api
       .get<Ticket[]>("/api/tickets")
-      .then((t) => {
-        setList(t);
+      .then((tt) => {
+        setList(tt);
         setNeedLogin(false);
       })
       .catch((e) => {
@@ -62,7 +63,7 @@ export const MyTickets: React.FC = () => {
         window.history.pushState({}, "", url.pathname + url.search);
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed to load");
+      setErr(e instanceof Error ? e.message : t("storefront.tickets.loadFailed"));
     }
   };
 
@@ -110,7 +111,7 @@ export const MyTickets: React.FC = () => {
       loadList();
       await openThread(id);
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Failed to create");
+      setErr(e2 instanceof Error ? e2.message : t("storefront.tickets.createFailed"));
     } finally {
       setBusy(false);
     }
@@ -127,26 +128,20 @@ export const MyTickets: React.FC = () => {
       await openThread(active.id);
       loadList();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Failed to send");
+      setErr(e2 instanceof Error ? e2.message : t("storefront.tickets.sendFailed"));
     } finally {
       setBusy(false);
     }
   };
 
+  const statusLabel = (s: "open" | "closed") =>
+    s === "open" ? t("storefront.tickets.statusOpen") : t("storefront.tickets.statusClosed");
+
   if (needLogin)
     return (
       <main className="container tk-page">
         <div className="tk-state">
-          Please{" "}
-          <span
-            style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
-            onClick={() => {
-              window.location.href = "/login?redirect=/tickets";
-            }}
-          >
-            sign in
-          </span>{" "}
-          to view your support tickets.
+          {t("storefront.tickets.pleaseSignIn")}
         </div>
         <Styles />
       </main>
@@ -154,7 +149,7 @@ export const MyTickets: React.FC = () => {
   if (list === null && !err)
     return (
       <main className="container tk-page">
-        <h1>Support</h1>
+        <h1>{t("storefront.tickets.title")}</h1>
         <SkRows count={3} height={72} />
         <SkeletonStyles />
         <Styles />
@@ -164,7 +159,7 @@ export const MyTickets: React.FC = () => {
   return (
     <main className="container tk-page">
       <div className="tk-head">
-        <h1>Support</h1>
+        <h1>{t("storefront.tickets.title")}</h1>
         {view === "list" && (
           <button
             className="btn"
@@ -173,12 +168,12 @@ export const MyTickets: React.FC = () => {
               setErr(null);
             }}
           >
-            <Icon name="plus" size={15} /> New ticket
+            <Icon name="plus" size={15} /> {t("storefront.tickets.newTicket")}
           </button>
         )}
         {view !== "list" && (
           <button className="btn-ghost" onClick={goBack}>
-            <Icon name="arrow-right" size={14} className="flip" /> Back
+            <Icon name="arrow-right" size={14} className="flip" /> {t("common.back")}
           </button>
         )}
       </div>
@@ -191,25 +186,24 @@ export const MyTickets: React.FC = () => {
             <span className="tk-empty-icon">
               <Icon name="ticket" size={28} variant="badge" />
             </span>
-            <h2>No tickets yet</h2>
-            <p>
-              Need help with an order, a key that didn't arrive, or a billing question? We usually
-              reply within a few hours.
-            </p>
+            <h2>{t("storefront.tickets.emptyTitle")}</h2>
+            <p>{t("storefront.tickets.emptyHint")}</p>
             <button className="btn" onClick={() => setView("new")}>
-              <Icon name="plus" size={15} /> Open a ticket
+              <Icon name="plus" size={15} /> {t("storefront.tickets.openTicket")}
             </button>
           </div>
         ) : (
           <div className="tk-list">
-            {list?.map((t) => (
-              <button key={t.id} className="tk card" onClick={() => openThread(t.id)}>
+            {list?.map((tk) => (
+              <button key={tk.id} className="tk card" onClick={() => openThread(tk.id)}>
                 <div className="tk-row">
                   <Icon name="ticket" size={16} variant="badge" />
-                  <span className="tk-subj">{t.subject}</span>
-                  <span className={`badge ${t.status}`}>{t.status}</span>
+                  <span className="tk-subj">{tk.subject}</span>
+                  <span className={`badge ${tk.status}`}>{statusLabel(tk.status)}</span>
                 </div>
-                <span className="muted">Updated {new Date(t.updatedAt).toLocaleString()}</span>
+                <span className="muted">
+                {t("storefront.tickets.updatedAt", { when: new Date(tk.updatedAt).toLocaleString() })}
+                </span>
               </button>
             ))}
           </div>
@@ -218,23 +212,23 @@ export const MyTickets: React.FC = () => {
       {view === "new" && (
         <form className="tk-form card" onSubmit={createTicket}>
           <label>
-            <span>Subject</span>
+            <span>{t("storefront.tickets.subject")}</span>
             <input
               className="input"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               required
-              placeholder="e.g. My key didn't arrive"
+              placeholder={t("storefront.tickets.subjectPlaceholder")}
             />
           </label>
           <label>
-            <span>Message</span>
+            <span>{t("storefront.tickets.message")}</span>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               required
               rows={5}
-              placeholder="Describe your issue…"
+              placeholder={t("storefront.tickets.messagePlaceholder")}
             />
           </label>
           <button
@@ -244,10 +238,10 @@ export const MyTickets: React.FC = () => {
           >
             {busy ? (
               <>
-                <Icon name="spinner" size={15} className="is-spinning" /> Creating…
+                <Icon name="spinner" size={15} className="is-spinning" /> {t("common.loading")}
               </>
             ) : (
-              "Create ticket"
+              t("storefront.tickets.createTicket")
             )}
           </button>
         </form>
@@ -257,13 +251,16 @@ export const MyTickets: React.FC = () => {
         <div className="tk-thread">
           <div className="tk-thread-head card">
             <h2>{active.subject}</h2>
-            <span className={`badge ${active.status}`}>{active.status}</span>
+            <span className={`badge ${active.status}`}>{statusLabel(active.status)}</span>
           </div>
           <div className="tk-msgs">
             {active.messages.map((m) => (
               <div key={m.id} className={`msg ${m.fromAdmin ? "admin" : "me"}`}>
                 <div className="msg-meta">
-                  {m.fromAdmin ? "Support" : "You"} · {new Date(m.createdAt).toLocaleString()}
+                  {m.fromAdmin
+                    ? t("storefront.tickets.fromSupport")
+                    : t("storefront.tickets.fromYou")}{" "}
+                  · {new Date(m.createdAt).toLocaleString()}
                 </div>
                 <div className="msg-body">{m.body}</div>
               </div>
@@ -276,20 +273,20 @@ export const MyTickets: React.FC = () => {
                 onChange={(e) => setReply(e.target.value)}
                 required
                 rows={3}
-                placeholder="Write a reply…"
+                placeholder={t("storefront.tickets.replyPlaceholder")}
               />
               <button className="btn" disabled={busy || !reply.trim()} type="submit">
                 {busy ? (
                   <>
-                    <Icon name="spinner" size={15} className="is-spinning" /> Sending…
+                    <Icon name="spinner" size={15} className="is-spinning" /> {t("common.loading")}
                   </>
                 ) : (
-                  "Send reply"
+                  t("storefront.tickets.sendReply")
                 )}
               </button>
             </form>
           ) : (
-            <p className="tk-closed">This ticket is closed.</p>
+            <p className="tk-closed">{t("storefront.tickets.ticketClosed")}</p>
           )}
         </div>
       )}

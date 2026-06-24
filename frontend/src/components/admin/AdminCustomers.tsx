@@ -66,7 +66,15 @@ export const AdminCustomers: React.FC = () => {
   return (
     <div className="cust">
       <SkeletonStyles />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 8,
+        }}
+      >
         <p className="intro" style={{ margin: 0 }}>
           Your registered customers. Ban to block login + revoke their sessions.
         </p>

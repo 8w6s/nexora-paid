@@ -25,9 +25,7 @@ const AdminAddons = lazy(() =>
 const AdminBlacklist = lazy(() =>
   import("./admin/AdminBlacklist").then((m) => ({ default: m.AdminBlacklist })),
 );
-const AdminBlog = lazy(() =>
-  import("./admin/AdminBlog").then((m) => ({ default: m.AdminBlog })),
-);
+const AdminBlog = lazy(() => import("./admin/AdminBlog").then((m) => ({ default: m.AdminBlog })));
 const AdminBundleOffers = lazy(() =>
   import("./admin/AdminBundleOffers").then((m) => ({ default: m.AdminBundleOffers })),
 );
@@ -73,9 +71,7 @@ const AdminReviews = lazy(() =>
 const AdminSettings = lazy(() =>
   import("./admin/AdminSettings").then((m) => ({ default: m.AdminSettings })),
 );
-const AdminTeam = lazy(() =>
-  import("./admin/AdminTeam").then((m) => ({ default: m.AdminTeam })),
-);
+const AdminTeam = lazy(() => import("./admin/AdminTeam").then((m) => ({ default: m.AdminTeam })));
 const AdminTickets = lazy(() =>
   import("./admin/AdminTickets").then((m) => ({ default: m.AdminTickets })),
 );
@@ -105,7 +101,29 @@ type Tab =
   | "developers"
   | "settings";
 
-const NAV_GROUPS: {
+// Ghost panels — UI exists, backend endpoints do NOT yet. Default-hidden so
+// production buyers don't click into empty "No xxx yet" forever. Set
+// `PUBLIC_SHOW_PREVIEW_PANELS=true` at build time to render them with a
+// "Preview" badge for internal/dev review. Once a panel's backend lands,
+// remove it from this set and the corresponding lazy import becomes real.
+const PREVIEW_PANELS: ReadonlySet<Tab> = new Set<Tab>([
+  "addons",
+  "groups",
+  "quantity-deals",
+  "bundle-offers",
+  "abandoned",
+  "blog",
+  "notifications",
+  "import",
+  "developers",
+  "team",
+]);
+
+const SHOW_PREVIEW =
+  typeof import.meta !== "undefined" &&
+  (import.meta as any).env?.PUBLIC_SHOW_PREVIEW_PANELS === "true";
+
+const NAV_GROUPS_FULL: {
   title?: string;
   items: { key: Tab; label: string; icon: any; badge?: string }[];
 }[] = [
@@ -157,14 +175,28 @@ const NAV_GROUPS: {
   },
 ];
 
+const NAV_GROUPS = NAV_GROUPS_FULL.map((g) => ({
+  ...g,
+  items: g.items
+    .filter((i) => SHOW_PREVIEW || !PREVIEW_PANELS.has(i.key))
+    .map((i) => (PREVIEW_PANELS.has(i.key) ? { ...i, badge: "Preview" } : i)),
+})).filter((g) => g.items.length > 0);
+
 export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTabPath }) => {
   const { user, loading, logout } = useAuth();
   const { config, theme } = useConfig();
+  // URL slug → Tab key mapping. Sidebar shows "Configure" / "Invoices" but
+  // internal tab keys are "settings" / "orders" (legacy). Centralized so the
+  // initial-mount sync useEffect below uses the same mapping as the popstate
+  // handler — otherwise a deep-link to /admin/invoices SSR-rendered as
+  // "overview" never reconciles with the URL after hydration.
+  const urlToTab: Record<string, Tab> = {
+    configure: "settings",
+    invoices: "orders",
+    feedbacks: "reviews",
+  };
+
   const [tab, setTab] = useState<Tab>(() => {
-    // URL slug → Tab key mapping for paths whose label/URL differs from internal tab key.
-    // The admin sidebar shows e.g. "Configure" / "Invoices" but the underlying tab keys
-    // are "settings" / "orders" (legacy naming kept to avoid touching every component).
-    const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders", feedbacks: "reviews" };
     if (activeTabPath) return (urlToTab[activeTabPath] ?? activeTabPath) as Tab;
     if (typeof window !== "undefined") {
       const parts = window.location.pathname.split("/").filter(Boolean);
@@ -176,12 +208,25 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
   });
   const [navOpen, setNavOpen] = useState(false); // mobile drawer
 
+  // Initial-mount sync: SSR renders with `tab="overview"` because `window` is
+  // unavailable. After hydration, re-read the URL once and reconcile. Without
+  // this, a deep-link to `/admin/invoices` boots as Dashboard until the user
+  // hits Back/Forward (popstate handler below).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    if (parts[0] === "admin" && parts[1]) {
+      const next = (urlToTab[parts[1]] ?? parts[1]) as Tab;
+      if (next !== tab) setTab(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePopState = () => {
       const parts = window.location.pathname.split("/").filter(Boolean);
       if (parts[0] === "admin" && parts[1]) {
-        const urlToTab: Record<string, Tab> = { configure: "settings", invoices: "orders", feedbacks: "reviews" };
         setTab((urlToTab[parts[1]] ?? parts[1]) as Tab);
       } else {
         setTab("overview");
@@ -196,7 +241,11 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     setNavOpen(false);
     if (typeof window !== "undefined") {
       // Reverse map: tab key → URL slug (so users see /admin/configure not /admin/settings)
-      const tabToUrl: Record<string, string> = { settings: "configure", orders: "invoices", reviews: "feedbacks" };
+      const tabToUrl: Record<string, string> = {
+        settings: "configure",
+        orders: "invoices",
+        reviews: "feedbacks",
+      };
       const slug = tabToUrl[newTab] ?? newTab;
       const path = newTab === "overview" ? "/admin" : `/admin/${slug}`;
       window.history.pushState(null, "", path);
@@ -252,14 +301,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
           </span>
         </div>
 
-        <div
-          onClick={() => {
-            window.location.href = "/";
-          }}
-          className="adm-store"
-          title="Open storefront"
-          style={{ cursor: "pointer" }}
-        >
+        <a href="/" className="adm-store" title="Open storefront">
           <span className="adm-store-icon">
             <Icon name="box" size={14} />
           </span>
@@ -267,7 +309,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
           <span className="adm-store-link">
             <Icon name="arrow-right" size={12} />
           </span>
-        </div>
+        </a>
 
         <nav className="adm-nav">
           {NAV_GROUPS.map((g, gi) => (
@@ -300,7 +342,12 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
             </span>
             <button
               className="adm-signout"
-              onClick={() => logout().then(() => window.location.reload())}
+              onClick={() => {
+                // Always reload, even on failure — a failed logout usually
+                // means the session was already invalid server-side, and the
+                // cleanest recovery is to drop the UI state and start fresh.
+                logout().finally(() => window.location.reload());
+              }}
               aria-label="Sign out"
               title="Sign out"
             >
@@ -337,29 +384,52 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
               </div>
             }
           >
-            {tab === "overview" && <AdminOverview />}
-            {tab === "products" && <AdminProducts />}
-            {tab === "groups" && <AdminGroups />}
-            {tab === "addons" && <AdminAddons />}
-            {tab === "categories" && <AdminCategories />}
-            {tab === "coupons" && <AdminCoupons />}
-            {tab === "quantity-deals" && <AdminQuantityDeals />}
-            {tab === "bundle-offers" && <AdminBundleOffers />}
-            {tab === "orders" && <AdminOrders />}
-            {tab === "customers" && <AdminCustomers />}
-            {tab === "reviews" && <AdminReviews />}
-            {tab === "abandoned" && <AdminAbandonedCheckouts />}
-            {tab === "tickets" && <AdminTickets />}
-            {tab === "payments" && <AdminPayments />}
-            {tab === "features" && <AdminFeatures />}
-            {tab === "blog" && <AdminBlog />}
-            {tab === "notifications" && <AdminNotifications />}
-            {tab === "blacklist" && <AdminBlacklist />}
-            {tab === "import" && <AdminImport />}
-            {tab === "activity" && <AdminActivity />}
-            {tab === "team" && <AdminTeam />}
-            {tab === "developers" && <AdminDevelopers />}
-            {tab === "settings" && <AdminSettings />}
+            {PREVIEW_PANELS.has(tab) && !SHOW_PREVIEW ? (
+              <div
+                style={{
+                  padding: "60px 24px",
+                  textAlign: "center",
+                  color: "var(--ink-soft)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Icon name="bolt" size={28} />
+                <strong>Coming soon</strong>
+                <span style={{ fontSize: ".88rem", maxWidth: 420 }}>
+                  This panel is part of a future release. Backend support is not yet shipped —
+                  use the other tabs for now.
+                </span>
+              </div>
+            ) : (
+              <>
+                {tab === "overview" && <AdminOverview />}
+                {tab === "products" && <AdminProducts />}
+                {tab === "groups" && <AdminGroups />}
+                {tab === "addons" && <AdminAddons />}
+                {tab === "categories" && <AdminCategories />}
+                {tab === "coupons" && <AdminCoupons />}
+                {tab === "quantity-deals" && <AdminQuantityDeals />}
+                {tab === "bundle-offers" && <AdminBundleOffers />}
+                {tab === "orders" && <AdminOrders />}
+                {tab === "customers" && <AdminCustomers />}
+                {tab === "reviews" && <AdminReviews />}
+                {tab === "abandoned" && <AdminAbandonedCheckouts />}
+                {tab === "tickets" && <AdminTickets />}
+                {tab === "payments" && <AdminPayments />}
+                {tab === "features" && <AdminFeatures />}
+                {tab === "blog" && <AdminBlog />}
+                {tab === "notifications" && <AdminNotifications />}
+                {tab === "blacklist" && <AdminBlacklist />}
+                {tab === "import" && <AdminImport />}
+                {tab === "activity" && <AdminActivity />}
+                {tab === "team" && <AdminTeam />}
+                {tab === "developers" && <AdminDevelopers />}
+                {tab === "settings" && <AdminSettings />}
+              </>
+            )}
           </Suspense>
         </div>
       </main>

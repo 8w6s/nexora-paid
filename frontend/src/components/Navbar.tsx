@@ -1,38 +1,43 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { useT } from "../i18n";
 import { useAuth } from "./AuthContext";
 import { useCart } from "./CartContext";
 import { useConfig } from "./ConfigContext";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icon";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 export const Navbar: React.FC = () => {
   const { cart, setIsCartOpen } = useCart();
   const { user, logout } = useAuth();
   const { isOn, config } = useConfig();
-  const totalItems = cart.reduce((t, i) => t + i.quantity, 0);
+  const { t } = useT();
+  const totalItems = cart.reduce((tt, i) => tt + i.quantity, 0);
   const [path, setPath] = useState("/");
   useEffect(() => setPath(window.location.pathname), []);
 
   const accountOptions = useMemo(
     () => [
       ...(user?.role === "admin"
-        ? [{ value: "admin", label: "Admin Panel", icon: "key" as const }]
+        ? [{ value: "admin", label: t("storefront.account.adminPanel"), icon: "key" as const }]
         : []),
-      { value: "orders", label: "My Orders", icon: "receipt" as const },
-      ...(isOn("tickets") ? [{ value: "support", label: "Support", icon: "ticket" as const }] : []),
-      { value: "account", label: "Account", icon: "key" as const },
-      { value: "logout", label: "Sign out", icon: "close" as const },
+      { value: "orders", label: t("storefront.account.myOrders"), icon: "receipt" as const },
+      ...(isOn("tickets")
+        ? [{ value: "support", label: t("storefront.account.support"), icon: "ticket" as const }]
+        : []),
+      { value: "account", label: t("storefront.account.account"), icon: "key" as const },
+      { value: "logout", label: t("storefront.account.signOut"), icon: "close" as const },
     ],
-    [isOn, user],
+    [isOn, user, t],
   );
 
   const handleAccountChange = (val: string) => {
     if (val === "admin") {
       window.location.assign("/admin");
     } else if (val === "orders") {
-      window.location.assign("/orders"); // keep /orders for customer view
+      window.location.assign("/orders");
     } else if (val === "support") {
       window.location.assign("/tickets");
     } else if (val === "account") {
@@ -59,15 +64,12 @@ export const Navbar: React.FC = () => {
         </span>
       );
     }
-    return <span>{name}</span>;
+    return <span>{name}</span>
   };
 
   return (
     <header className="navbar">
       <div className="container nav-inner">
-        {/* Real anchors so middle-click opens a tab and screen readers
-            announce the brand + nav as links. The previous div+onClick was
-            visually identical but failed both. */}
         <a href="/" className="logo">
           <span className="logo-mark">
             <Icon name="key" size={17} />
@@ -77,11 +79,12 @@ export const Navbar: React.FC = () => {
 
         <nav className="nav-links">
           <a href="/" className={path === "/" ? "active" : ""}>
-            Shop
+            {t("storefront.nav.shop")}
           </a>
         </nav>
 
         <div className="nav-right">
+          <LanguageSwitcher />
           <ThemeSwitch />
           {user ? (
             <Dropdown
@@ -95,17 +98,21 @@ export const Navbar: React.FC = () => {
             />
           ) : (
             <a href="/login" className="btn-link">
-              Sign in
+              {t("storefront.auth.signIn")}
             </a>
           )}
           <button
             id="cart-trigger-btn"
             className="btn-cart"
             onClick={() => setIsCartOpen(true)}
-            aria-label={totalItems > 0 ? `Open cart, ${totalItems} items` : "Open cart, empty"}
+            aria-label={
+              totalItems > 0
+                ? t("storefront.cart.openWithCount", { count: totalItems })
+                : t("storefront.cart.openEmpty")
+            }
           >
             <Icon name="cart" size={19} variant="duotone-regular" />
-            <span className="cart-label">Cart</span>
+            <span className="cart-label">{t("storefront.cart.title")}</span>
             {totalItems > 0 && (
               <span className="cart-badge" aria-hidden="true">
                 {totalItems}
@@ -131,7 +138,7 @@ export const Navbar: React.FC = () => {
         .btn-cart { position: relative; background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink); height: 40px; padding: 0 16px; border-radius: 100px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: var(--font-sans); font-weight: 600; font-size: .88rem; transition: border-color .18s var(--ease), color .18s var(--ease); }
         .btn-cart:hover { border-color: var(--brand); color: var(--brand); }
         .cart-badge { position: absolute; top: -7px; right: -7px; background: var(--price); color: #fff; font-size: .68rem; font-weight: 700; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 100px; display: flex; align-items: center; justify-content: center; }
-        @media (max-width: 600px) { .cart-label { display: none; } .btn-cart { width: 40px; padding: 0; justify-content: center; } .nav-links { gap: 14px; } .nav-acct-dd { max-width: 110px; } }
+        @media (max-width: 600px) { .cart-label { display: none; } .btn-cart { width: 40px; padding: 0; justify-content: center; } .nav-links { gap: 14px; } .nav-act-dd { max-width: 110px; } }
       `}</style>
     </header>
   );

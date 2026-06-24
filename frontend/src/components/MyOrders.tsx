@@ -1,23 +1,25 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api, fmtUsd, type OrderSummary } from "../lib/api";
 import { Icon } from "./Icon";
 import { SkeletonStyles, SkRows } from "./Skeleton";
 
-const label: Record<string, string> = {
-  pending: "Awaiting payment",
-  awaiting_payment: "Awaiting payment",
-  underpaid: "Underpaid",
-  paid: "Paid",
-  completed: "Completed",
-  expired: "Expired",
-  cancelled: "Cancelled",
-};
-
 export const MyOrders: React.FC = () => {
+  const { t } = useT();
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const label: Record<string, string> = {
+    pending: t("storefront.checkout.awaitingPayment"),
+    awaiting_payment: t("storefront.checkout.awaitingPayment"),
+    underpaid: t("storefront.checkout.underpaid"),
+    paid: t("storefront.checkout.paid"),
+    completed: t("storefront.checkout.completed"),
+    expired: t("storefront.checkout.expired"),
+    cancelled: t("storefront.checkout.cancelled"),
+  };
 
   useEffect(() => {
     api
@@ -33,16 +35,16 @@ export const MyOrders: React.FC = () => {
     return (
       <main className="container ord-page">
         <div className="ord-state">
-          Please{" "}
+          {t("storefront.orders.pleaseSignInPrefix")}{" "}
           <span
             style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
             onClick={() => {
               window.location.href = "/login?redirect=/orders";
             }}
           >
-            sign in
+            {t("storefront.auth.signIn").toLowerCase()}
           </span>{" "}
-          to view your orders.
+          {t("storefront.orders.pleaseSignInSuffix")}
         </div>
         <Styles />
       </main>
@@ -57,7 +59,7 @@ export const MyOrders: React.FC = () => {
   if (!orders)
     return (
       <main className="container ord-page">
-        <h1>My Orders</h1>
+        <h1>{t("storefront.account.myOrders")}</h1>
         <SkRows count={4} height={92} />
         <SkeletonStyles />
         <Styles />
@@ -66,14 +68,14 @@ export const MyOrders: React.FC = () => {
 
   return (
     <main className="container ord-page">
-      <h1>My Orders</h1>
+      <h1>{t("storefront.account.myOrders")}</h1>
       {orders.length === 0 ? (
         <div className="ord-empty card">
           <span className="ord-empty-icon">
             <Icon name="receipt" size={28} variant="badge" />
           </span>
-          <h2>No orders yet</h2>
-          <p>Once you complete a purchase, your keys and order history will live here forever.</p>
+          <h2>{t("storefront.orders.emptyTitle")}</h2>
+          <p>{t("storefront.orders.emptyHint")}</p>
           <div
             className="btn"
             style={{ cursor: "pointer" }}
@@ -81,7 +83,7 @@ export const MyOrders: React.FC = () => {
               window.location.href = "/";
             }}
           >
-            <Icon name="cart" size={16} variant="duotone-regular" /> Start shopping
+            <Icon name="cart" size={16} variant="duotone-regular" /> {t("storefront.orders.startShopping")}
           </div>
         </div>
       ) : (

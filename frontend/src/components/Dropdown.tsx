@@ -150,6 +150,7 @@ export function Dropdown<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={`${id}-list`}
+        aria-activedescendant={open && active !== null ? `${id}-opt-${active}` : undefined}
         onClick={() => {
           isKeyNavRef.current = false;
           setOpen((o) => !o);
@@ -166,6 +167,7 @@ export function Dropdown<T extends string>({
         <ul
           ref={listRef}
           id={`${id}-list`}
+          role="listbox"
           className="dd-list"
           tabIndex={-1}
           onMouseLeave={handleMouseLeave}
@@ -173,6 +175,8 @@ export function Dropdown<T extends string>({
           {options.map((o, i) => (
             <li
               key={String(o.value)}
+              id={`${id}-opt-${i}`}
+              role="option"
               aria-selected={value === o.value}
               aria-disabled={o.disabled || undefined}
               className={`dd-opt ${i === active ? "active" : ""} ${value === o.value ? "selected" : ""} ${o.disabled ? "disabled" : ""}`}

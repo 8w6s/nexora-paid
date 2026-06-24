@@ -1,20 +1,12 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { Icon } from "./Icon";
 import { PasswordInput } from "./PasswordInput";
 
-/**
- * Step 2 of the customer password-reset flow. The token comes from the
- * email link as `?token=...`. We validate its surface shape on mount so
- * a missing/malformed link surfaces immediately instead of waiting for a
- * submit; the backend re-validates the same shape + signature so this is
- * pure UX, not a security boundary.
- * On success, the backend mints a fresh session cookie (via the same
- * createSession path login uses) and we navigate to the My Orders page —
- * the redirect target most users came back here for.
- */
 export const ResetPasswordForm: React.FC = () => {
+  const { t } = useT();
   const [token, setToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
@@ -22,55 +14,46 @@ export const ResetPasswordForm: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Pull the token out of the URL on mount. We never put the token in
-  // React state from props/SSR — the page renders client-only so the
-  // token only ever lives in the URL bar of the browser that received it.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const raw = new URLSearchParams(window.location.search).get("token") ?? "";
     if (!/^[0-9a-f]{64}$/i.test(raw)) {
-      setTokenError(
-        "This reset link is invalid or has been mangled. Request a new one from the Sign in page.",
-      );
+      setTokenError(t("storefront.auth.resetTokenInvalid"));
       return;
     }
     setToken(raw);
-  }, []);
+  }, [t]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(t("storefront.auth.passwordTooShort"));
       return;
     }
     if (password !== confirm) {
-      setError("Passwords don't match");
+      setError(t("storefront.auth.passwordsDontMatch"));
       return;
     }
     if (!token) {
-      setError("Missing token");
+      setError(t("storefront.auth.resetTokenMissing"));
       return;
     }
     setBusy(true);
     try {
       await api.post("/api/auth/reset", { token, password });
-      // Backend has minted a session cookie. Land on My Orders — the page
-      // most password-reset attempts are coming back to.
       window.location.assign("/orders");
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.code === "BAD_TOKEN") {
-          setError(
-            "This reset link has expired or already been used. Request a new one from the Sign in page.",
-          );
+          setError(t("storefront.auth.resetTokenExpired"));
         } else if (err.code === "RATE_LIMITED") {
-          setError("Too many attempts. Wait a few minutes and try again.");
+          setError(t("storefront.errors.rateLimited"));
         } else {
-          setError(err.message || "Reset failed. Try again.");
+          setError(err.message || t("storefront.auth.resetFailed"));
         }
       } else {
-        setError(err instanceof Error ? err.message : "Reset failed. Try again.");
+        setError(err instanceof Error ? err.message : t("storefront.auth.resetFailed"));
       }
       setBusy(false);
     }
@@ -79,42 +62,39 @@ export const ResetPasswordForm: React.FC = () => {
   return (
     <main className="container auth-page">
       <div className="auth-card card">
-        <h1>Choose a new password</h1>
+        <h1>{t("storefront.auth.chooseNewPassword")}</h1>
         {tokenError ? (
           <>
             <p className="sub">{tokenError}</p>
             <p className="switch">
               <a href="/forgot" style={{ color: "var(--brand)", fontWeight: 600 }}>
-                Request a new reset link
+                {t("storefront.auth.requestNewResetLink")}
               </a>
             </p>
           </>
         ) : (
           <>
-            <p className="sub">
-              Pick a new password for your Nexora account. You'll be signed in automatically once
-              it's set.
-            </p>
+            <p className="sub">{t("storefront.auth.resetPickHint")}</p>
             <form onSubmit={submit}>
               <label>
-                <span>New password</span>
+                <span>{t("storefront.auth.newPassword")}</span>
                 <PasswordInput
                   value={password}
                   onChange={setPassword}
                   required
                   minLength={8}
-                  placeholder="At least 8 characters"
+                  placeholder={t("storefront.auth.passwordHint")}
                   autoComplete="new-password"
                 />
               </label>
               <label>
-                <span>Confirm password</span>
+                <span>{t("storefront.auth.confirmPassword")}</span>
                 <PasswordInput
                   value={confirm}
                   onChange={setConfirm}
                   required
                   minLength={8}
-                  placeholder="Re-enter the password"
+                  placeholder={t("storefront.auth.confirmPasswordPlaceholder")}
                   autoComplete="new-password"
                 />
               </label>
@@ -128,10 +108,10 @@ export const ResetPasswordForm: React.FC = () => {
                 {busy ? (
                   <>
                     <Icon name="spinner" size={17} className="is-spinning" />
-                    <span>Updating…</span>
-                  </>
+                    <span>{t("common.loading")}</span>
+                </>
                 ) : (
-                  <span>Set new password</span>
+                  <span>{t("storefront.auth.setNewPassword")}</span>
                 )}
               </button>
             </form>

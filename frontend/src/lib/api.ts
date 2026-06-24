@@ -9,12 +9,26 @@
 //   3. http://localhost:3000 fallback only on the server during SSR with no
 //      env set (so `bun run dev` keeps working without configuration).
 const rawOrigin = import.meta.env.PUBLIC_API_ORIGIN as string | undefined;
-export const API_ORIGIN =
-  rawOrigin !== undefined && rawOrigin !== ""
-    ? rawOrigin
-    : typeof window === "undefined"
-      ? "http://localhost:3000"
-      : "";
+const isProd = import.meta.env.PROD === true;
+
+// SSR fallback to localhost:3000 is for `bun run dev` ergonomics ONLY. In a
+// production container the backend is not on localhost — it's reachable via
+// the docker service name (e.g. http://backend:3000) or same-origin behind
+// Caddy. Warn loudly so a missed env doesn't silently 502 every SSR page.
+const ssrFallback = (() => {
+  if (rawOrigin !== undefined && rawOrigin !== "") return rawOrigin;
+  if (isProd) {
+    if (typeof window === "undefined") {
+      console.warn(
+        "[api] PUBLIC_API_ORIGIN is not set in production. SSR will fall back to http://localhost:3000 which usually fails in a container — set PUBLIC_API_ORIGIN to http://backend:3000 (compose service) or your public origin.",
+      );
+    }
+    return typeof window === "undefined" ? "http://localhost:3000" : "";
+  }
+  return typeof window === "undefined" ? "http://localhost:3000" : "";
+})();
+
+export const API_ORIGIN = ssrFallback;
 
 export type ApiError = { error: string; code: string };
 
@@ -41,7 +55,8 @@ export const reportClientError = (
       // sendBeacon is same-origin-friendly; only use it when we don't need an
       // explicit Origin (i.e. relative API_ORIGIN). Cross-origin reporting falls
       // through to fetch.
-      (API_ORIGIN === "" || (typeof window !== "undefined" && url.startsWith(window.location.origin)))
+      (API_ORIGIN === "" ||
+        (typeof window !== "undefined" && url.startsWith(window.location.origin)))
     ) {
       const blob = new Blob([payload], { type: "application/json" });
       if (navigator.sendBeacon(url, blob)) return;
@@ -201,10 +216,8 @@ export const api = {
       method: "PUT",
       body: body ? JSON.stringify(body) : undefined,
     }),
-  del: <T>(path: string, opts: CallOpts = {}) =>
-    request<T>(path, { ...opts, method: "DELETE" }),
-  delete: <T>(path: string, opts: CallOpts = {}) =>
-    request<T>(path, { ...opts, method: "DELETE" }),
+  del: <T>(path: string, opts: CallOpts = {}) => request<T>(path, { ...opts, method: "DELETE" }),
+  delete: <T>(path: string, opts: CallOpts = {}) => request<T>(path, { ...opts, method: "DELETE" }),
 };
 
 /* Types shared across the frontend */

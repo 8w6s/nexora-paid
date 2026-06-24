@@ -9,6 +9,7 @@ import {
   type OrderDetail,
   type OrderStatus,
 } from "../lib/api";
+import { useT } from "../i18n";
 import { useAuth } from "./AuthContext";
 import { useCart } from "./CartContext";
 import { Dropdown } from "./Dropdown";
@@ -59,14 +60,15 @@ function activeStep(st: OrderStatus | null, status: string): StepKey {
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const { t } = useT();
   const label: Record<string, string> = {
-    pending: "Awaiting payment",
-    awaiting_payment: "Awaiting payment",
-    underpaid: "Underpaid",
-    paid: "Paid",
-    completed: "Completed",
-    expired: "Expired",
-    cancelled: "Cancelled",
+    pending: t("storefront.checkout.awaitingPayment"),
+    awaiting_payment: t("storefront.checkout.awaitingPayment"),
+    underpaid: t("storefront.checkout.underpaid"),
+    paid: t("storefront.checkout.paid"),
+    completed: t("storefront.checkout.completed"),
+    expired: t("storefront.checkout.expired"),
+    cancelled: t("storefront.checkout.expired"),
   };
   const waiting = status === "pending" || status === "awaiting_payment" || status === "underpaid";
   return (
@@ -109,6 +111,7 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
   const [st, setSt] = useState<OrderStatus | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const { user } = useAuth();
+  const { t } = useT();
   // Guest = no logged-in session AND order is reached via the URL token, not a
   // real account session. We surface a stronger "save this link" warning for
   // them because they have no /orders page to return to.
@@ -141,17 +144,15 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
       if (inflight) return;
       inflight = true;
       try {
-        const s = await api.get<OrderStatus>(
-          `/api/orders/${orderId}/status${queryStr}`,
-          { signal: ac.signal },
-        );
+        const s = await api.get<OrderStatus>(`/api/orders/${orderId}/status${queryStr}`, {
+          signal: ac.signal,
+        });
         if (!alive) return;
         setSt(s);
         if (s.status === "paid" || s.status === "completed") {
-          const d = await api.get<OrderDetail>(
-            `/api/orders/${orderId}${queryStr}`,
-            { signal: ac.signal },
-          );
+          const d = await api.get<OrderDetail>(`/api/orders/${orderId}${queryStr}`, {
+            signal: ac.signal,
+          });
           if (alive) setDetail(d);
         }
       } catch (e) {
@@ -222,7 +223,7 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
     <div className="pay card">
       <div className="pay-head">
         <div>
-          <span className="muted">Order</span>
+          <span className="muted">#</span>
           <h1>{detail.id}</h1>
         </div>
         <StatusBadge status={status} />
@@ -235,11 +236,8 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
               <Icon name="check" size={20} />
             </span>
             <div>
-              <strong>Payment confirmed</strong>
-              <span>
-                Your {detail.deliveredKeys.length > 1 ? "keys are" : "key is"} ready. Copy and store{" "}
-                {detail.deliveredKeys.length > 1 ? "them" : "it"} somewhere safe.
-              </span>
+              <strong>{t("storefront.checkout.paid")}</strong>
+              <span>{t("storefront.checkout.yourKeys")}</span>
             </div>
           </div>
           <ul className="keys">
@@ -256,81 +254,58 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
               <div className="warn-guest">
                 <Icon name="shield" size={16} />
                 <div>
-                  <strong>Bookmark this page</strong>
-                  <span>
-                    You ordered as a guest — there is no account to log back into. Save this URL or
-                    copy your key{detail.deliveredKeys.length > 1 ? "s" : ""} now; once you close
-                    this tab the page can only be reached via this exact link.
-                  </span>
+                  <strong>{t("storefront.checkout.bookmarkPage")}</strong>
+                  <span>{t("storefront.checkout.emailNotConfigured")}</span>
                 </div>
               </div>
               <p className="hint">
-                <Icon name="key" size={14} /> Want one-click access next time?{" "}
-                <span
-                  style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
-                  onClick={() => {
-                    window.location.href = "/register";
-                  }}
-                >
-                  Create an account
-                </span>{" "}
-                with the same email to attach this order to your history.
+                <Icon name="key" size={14} />{" "}
+                <a href="/register" className="hint-link">
+                  {t("storefront.auth.createAccount")}
+                </a>
               </p>
             </>
           ) : (
             <p className="hint">
-              <Icon name="shield" size={14} /> Keep these private — anyone with the code can redeem
-              it. You can always find them in{" "}
-              <span
-                style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
-                onClick={() => {
-                  window.location.href = "/orders";
-                }}
-              >
-                My Orders
-              </span>
-              .
+              <Icon name="shield" size={14} />{" "}
+              <a href="/orders" className="hint-link">
+                {t("storefront.account.myOrders")}
+              </a>
             </p>
           )}
         </div>
       ) : expired ? (
         <div className="co-state">
-          This order has {status}.{" "}
-          <span
-            style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
-            onClick={() => {
-              window.location.href = "/";
-            }}
-          >
-            Back to shop
-          </span>
+          {t("storefront.checkout.expired")}.{" "}
+          <a href="/" className="hint-link">
+            {t("storefront.checkout.expiredCta")}
+          </a>
         </div>
       ) : (
         <>
           <p className="instructions">
-            Send exactly <strong>{detail.ltcAmount} LTC</strong> to the address below. Your keys are
-            delivered automatically after {st?.requiredConfirmations ?? 2} confirmations.
+            {t("storefront.checkout.sendExactly", { amount: detail.ltcAmount, currency: "LTC" })}
           </p>
           <div className="qr-wrap">
             <div className="qr">
               <img src={detail.qrCodeUrl} alt="Litecoin payment QR" width={220} height={220} />
             </div>
             <span className="qr-chip">
-              <Icon name="bolt" size={12} /> Scan to pay
+              <Icon name="bolt" size={12} /> {t("storefront.checkout.scanQr")}
             </span>
           </div>
           <div className="field">
-            <label>Address</label>
+            <label>{t("storefront.checkout.copyAddress")}</label>
             <div className="field-row">
               <code className="addr">{detail.ltcAddress}</code>
-              <CopyBtn value={detail.ltcAddress} label="Copy" />
+              <CopyBtn value={detail.ltcAddress} label={t("common.copy")} />
             </div>
           </div>
           <div className="field">
-            <label>Amount</label>
+            <label>{t("storefront.checkout.copyAmount")}</label>
             <div className="field-row">
               <code className="addr">{detail.ltcAmount} LTC</code>
-              <CopyBtn value={detail.ltcAmount} label="Copy" />
+              <CopyBtn value={detail.ltcAmount} label={t("common.copy")} />
             </div>
           </div>
           {(() => {
@@ -381,22 +356,27 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
           })()}
           <div className="pay-meta">
             <div>
-              <span>Total</span>
+              <span>{t("storefront.cart.total")}</span>
               <strong>{fmtUsd(detail.totalUsd)}</strong>
             </div>
             <div>
-              <span>Expires in</span>
+              <span>{t("storefront.checkout.expired")}</span>
               <strong className="mono">{st ? mmss(st.expiresInSec) : "—"}</strong>
             </div>
           </div>
-          {status === "underpaid" && (
+          {status === "underpaid" && st && (
             <div className="warn">
-              Amount received is short. Send the remainder to the same address.
+              {t("storefront.checkout.underpaidHint", {
+                received: String(st.receivedLitoshi ?? 0),
+                expected: detail.ltcAmount,
+                currency: "LTC",
+                missing: detail.ltcAmount,
+              })}
             </div>
           )}
           <p className="hint">
-            <l-chaotic-orbit size="16" speed="1.5" color="currentColor"></l-chaotic-orbit> Waiting
-            for payment on the Litecoin network… this page updates automatically.
+            <l-chaotic-orbit size="16" speed="1.5" color="currentColor"></l-chaotic-orbit>{" "}
+            {t("storefront.checkout.checking")}
           </p>
         </>
       )}
@@ -616,6 +596,7 @@ const COUNTRIES = [
 const ReviewView: React.FC = () => {
   const { cart, getCartTotal, clearCart } = useCart();
   const { user } = useAuth();
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [methods, setMethods] = useState<PayMethod[] | null>(null);
@@ -626,31 +607,36 @@ const ReviewView: React.FC = () => {
   useLdrs();
 
   useEffect(() => {
+    // Re-fetch only when the country changes — including `method` in deps
+    // would refetch every time the user clicks a different radio (we already
+    // setMethod inside the .then, which would re-trigger this effect).
     setMethods(null);
+    const ac = new AbortController();
     api
-      .get<{ methods: PayMethod[] }>(`/api/payments?country=${selectedCountry}`)
+      .get<{ methods: PayMethod[] }>(`/api/payments?country=${selectedCountry}`, {
+        signal: ac.signal,
+      })
       .then((d) => {
         setMethods(d.methods);
-        if (d.methods.length > 0) {
-          if (!d.methods.some((m) => m.id === method)) {
-            setMethod(d.methods[0].id);
-          }
-        } else {
-          setMethod("");
-        }
+        setMethod((cur) => {
+          if (d.methods.length === 0) return "";
+          return d.methods.some((m) => m.id === cur) ? cur : d.methods[0].id;
+        });
       })
-      .catch(() => {
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         setMethods([]);
         setMethod("");
       });
-  }, [selectedCountry, method]);
+    return () => ac.abort();
+  }, [selectedCountry]);
 
   const pay = async () => {
     setErr(null);
     setBusy(true);
     try {
       if (!user && !email.trim()) {
-        setErr("Please enter your email to receive items");
+        setErr(t("storefront.checkout.email"));
         setBusy(false);
         return;
       }
@@ -668,7 +654,7 @@ const ReviewView: React.FC = () => {
       const tokenQuery = res.orderToken ? `&token=${res.orderToken}` : "";
       window.location.assign(`/checkout?id=${res.orderId}${tokenQuery}`);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Checkout failed");
+      setErr(e instanceof Error ? e.message : t("storefront.errors.generic"));
       setBusy(false);
     }
   };
@@ -676,25 +662,20 @@ const ReviewView: React.FC = () => {
   if (cart.length === 0)
     return (
       <div className="co-state">
-        Your cart is empty.{" "}
-        <span
-          style={{ cursor: "pointer", color: "var(--brand)", fontWeight: 600 }}
-          onClick={() => {
-            window.location.href = "/";
-          }}
-        >
-          Browse products
-        </span>
+        {t("storefront.cart.empty")}.{" "}
+        <a href="/" className="hint-link">
+          {t("storefront.cart.continueShopping")}
+        </a>
       </div>
     );
 
   return (
     <div className="review card">
-      <h1>Checkout</h1>
+      <h1>{t("storefront.checkout.title")}</h1>
       <div className="lines">
         {cart.map((c) => (
           <div key={`${c.product.id}_${c.variant?.id ?? ""}`} className="line">
-            <img src={c.product.image} alt={c.product.name} />
+            <img src={c.product.image} alt={c.product.name} width={48} height={48} loading="lazy" />
             <div className="ln-name">
               <strong>
                 {c.product.name}
@@ -712,7 +693,7 @@ const ReviewView: React.FC = () => {
       </div>
 
       <div className="field" style={{ margin: "20px 0" }}>
-        <label>Your Country (for payment routing)</label>
+        <label>{t("storefront.checkout.country")}</label>
         <Dropdown<string>
           value={selectedCountry}
           onChange={(v) => setSelectedCountry(v)}
@@ -723,7 +704,7 @@ const ReviewView: React.FC = () => {
 
       {!user && (
         <div className="field" style={{ margin: "20px 0" }}>
-          <label>Your Email (to receive delivery keys)</label>
+          <label>{t("storefront.checkout.email")}</label>
           <div className="field-row">
             <input
               type="email"
@@ -750,24 +731,24 @@ const ReviewView: React.FC = () => {
         <input
           value={coupon}
           onChange={(e) => setCoupon(e.target.value.toUpperCase())}
-          placeholder="Coupon code (optional)"
-          aria-label="Coupon code"
+          placeholder={t("storefront.checkout.couponCode")}
+          aria-label={t("storefront.checkout.couponCode")}
         />
       </div>
       <div className="grand">
-        <span>Total</span>
+        <span>{t("storefront.cart.total")}</span>
         <span className="price">{fmtUsd(getCartTotal())}</span>
       </div>
 
       <div className="pay-methods">
-        <span className="pm-label">Payment method</span>
+        <span className="pm-label">{t("storefront.checkout.paymentMethod")}</span>
         {methods === null ? (
           <div className="pm-loading">
-            <Icon name="spinner" size={18} /> Loading methods…
+            <Icon name="spinner" size={18} /> {t("common.loading")}
           </div>
         ) : methods.length === 0 ? (
           <div className="warn">
-            No payment method available. The store owner hasn't enabled one yet.
+            {t("storefront.errors.noWallet")}
           </div>
         ) : (
           <div className="pm-list">
@@ -799,19 +780,16 @@ const ReviewView: React.FC = () => {
         {busy ? (
           <>
             <l-chaotic-orbit size="20" speed="1.5" color="currentColor"></l-chaotic-orbit>
-            <span>Creating order…</span>
+            <span>{t("storefront.checkout.creating")}</span>
           </>
         ) : (
           <>
             <Icon name="key" size={16} />
-            <span>Continue to payment</span>
+            <span>{t("storefront.cart.checkout")}</span>
           </>
         )}
       </button>
-      <p className="hint">
-        You'll get payment details on the next step. Keys are delivered automatically after
-        confirmation.
-      </p>
+      <p className="hint">{t("storefront.checkout.guestNotice")}</p>
       <CheckoutStyles />
     </div>
   );
@@ -832,6 +810,8 @@ const CheckoutStyles: React.FC = () => (
     .pay, .review { width: 100%; max-width: 540px; padding: 28px; }
     .co-state { padding: 60px 20px; text-align: center; color: var(--ink-soft); display: flex; flex-direction: column; align-items: center; gap: 12px; }
     .co-state a, .hint a, .delivered a { color: var(--brand); font-weight: 600; }
+    .hint-link { color: var(--brand); font-weight: 600; cursor: pointer; }
+    .hint-link:hover { text-decoration: underline; }
     .pay-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
     .pay-head h1 { font-size: 1.35rem; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
     .muted { font-size: .74rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
@@ -857,9 +837,7 @@ const CheckoutStyles: React.FC = () => (
     .copy-btn:hover { background: var(--brand-soft, rgba(79,70,229,.08)); color: var(--brand); }
     .copy-btn:active { transform: scale(.97); }
     .copy-btn.is-flash { color: var(--auto, #137333); background: var(--auto-soft, #e6f4ea); }
-    .copy-btn.sm { width: 38px; height: 38px; padding: 0; border-left: none; border-radius: 10px; background: rgba(255,255,255,.06); color: #a5f3fc; flex-shrink: 0; }
-    .copy-btn.sm:hover { background: rgba(165,243,252,.18); color: #fff; }
-    .copy-btn.sm.is-flash { background: rgba(16,185,129,.22); color: #6ee7b7; }
+    .copy-btn.sm { width: 38px; height: 38px; padding: 0; border-left: none; border-radius: 10px; flex-shrink: 0; }
 
     /* Confirmation stepper — 4 steps Sent → Seen → Confirming(n/N · ETA) → Delivered.
        Replaces the raw "Confirmations 280693/2" number which overflowed visually when
@@ -903,10 +881,12 @@ const CheckoutStyles: React.FC = () => (
     .ok-banner strong { font-size: 1rem; font-weight: 700; color: var(--ink); }
     .ok-banner span { font-size: .85rem; color: var(--ink-soft); line-height: 1.45; }
     .keys { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-    .keys li { display: flex; align-items: center; gap: 10px; background: #0f172a; padding: 8px 8px 8px 14px; border-radius: 10px; transition: transform .12s; }
-    .keys li:hover { transform: translateY(-1px); }
-    .keys .k-idx { font-size: .68rem; font-weight: 700; color: #64748b; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-    .keys code { flex: 1; color: #a5f3fc; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .88rem; letter-spacing: .4px; word-break: break-all; line-height: 1.4; }
+    .keys li { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--line); padding: 8px 8px 8px 14px; }
+    .keys .k-idx { font-size: .68rem; font-weight: 700; color: var(--ink-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .keys code { flex: 1; color: var(--ink); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .88rem; letter-spacing: .4px; word-break: break-all; line-height: 1.4; }
+    .copy-btn.sm { background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
+    .copy-btn.sm:hover { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); }
+    .copy-btn.sm.is-flash { background: var(--auto-soft); color: var(--auto); border-color: var(--auto); }
     .lines { display: flex; flex-direction: column; gap: 12px; margin: 18px 0; }
     .line { display: flex; align-items: center; gap: 12px; }
     .line img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--radius-sm); }

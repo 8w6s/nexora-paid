@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
@@ -19,11 +19,14 @@ export const AdminReviews: React.FC = () => {
   const [list, setList] = useState<AdminReview[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = () =>
-    api
-      .get<AdminReview[]>("/api/admin/reviews")
-      .then(setList)
-      .catch(() => {});
+  const load = useCallback(
+    () =>
+      api
+        .get<AdminReview[]>("/api/admin/reviews")
+        .then(setList)
+        .catch(() => {}),
+    [],
+  );
   useEffect(() => {
     load();
   }, [load]);

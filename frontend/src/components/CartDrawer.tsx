@@ -1,15 +1,17 @@
 import anime from "animejs";
 import type React from "react";
 import { useEffect, useRef } from "react";
+import { useT } from "../i18n";
 import { fmtUsd } from "../lib/api";
 import { useCart } from "./CartContext";
 import { Icon } from "./Icon";
 
-// Cart drawer. Checkout requires login + LTC payment, so "Checkout" just routes to /checkout
-// (the Checkout island handles auth redirect + order creation). No customer form here anymore.
 export const CartDrawer: React.FC = () => {
   const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity, getCartTotal } =
     useCart();
+  const { t } = useT();
+// Cart drawer. Checkout requires login + LTC payment, so "Checkout" just routes to /checkout
+// (the Checkout island handles auth redirect + order creation). No customer form here anymore.
   const drawerRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -75,8 +77,8 @@ export const CartDrawer: React.FC = () => {
       />
       <aside ref={drawerRef} className="cart-drawer" style={{ transform: "translateX(100%)" }}>
         <div className="drawer-header">
-          <h2>Cart ({totalQty})</h2>
-          <button className="btn-close" onClick={() => setIsCartOpen(false)} aria-label="Close">
+          <h2>{t("storefront.cart.title")} ({totalQty})</h2>
+          <button className="btn-close" onClick={() => setIsCartOpen(false)} aria-label={t("common.close")}>
             <Icon name="close" size={20} />
           </button>
         </div>
@@ -85,7 +87,7 @@ export const CartDrawer: React.FC = () => {
           {cart.length === 0 ? (
             <div className="empty-cart">
               <Icon name="cart" size={38} />
-              <p>Your cart is empty.</p>
+              <p>{t("storefront.cart.empty")}</p>
             </div>
           ) : (
             <div className="cart-items">
@@ -158,19 +160,17 @@ export const CartDrawer: React.FC = () => {
         {cart.length > 0 && (
           <div className="drawer-footer">
             <div className="total-row">
-              <span>Total</span>
+              <span>{t("storefront.cart.total")}</span>
               <span className="total-amount price">{fmtUsd(getCartTotal())}</span>
             </div>
-            <div
+            <a
+              href="/checkout"
               className="btn"
-              onClick={() => {
-                window.location.href = "/checkout";
-              }}
               style={{ width: "100%", justifyContent: "center", cursor: "pointer" }}
             >
-              <span>Continue to checkout</span>
+              <span>{t("storefront.cart.checkout")}</span>
               <Icon name="arrow-right" size={17} />
-            </div>
+            </a>
           </div>
         )}
       </aside>

@@ -8,19 +8,28 @@
   "scripts": {
     "dev:backend": "bun --cwd backend dev",
     "dev:frontend": "bun --cwd frontend dev",
-    "dev": "bun scripts/dev.tsx",
+    "dev": "bun scripts/tui.tsx",
+    "dev:legacy": "bun scripts/dev.tsx",
     "seed": "bun --cwd backend src/db/seed.ts",
     "format": "biome format --write .",
     "lint": "biome lint .",
-    "check": "biome check --write ."
+    "check": "biome check --write .",
+    "test:integrity": "bun run scripts/test-integrity.ts",
+    "test:backend": "cd backend && bun test src/lib/hd.test.ts src/lib/encryption.test.ts src/lib/integrity.test.ts src/lib/integrity-state.test.ts src/lib/explorer.test.ts src/lib/plugin/compat.test.ts src/lib/plugin/hook-bus.test.ts src/lib/plugin/migrations.test.ts",
+    "test:e2e": "cd backend && bun test src/e2e.test.ts",
+    "test": "bun run test:backend && bun run test:integrity",
+    "build:frontend": "bun --cwd frontend run build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
     "@noble/ed25519": "^3.1.0",
     "@noble/hashes": "^2.2.0",
+    "@opentui/core": "^0.4.1",
+    "@opentui/solid": "^0.4.1",
     "@types/react": "^19.2.17",
     "concurrently": "^10.0.3",
     "ink": "^7.0.6",
-    "react": "^19.2.7"
+    "react": "^19.2.7",
+    "solid-js": "^1.9.13"
   }
 }

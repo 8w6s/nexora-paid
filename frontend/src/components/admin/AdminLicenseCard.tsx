@@ -70,7 +70,7 @@ export const AdminLicenseCard: React.FC = () => {
         </span>
       </div>
 
-      {info.valid & (
+      {info.valid && (
         <div className="lic-meta">
           {info.customerId && (
             <div className="lic-row">

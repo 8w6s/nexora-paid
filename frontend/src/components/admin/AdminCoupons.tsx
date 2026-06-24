@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { Dropdown } from "../Dropdown";
 import { Icon } from "../Icon";
@@ -30,11 +30,14 @@ export const AdminCoupons: React.FC = () => {
   const [form, setForm] = useState(blank);
   const toast = useToast();
 
-  const load = () =>
-    api
-      .get<Coupon[]>("/api/admin/coupons")
-      .then(setList)
-      .catch(() => {});
+  const load = useCallback(
+    () =>
+      api
+        .get<Coupon[]>("/api/admin/coupons")
+        .then(setList)
+        .catch(() => {}),
+    [],
+  );
   useEffect(() => {
     load();
   }, [load]);

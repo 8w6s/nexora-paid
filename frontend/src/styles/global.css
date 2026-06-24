@@ -378,6 +378,22 @@ textarea {
   border-color: rgba(59, 130, 246, 0.25);
 }
 
+/* Dark theme overrides: lift foreground to a lighter shade so the badge
+   text stays legible against the dark surface. Backgrounds stay the same
+   tinted-translucent so the brand hue is recognisable across themes. */
+[data-theme="dark"] .badge-green {
+  color: #6ee7b7;
+}
+[data-theme="dark"] .badge-yellow {
+  color: #fcd34d;
+}
+[data-theme="dark"] .badge-red {
+  color: #fca5a5;
+}
+[data-theme="dark"] .badge-blue {
+  color: #93c5fd;
+}
+
 /* Admin table */
 .adm-table {
   width: 100%;

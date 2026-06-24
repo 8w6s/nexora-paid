@@ -64,20 +64,64 @@ const KeyboardListener = ({
   onClearLogs: () => void;
   onStopAll: () => void;
 }) => {
-  const refs = useRef({ maxLogs, backendLogsCount, frontendLogsCount, focusedBtn, onRestartAll, onClearLogs, onStopAll });
+  const refs = useRef({
+    maxLogs,
+    backendLogsCount,
+    frontendLogsCount,
+    focusedBtn,
+    onRestartAll,
+    onClearLogs,
+    onStopAll,
+  });
 
   useEffect(() => {
-    refs.current = { maxLogs, backendLogsCount, frontendLogsCount, focusedBtn, onRestartAll, onClearLogs, onStopAll };
-  }, [maxLogs, backendLogsCount, frontendLogsCount, focusedBtn, onRestartAll, onClearLogs, onStopAll]);
+    refs.current = {
+      maxLogs,
+      backendLogsCount,
+      frontendLogsCount,
+      focusedBtn,
+      onRestartAll,
+      onClearLogs,
+      onStopAll,
+    };
+  }, [
+    maxLogs,
+    backendLogsCount,
+    frontendLogsCount,
+    focusedBtn,
+    onRestartAll,
+    onClearLogs,
+    onStopAll,
+  ]);
 
   useInput((input, key) => {
-    const { maxLogs: cMax, backendLogsCount: cBE, frontendLogsCount: cFE, focusedBtn: cBtn, onRestartAll: cRestart, onClearLogs: cClear, onStopAll: cStop } = refs.current;
+    const {
+      maxLogs: cMax,
+      backendLogsCount: cBE,
+      frontendLogsCount: cFE,
+      focusedBtn: cBtn,
+      onRestartAll: cRestart,
+      onClearLogs: cClear,
+      onStopAll: cStop,
+    } = refs.current;
 
-    if (input === "r" || input === "R") { cRestart(); return; }
-    if (input === "c" || input === "C") { cClear(); return; }
-    if (input === "q" || input === "Q" || key.escape) { cStop(); return; }
+    if (input === "r" || input === "R") {
+      cRestart();
+      return;
+    }
+    if (input === "c" || input === "C") {
+      cClear();
+      return;
+    }
+    if (input === "q" || input === "Q" || key.escape) {
+      cStop();
+      return;
+    }
 
-    if (key.tab) { setFocusedBtn((prev) => (prev + 1) % 3); return; }
+    if (key.tab) {
+      setFocusedBtn((prev) => (prev + 1) % 3);
+      return;
+    }
 
     if (key.return) {
       if (cBtn === 0) cRestart();
@@ -125,8 +169,13 @@ const FooterKey = ({
   accent: "cyan" | "yellow" | "red";
 }) => (
   <Box>
-    <Text color={focused ? accent : "gray"} bold={focused}>[{hotkey}]</Text>
-    <Text color={focused ? accent : "white"} bold={focused}> {label}</Text>
+    <Text color={focused ? accent : "gray"} bold={focused}>
+      [{hotkey}]
+    </Text>
+    <Text color={focused ? accent : "white"} bold={focused}>
+      {" "}
+      {label}
+    </Text>
   </Box>
 );
 
@@ -339,39 +388,65 @@ const DevRunner = () => {
       <Box flexDirection="column" marginBottom={1}>
         <Box justifyContent="space-between" paddingX={1}>
           <Box>
-            <Text color="cyan" bold>nexora</Text>
+            <Text color="cyan" bold>
+              nexora
+            </Text>
             <Text color="gray"> · dev</Text>
-            <Text color="gray" dimColor>{"   "}</Text>
-            <Text color="gray" dimColor>{fmtTime(new Date(now))}</Text>
-            <Text color="gray" dimColor>{"  ·  uptime "}</Text>
+            <Text color="gray" dimColor>
+              {"   "}
+            </Text>
+            <Text color="gray" dimColor>
+              {fmtTime(new Date(now))}
+            </Text>
+            <Text color="gray" dimColor>
+              {"  ·  uptime "}
+            </Text>
             <Text color="gray">{fmtUptime(uptimeSec)}</Text>
           </Box>
           <Box>
-            <Text color="gray" dimColor>{"errors  "}</Text>
+            <Text color="gray" dimColor>
+              {"errors  "}
+            </Text>
             <Text color={errorsCount.low > 0 ? "yellow" : "gray"}>{errorsCount.low}</Text>
-            <Text color="gray" dimColor>{" low  "}</Text>
-            <Text color={errorsCount.medium > 0 ? "yellow" : "gray"} bold={errorsCount.medium > 0}>{errorsCount.medium}</Text>
-            <Text color="gray" dimColor>{" med  "}</Text>
-            <Text color={errorsCount.high > 0 ? "red" : "gray"} bold={errorsCount.high > 0}>{errorsCount.high}</Text>
-            <Text color="gray" dimColor>{" high"}</Text>
+            <Text color="gray" dimColor>
+              {" low  "}
+            </Text>
+            <Text color={errorsCount.medium > 0 ? "yellow" : "gray"} bold={errorsCount.medium > 0}>
+              {errorsCount.medium}
+            </Text>
+            <Text color="gray" dimColor>
+              {" med  "}
+            </Text>
+            <Text color={errorsCount.high > 0 ? "red" : "gray"} bold={errorsCount.high > 0}>
+              {errorsCount.high}
+            </Text>
+            <Text color="gray" dimColor>
+              {" high"}
+            </Text>
           </Box>
         </Box>
         <Box paddingX={1}>
-          <Text color="gray" dimColor>{"─".repeat(Math.max(20, terminalCols - 4))}</Text>
+          <Text color="gray" dimColor>
+            {"─".repeat(Math.max(20, terminalCols - 4))}
+          </Text>
         </Box>
         <Box justifyContent="space-between" paddingX={1}>
           <Box>
             <StatusDot ready={backendReady} running={backendRunning} />
             <Text color="gray">{"  api      "}</Text>
             <Text color="white">http://localhost:3000</Text>
-            <Text color="gray" dimColor>{"   "}</Text>
+            <Text color="gray" dimColor>
+              {"   "}
+            </Text>
             <StatusText ready={backendReady} running={backendRunning} />
           </Box>
           <Box>
             <StatusDot ready={frontendReady} running={frontendRunning} />
             <Text color="gray">{"  web      "}</Text>
             <Text color="white">http://localhost:4321</Text>
-            <Text color="gray" dimColor>{"   "}</Text>
+            <Text color="gray" dimColor>
+              {"   "}
+            </Text>
             <StatusText ready={frontendReady} running={frontendRunning} />
           </Box>
         </Box>
@@ -390,15 +465,27 @@ const DevRunner = () => {
         >
           <Box justifyContent="space-between">
             <Box>
-              <Text color="cyan" bold>api</Text>
-              <Text color="gray" dimColor>{"  ·  backend"}</Text>
+              <Text color="cyan" bold>
+                api
+              </Text>
+              <Text color="gray" dimColor>
+                {"  ·  backend"}
+              </Text>
             </Box>
-            {backendScroll > 0
-              ? <Text color="yellow">↑ scrolled · w/s</Text>
-              : <Text color="gray" dimColor>{backendLogs.length} lines</Text>}
+            {backendScroll > 0 ? (
+              <Text color="yellow">↑ scrolled · w/s</Text>
+            ) : (
+              <Text color="gray" dimColor>
+                {backendLogs.length} lines
+              </Text>
+            )}
           </Box>
           <Box flexDirection="column" flexGrow={1} marginTop={1}>
-            {visibleBackend.map((log, i) => <Text key={i} wrap="truncate">{log}</Text>)}
+            {visibleBackend.map((log, i) => (
+              <Text key={i} wrap="truncate">
+                {log}
+              </Text>
+            ))}
           </Box>
         </Box>
 
@@ -411,15 +498,27 @@ const DevRunner = () => {
         >
           <Box justifyContent="space-between">
             <Box>
-              <Text color="magenta" bold>web</Text>
-              <Text color="gray" dimColor>{"  ·  frontend"}</Text>
+              <Text color="magenta" bold>
+                web
+              </Text>
+              <Text color="gray" dimColor>
+                {"  ·  frontend"}
+              </Text>
             </Box>
-            {frontendScroll > 0
-              ? <Text color="yellow">↑ scrolled · ↑/↓</Text>
-              : <Text color="gray" dimColor>{frontendLogs.length} lines</Text>}
+            {frontendScroll > 0 ? (
+              <Text color="yellow">↑ scrolled · ↑/↓</Text>
+            ) : (
+              <Text color="gray" dimColor>
+                {frontendLogs.length} lines
+              </Text>
+            )}
           </Box>
           <Box flexDirection="column" flexGrow={1} marginTop={1}>
-            {visibleFrontend.map((log, i) => <Text key={i} wrap="truncate">{log}</Text>)}
+            {visibleFrontend.map((log, i) => (
+              <Text key={i} wrap="truncate">
+                {log}
+              </Text>
+            ))}
           </Box>
         </Box>
       </Box>
@@ -434,7 +533,9 @@ const DevRunner = () => {
           <FooterKey label="quit" hotkey="q" focused={focusedBtn === 2} accent="red" />
         </Box>
         <Box>
-          <Text color="gray" dimColor>tab cycles · enter activates</Text>
+          <Text color="gray" dimColor>
+            tab cycles · enter activates
+          </Text>
         </Box>
       </Box>
     </Box>

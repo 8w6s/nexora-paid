@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { ToggleSwitch } from "../ToggleSwitch";
@@ -14,11 +14,14 @@ export const AdminFeatures: React.FC = () => {
   const [list, setList] = useState<Feature[] | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
 
-  const load = () =>
-    api
-      .get<Feature[]>("/api/admin/features")
-      .then(setList)
-      .catch(() => {});
+  const load = useCallback(
+    () =>
+      api
+        .get<Feature[]>("/api/admin/features")
+        .then(setList)
+        .catch(() => {}),
+    [],
+  );
   useEffect(() => {
     load();
   }, [load]);

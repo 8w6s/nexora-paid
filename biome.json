@@ -57,6 +57,9 @@
       "includes": [
         "**/backend/src/db/seed.ts",
         "**/backend/src/index.ts",
+        "**/backend/src/lib/banner.ts",
+        "**/backend/src/lib/integrity-state.ts",
+        "**/backend/src/lib/watcher.ts",
         "**/backend/gen-xpub.mjs",
         "**/scripts/*.ts"
       ],

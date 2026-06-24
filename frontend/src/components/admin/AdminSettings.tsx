@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
+import { PasswordPromptModal } from "../PasswordPromptModal";
 import { useToast } from "../Toast";
 import { ToggleSwitch } from "../ToggleSwitch";
 
@@ -109,9 +110,14 @@ const TestEmailCard: React.FC = () => {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await api.post("/api/admin/settings/test-email", { to: to.trim() || undefined });
-      if (r.ok) toast.success(`Test email sent to ${r.data.to}`);
-      else toast.error(r.data?.error || "Failed to send test email");
+      const r = await api.post<{ ok?: boolean; to?: string; error?: string }>(
+        "/api/admin/settings/test-email",
+        { to: to.trim() || undefined },
+      );
+      if (r?.ok) toast.success(`Test email sent to ${r.to ?? "your admin address"}`);
+      else toast.error(r?.error || "Failed to send test email");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send test email");
     } finally {
       setBusy(false);
     }
@@ -122,7 +128,8 @@ const TestEmailCard: React.FC = () => {
         <Icon name="bolt" size={16} /> Send Test Email
       </span>
       <p className="section-subtitle">
-        Verify your provider config end-to-end. Defaults to your admin address if you leave the field empty.
+        Verify your provider config end-to-end. Defaults to your admin address if you leave the
+        field empty.
       </p>
       <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
         <input
@@ -152,6 +159,7 @@ export const AdminSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>("identity");
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [pendingEmailBody, setPendingEmailBody] = useState<Record<string, unknown> | null>(null);
 
   // Identity state
   const [storeName, setStoreName] = useState("Nexora");
@@ -381,8 +389,13 @@ export const AdminSettings: React.FC = () => {
             d.refund_out_of_stock_to_balance === "true" ||
               d.refund_out_of_stock_to_balance === true,
           );
-          if (d.maintenance_password !== undefined && d.maintenance_password !== null)
+          // Backend masks the stored hash to a boolean `true` to avoid leaking
+          // it back to the admin UI. Only adopt the value when it's an actual
+          // user-typed string — otherwise we'd persist literally "true" on the
+          // next save and turn the maintenance bypass into a known constant.
+          if (typeof d.maintenance_password === "string")
             setMaintenancePassword(d.maintenance_password);
+          else setMaintenancePassword("");
           if (d.custom_domain_name !== undefined && d.custom_domain_name !== null)
             setCustomDomainName(d.custom_domain_name);
 
@@ -509,25 +522,35 @@ export const AdminSettings: React.FC = () => {
           emailRotatesSecret = true;
         }
       }
+
       if (emailRotatesSecret) {
-        const pw = window.prompt(
-          "Confirm your admin password to rotate email credentials — every future receipt and password-reset link will route through this provider.",
-        );
-        if (pw == null || pw === "") {
-          toast.error("Email credential rotation cancelled. Other settings still saved.");
-          load();
-          return;
-        }
-        emailBody.currentPassword = pw;
+        // Defer email save behind PasswordPromptModal. General settings are
+        // already persisted above; if the admin cancels, only the email
+        // credentials are skipped.
+        setPendingEmailBody(emailBody);
+        toast.success("General settings saved. Confirm password to rotate email credentials.");
+        load();
+        return;
       }
       await api.put("/api/admin/settings/email", emailBody);
-
       toast.success("All shop settings saved successfully.");
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const submitEmailWithPassword = async (pw: string) => {
+    if (!pendingEmailBody) return;
+    try {
+      await api.put("/api/admin/settings/email", { ...pendingEmailBody, currentPassword: pw });
+      toast.success("Email credentials rotated.");
+      setPendingEmailBody(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Email rotation failed");
     }
   };
 
@@ -1440,7 +1463,7 @@ export const AdminSettings: React.FC = () => {
                     DNS Setup Instructions
                   </span>
                   <p className="section-subtitle" style={{ fontSize: "0.78rem" }}>
-                    Configure the following DNS records with your registrar:
+                    Point your domain at this server. Use the public hostname or IP of the machine running Nexora (or your Cloudflare Tunnel hostname) as the record value. SSL is provisioned automatically by Caddy on first request.
                   </p>
 
                   <table
@@ -1469,7 +1492,7 @@ export const AdminSettings: React.FC = () => {
                           Value
                         </th>
                         <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>
-                          Status
+                          TL
                         </th>
                       </tr>
                     </thead>
@@ -1482,7 +1505,7 @@ export const AdminSettings: React.FC = () => {
                           <code>{customDomainName.split(".")[0]}</code>
                         </td>
                         <td style={{ padding: "8px" }}>
-                          <code>domains.sellauth.com</code>
+                          <code>{"<your-server-host>"}</code>
                         </td>
                         <td
                           style={{
@@ -1500,7 +1523,7 @@ export const AdminSettings: React.FC = () => {
                   <div className="xpub-status ok" style={{ marginTop: "12px" }}>
                     <Icon name="check" size={14} />
                     <span>
-                      SSL Certificate successfully generated. Your custom domain is fully online.
+                      Once the DNS record propagates, SSL will be provisioned automatically. Verify status with `curl https://your-domain` from the host machine.
                     </span>
                   </div>
                 </div>
@@ -1827,6 +1850,18 @@ export const AdminSettings: React.FC = () => {
         {/* Right side settings pane */}
         <div className="settings-content-wrapper">{renderTabContent()}</div>
       </div>
+
+      <PasswordPromptModal
+        open={!!pendingEmailBody}
+        title="Confirm email credential rotation"
+        message="Every future order receipt and password-reset link will route through this provider. Re-enter your admin password to confirm."
+        confirmLabel="Rotate email credentials"
+        onCancel={() => {
+          setPendingEmailBody(null);
+          toast.error("Email credential rotation canceled. Other settings still saved.");
+        }}
+        onSubmit={submitEmailWithPassword}
+      />
 
       <style>{`
         .settings-page { display: flex; flex-direction: column; gap: 24px; }

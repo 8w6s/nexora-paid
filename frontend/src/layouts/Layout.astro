@@ -19,19 +19,28 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    {/* Apply persisted theme BEFORE paint to avoid FOUC. */}
+    {/* Apply persisted theme BEFORE paint to avoid FOUC. Falls back to the
+        OS-level prefers-color-scheme when no explicit choice has been made
+        so a dark-mode user doesn't get a flash of light theme on first visit. */}
     <script is:inline>
       (function () {
         // Canonical key is "nexora-theme" (lowercase). Older builds used
         // "Nexora-theme" (mixed-case typo) and "gemvn-theme" (pre-rebrand);
         // read all three so a returning visitor keeps their preference, then
         // ConfigContext on hydrate writes the canonical key + clears legacy.
+        // When NO explicit choice exists, fall back to the OS prefers-color-scheme
+        // so dark-mode users don't get a flash of light theme on first visit.
         try {
           var keys = ["nexora-theme", "Nexora-theme", "gemvn-theme"];
+          var chosen = null;
           for (var i = 0; i < keys.length; i++) {
             var t = localStorage.getItem(keys[i]);
-            if (t === "dark" || t === "light") { document.documentElement.dataset.theme = t; break; }
+            if (t === "dark" || t === "light") { chosen = t; break; }
           }
+          if (!chosen && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+            chosen = "dark";
+          }
+          if (chosen) document.documentElement.dataset.theme = chosen;
         } catch (_) {}
       })();
     </script>

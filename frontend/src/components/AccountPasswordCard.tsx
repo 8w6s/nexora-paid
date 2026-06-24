@@ -1,19 +1,13 @@
 import type React from "react";
 import { useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { Icon } from "./Icon";
 import { PasswordInput } from "./PasswordInput";
 import { useToast } from "./Toast";
 
-/**
- * Self-service password rotation card for the customer /account page.
- * Mirrors Sellauth's profile form ("Current / New / Confirm") and the
- * AdminTeam admin rotation card on the admin side. After a successful
- * rotation the backend revokes every other session; we surface that
- * count in the toast so the user knows their other devices were
- * signed out.
- */
 export const AccountPasswordCard: React.FC = () => {
+  const { t } = useT();
   const toast = useToast();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -23,15 +17,15 @@ export const AccountPasswordCard: React.FC = () => {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (next.length < 8) {
-      toast.error("New password must be at least 8 characters");
+      toast.error(t("storefront.auth.passwordTooShort"));
       return;
     }
     if (next !== confirm) {
-      toast.error("New passwords don't match");
+      toast.error(t("storefront.auth.passwordsDontMatch"));
       return;
     }
     if (next === current) {
-      toast.error("New password must differ from your current password");
+      toast.error(t("storefront.account.samePassword"));
       return;
     }
     setBusy(true);
@@ -43,8 +37,8 @@ export const AccountPasswordCard: React.FC = () => {
       const revoked = res.revokedSessions ?? 0;
       toast.success(
         revoked > 0
-          ? `Password updated. Signed out of ${revoked} other device${revoked === 1 ? "" : "s"}.`
-          : "Password updated.",
+          ? t("storefront.account.passwordUpdatedWithRevoked", { count: revoked })
+          : t("storefront.account.passwordUpdated"),
       );
       setCurrent("");
       setNext("");
@@ -52,16 +46,18 @@ export const AccountPasswordCard: React.FC = () => {
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.code === "BAD_CURRENT") {
-          toast.error("Current password is incorrect");
+          toast.error(t("storefront.account.badCurrentPassword"));
         } else if (err.code === "SAME_PASSWORD") {
-          toast.error("New password must differ from current password");
+          toast.error(t("storefront.account.samePassword"));
         } else if (err.code === "RATE_LIMITED") {
-          toast.error("Too many attempts. Wait a few minutes and try again.");
+          toast.error(t("storefront.errors.rateLimited"));
         } else {
-          toast.error(err.message || "Could not update password");
+          toast.error(err.message || t("storefront.account.passwordUpdateFailed"));
         }
       } else {
-        toast.error(err instanceof Error ? err.message : "Could not update password");
+        toast.error(
+          err instanceof Error ? err.message : t("storefront.account.passwordUpdateFailed"),
+        );
       }
     } finally {
       setBusy(false);
@@ -71,57 +67,51 @@ export const AccountPasswordCard: React.FC = () => {
   return (
     <section className="card acct-card">
       <div className="acct-head">
-        <h2>Change password</h2>
-        <p className="sub">
-          Chose a new password. Every other device you're signed in on will be signed out.
-        </p>
+        <h2>{t("storefront.account.changePassword")}</h2>
+        <p className="sub">{t("storefront.account.changePasswordHint")}</p>
       </div>
       <form onSubmit={submit}>
         <label>
-          <span>Current password</span>
+          <span>{t("storefront.account.currentPassword")}</span>
           <PasswordInput
             value={current}
             onChange={setCurrent}
             required
-            placeholder="Your current password"
+            placeholder={t("storefront.account.currentPasswordPlaceholder")}
             autoComplete="current-password"
           />
         </label>
         <label>
-          <span>New password</span>
+          <span>{t("storefront.auth.newPassword")}</span>
           <PasswordInput
             value={next}
             onChange={setNext}
             required
             minLength={8}
-            placeholder="At least 8 characters"
+            placeholder={t("storefront.auth.passwordHint")}
             autoComplete="new-password"
           />
         </label>
         <label>
-          <span>Confirm new password</span>
+          <span>{t("storefront.auth.confirmPassword")}</span>
           <PasswordInput
             value={confirm}
             onChange={setConfirm}
             required
             minLength={8}
-            placeholder="Re-enter the new password"
+            placeholder={t("storefront.auth.confirmPasswordPlaceholder")}
             autoComplete="new-password"
           />
         </label>
         <div className="acct-actions">
-          <button
-            className="btn"
-            type="submit"
-            disabled={busy || !current || !next || !confirm}
-          >
+          <button className="btn" type="submit" disabled={busy || !current || !next || !confirm}>
             {busy ? (
               <>
                 <Icon name="spinner" size={16} className="is-spinning" />
-                <span>Updating…</span>
+                <span>{t("common.loading")}</span>
               </>
             ) : (
-              <span>Update password</span>
+              <span>{t("storefront.account.updatePassword")}</span>
             )}
           </button>
         </div>

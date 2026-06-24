@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { Icon } from "./Icon";
 import { useToast } from "./Toast";
@@ -10,33 +11,16 @@ interface SetupResponse {
   backupCodes: string[];
 }
 
-/**
- * Customer-facing 2FA enrollment card on /account.
- *
- * Three states:
- *  - Disabled  : "Enable 2FA" button -> flips to setup state
- *  - Setup     : QR + secret + backup codes (shown ONCE) + verify input
- *  - Enabled   : "Disable 2FA" button -> prompts for current TOTP code
- *
- * QR rendered via api.qrserver.com (the same public service the
- * Litecoin checkout already uses for payment QRs — no extra deps).
- */
 export const Account2FACard: React.FC = () => {
+  const { t } = useT();
   const toast = useToast();
   const [enabled, setEnabled] = useState<boolean | null>(null);
-  // Distinct loading vs hidden states. The endpoint 403s for admins and the
-  // generic catch used to leave `enabled === null` forever, frezing the card
-  // on "Loading…". `loadFailed` flips when the fetch settles with a non-OK
-  // response so the card can hide itself instead of looking broken.
   const [loadFailed, setLoadFailed] = useState(false);
   const [setup, setSetup] = useState<SetupResponse | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [disablePrompt, setDisablePrompt] = useState(false);
 
-  // Load current 2FA status on mount. /api/auth/2fa/status is gated to
-  // customers — admins hit a 403 and the card hides itself via the
-  // catch -> null path.
   useEffect(() => {
     api
       .get<{ enabled: boolean }>("/api/auth/2fa/status")
@@ -50,7 +34,7 @@ export const Account2FACard: React.FC = () => {
       const res = await api.get<SetupResponse>("/api/auth/2fa/setup");
       setSetup(res);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not start 2FA setup");
+      toast.error(err instanceof Error ? err.message : t("storefront.twofa.setupFailed"));
     } finally {
       setBusy(false);
     }
@@ -64,7 +48,7 @@ export const Account2FACard: React.FC = () => {
   const submitEnable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length !== 6) {
-      toast.error("Enter the 6-digit code from your authenticator app");
+      toast.error(t("storefront.twofa.enterSixDigit"));
       return;
     }
     setBusy(true);
@@ -76,22 +60,22 @@ export const Account2FACard: React.FC = () => {
       const revoked = res.revokedSessions ?? 0;
       toast.success(
         revoked > 0
-          ? `2FA enabled. Signed out of ${revoked} other device${revoked === 1 ? "" : "s"}.`
-          : "2FA enabled.",
+          ? t("storefront.twofa.enabledWithRevoked", { count: revoked })
+          : t("storefront.twofa.enabled"),
       );
       setEnabled(true);
       setSetup(null);
       setCode("");
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        if (err.code === "INVALID_CODE") toast.error("Invalid code — check your authenticator app");
-        else if (err.code === "RATE_LIMITED") toast.error("Too many attempts. Wait a few minutes.");
+        if (err.code === "INVALID_CODE") toast.error(t("storefront.twofa.invalidCode"));
+        else if (err.code === "RATE_LIMITED") toast.error(t("storefront.errors.rateLimited"));
         else if (err.code === "NO_CANDIDATE") {
-          toast.error("Setup expired — start again");
+          toast.error(t("storefront.twofa.setupExpired"));
           setSetup(null);
-        } else toast.error(err.message || "Could not enable 2FA");
+        } else toast.error(err.message || t("storefront.twofa.enableFailed"));
       } else {
-        toast.error(err instanceof Error ? err.message : "Could not enable 2FA");
+        toast.error(err instanceof Error ? err.message : t("storefront.twofa.enableFailed"));
       }
     } finally {
       setBusy(false);
@@ -101,7 +85,7 @@ export const Account2FACard: React.FC = () => {
   const submitDisable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length !== 6) {
-      toast.error("Enter the 6-digit code from your authenticator app");
+      toast.error(t("storefront.twofa.enterSixDigit"));
       return;
     }
     setBusy(true);
@@ -113,19 +97,19 @@ export const Account2FACard: React.FC = () => {
       const revoked = res.revokedSessions ?? 0;
       toast.success(
         revoked > 0
-          ? `2FA disabled. Signed out of ${revoked} other device${revoked === 1 ? "" : "s"}.`
-          : "2FA disabled.",
+          ? t("storefront.twofa.disabledWithRevoked", { count: revoked })
+          : t("storefront.twofa.disabled"),
       );
       setEnabled(false);
       setDisablePrompt(false);
       setCode("");
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        if (err.code === "INVALID_CODE") toast.error("Invalid code");
-        else if (err.code === "RATE_LIMITED") toast.error("Too many attempts. Wait a few minutes.");
-        else toast.error(err.message || "Could not disable 2FA");
+        if (err.code === "INVALID_CODE") toast.error(t("storefront.twofa.invalidCode"));
+        else if (err.code === "RATE_LIMITED") toast.error(t("storefront.errors.rateLimited"));
+        else toast.error(err.message || t("storefront.twofa.disableFailed"));
       } else {
-        toast.error(err instanceof Error ? err.message : "Could not disable 2FA");
+        toast.error(err instanceof Error ? err.message : t("storefront.twofa.disableFailed"));
       }
     } finally {
       setBusy(false);
@@ -135,81 +119,74 @@ export const Account2FACard: React.FC = () => {
   const copy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(`${label} copied`);
+      toast.success(t("storefront.twofa.copiedLabel", { label }));
     } catch {
-      toast.error("Copy failed — select and copy manually");
+      toast.error(t("storefront.twofa.copyFailed"));
     }
   };
 
-  // Status fetch failed (e.g. admin role gets 403). The card is customer-only —
-  // hide it rather than freezing on "Loading…" forever.
   if (loadFailed) return null;
 
-  // Loading state — render the same shell so the page doesn't jitter.
   if (enabled === null) {
     return (
-      <section className="card acct-card">
+      <section className="card act-card">
         <div className="acct-head">
-          <h2>Two-factor authentication</h2>
-          <p className="sub muted">Loading…</p>
+          <h2>{t("storefront.twofa.title")}</h2>
+          <p className="sub muted">{t("common.loading")}</p>
         </div>
       </section>
     );
   }
 
-  // Backup codes joined for clipboard. Keep the separator as a single
-  // space so a multi-line literal isn't needed — the user's clipboard
-  // contains all eight codes on one line, easy to paste into a notes
-  // app and reflow as wanted.
   const backupAllString = setup?.backupCodes?.join(" ") ?? "";
 
   return (
     <section className="card acct-card">
       <div className="acct-head">
-        <h2>Two-factor authentication</h2>
+        <h2>{t("storefront.twofa.title")}</h2>
         <p className="sub">
-          {enabled
-            ? "2FA is enabled. You'll need a code from your authenticator app every time you sign in."
-            : "Add a second step to sign-in by linking an authenticator app like Google Authenticator, Authy, or 1Password."}
+          {enabled ? t("storefront.twofa.descriptionOn") : t("storefront.twofa.descriptionOff")}
         </p>
       </div>
 
-      {/* Disabled — entry point */}
       {!enabled && !setup && (
         <div className="acct-actions">
           <button type="button" className="btn" onClick={beginSetup} disabled={busy}>
             {busy ? (
               <>
                 <Icon name="spinner" size={16} className="is-spinning" />
-                <span>Loading…</span>
+                <span>{t("common.loading")}</span>
               </>
             ) : (
               <>
                 <Icon name="shield" size={16} />
-                <span>Enable 2FA</span>
+                <span>{t("storefront.twofa.enable")}</span>
               </>
             )}
           </button>
         </div>
       )}
 
-      {/* Disabled — setup in progress */}
       {!enabled && setup && (
         <form onSubmit={submitEnable} className="setup-form">
           <div className="setup-step">
             <div className="step-num">1</div>
             <div className="step-body">
-              <strong>Scan this QR code in your authenticator app.</strong>
+              <strong>{t("storefront.twofa.step1")}</strong>
               <p className="muted small">
-                Or enter the secret manually:
+                {t("storefront.twofa.orEnterSecret")}
                 <code className="secret">{setup.secret}</code>
-                <button type="button" className="btn-link" onClick={() => copy(setup.secret, "Secret")}>
-                  Copy
+                <button
+                  type="button"
+                  className="btn-link"
+                  onClick={() => copy(setup.secret, t("storefront.twofa.secretLabel"))}
+                >
+                  {t("common.copy")}
                 </button>
               </p>
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setup.otpauthUrl)}`}
-                alt="2FA QR code"
+                alt={t("storefront.twofa.qrAlt")}
                 className="qr"
               />
             </div>
@@ -218,11 +195,8 @@ export const Account2FACard: React.FC = () => {
           <div className="setup-step">
             <div className="step-num">2</div>
             <div className="step-body">
-              <strong>Save these backup codes.</strong>
-              <p className="muted small">
-                Each code works once if you lose your authenticator app. They will NOT be shown
-                again.
-              </p>
+              <strong>{t("storefront.twofa.step2")}</strong>
+              <p className="muted small">{t("storefront.twofa.backupCodesHint")}</p>
               <div className="backup-grid">
                 {setup.backupCodes.map((c) => (
                   <code key={c} className="backup-code">
@@ -233,9 +207,9 @@ export const Account2FACard: React.FC = () => {
               <button
                 type="button"
                 className="btn-link"
-                onClick={() => copy(backupAllString, "Backup codes")}
+                onClick={() => copy(backupAllString, t("storefront.twofa.backupCodesLabel"))}
               >
-                Copy all
+                {t("storefront.twofa.copyAll")}
               </button>
             </div>
           </div>
@@ -243,7 +217,7 @@ export const Account2FACard: React.FC = () => {
           <div className="setup-step">
             <div className="step-num">3</div>
             <div className="step-body">
-              <strong>Enter the 6-digit code from your app to confirm.</strong>
+              <strong>{t("storefront.twofa.step3")}</strong>
               <input
                 className="input code-input"
                 type="text"
@@ -261,31 +235,30 @@ export const Account2FACard: React.FC = () => {
 
           <div className="acct-actions">
             <button type="button" className="btn btn-ghost" onClick={cancelSetup} disabled={busy}>
-              Cancel
+              {t("common.cancel")}
             </button>
             <button type="submit" className="btn" disabled={busy || code.length !== 6}>
               {busy ? (
                 <>
                   <Icon name="spinner" size={16} className="is-spinning" />
-                  <span>Verifying…</span>
+                  <span>{t("common.loading")}</span>
                 </>
               ) : (
-                <span>Verify & enable</span>
+                <span>{t("storefront.twofa.verifyAndEnable")}</span>
               )}
             </button>
           </div>
         </form>
       )}
 
-      {/* Enabled — disable surface */}
       {enabled && !disablePrompt && (
         <div className="acct-actions">
           <span className="enabled-badge">
             <Icon name="check" size={14} />
-            <span>2FA is on</span>
+            <span>{t("storefront.twofa.isOn")}</span>
           </span>
           <button type="button" className="btn btn-ghost" onClick={() => setDisablePrompt(true)}>
-            Disable 2FA
+            {t("storefront.twofa.disable")}
           </button>
         </div>
       )}
@@ -293,7 +266,7 @@ export const Account2FACard: React.FC = () => {
       {enabled && disablePrompt && (
         <form onSubmit={submitDisable} className="disable-form">
           <label>
-            <span>Enter the 6-digit code from your authenticator to confirm</span>
+            <span>{t("storefront.twofa.enterToDisable")}</span>
             <input
               className="input code-input"
               type="text"
@@ -317,16 +290,16 @@ export const Account2FACard: React.FC = () => {
               }}
               disabled={busy}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button type="submit" className="btn" disabled={busy || code.length !== 6}>
               {busy ? (
                 <>
                   <Icon name="spinner" size={16} className="is-spinning" />
-                  <span>Disabling…</span>
+                  <span>{t("common.loading")}</span>
                 </>
               ) : (
-                <span>Confirm disable</span>
+                <span>{t("storefront.twofa.confirmDisable")}</span>
               )}
             </button>
           </div>

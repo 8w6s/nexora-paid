@@ -15,7 +15,7 @@ bun run dev         # starts backend :3000 AND frontend :4321 together
 
 Open **http://localhost:4321**. Other scripts: `bun run dev:backend`, `bun run dev:frontend`, `bun run seed`.
 
-First boot seeds 10 demo products (USD) + 210 demo keys. Admin: **admin@nexora.local / admin12345** (`/login`, then `/admin`).
+First boot seeds 10 demo products (USD) + 210 demo keys. Admin: **admin@nexora.local / change-me** — the default password from `backend/.env.example`. Override before going live by setting `ADMIN_PASSWORD_HASH` (argon2id) in your `.env`; production refuses to boot with plaintext.
 
 ## Run with Docker
 

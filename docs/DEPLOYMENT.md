@@ -141,15 +141,26 @@ Put any reverse proxy of choice in front (Caddy, nginx, Traefik). Routes:
 ## Backups
 
 ```bash
-# Snapshot
-docker compose exec backend sqlite3 /app/sqlite.db ".backup /app/backup.db"
-docker cp $(docker compose ps -q backend):/app/backup.db ./backup-$(date +%F).db
+# Snapshot — uses SQLite's atomic online-backup API so the WAL/SHM sidecars
+# stay consistent under live writes. `cp sqlite.db` alone corrupts the
+# snapshot if the watcher commits mid-copy.
+docker compose exec -T backend sqlite3 /app/data/sqlite.db \
+  ".backup /app/data/backup.db"
+docker cp $(docker compose ps -q backend):/app/data/backup.db \
+  ./backup-$(date +%F).db
+docker compose exec -T backend rm /app/data/backup.db
 
-# Restore
+# Restore — stop the writer first, replace the main file, and delete the
+# old WAL/SHM (they reference old page IDs and refuse to open the new file).
 docker compose stop backend
-docker cp ./backup.db $(docker compose ps -q backend):/app/sqlite.db
+docker cp ./backup-$(date +%F).db \
+  $(docker compose ps -q backend):/app/data/sqlite.db
+docker compose run --rm --no-deps backend \
+  sh -c "rm -f /app/data/sqlite.db-wal /app/data/sqlite.db-shm"
 docker compose start backend
 ```
+
+See `docs/PRODUCTION.md` for hourly cron + offsite retention.
 
 > A built-in admin **Backup / Restore** UI is on the roadmap (Phase 2.2).
 

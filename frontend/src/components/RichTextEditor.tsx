@@ -77,9 +77,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       } catch {}
     };
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      pendingRefresh.current = (window as any).requestIdleCallback(run, { timeout: 16 });
+      pendingRefresh.current = (window as any).requestIdleCallback(run, { timeout: 16 }) as unknown as number;
     } else {
-      pendingRefresh.current = window.setTimeout(run, 16);
+      pendingRefresh.current = setTimeout(run, 16) as unknown as number;
     }
   };
 

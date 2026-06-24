@@ -1,17 +1,11 @@
 import type React from "react";
 import { useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { Icon } from "./Icon";
 
-/**
- * Step 1 of the customer password-reset flow. The backend always returns
- * ok=true (anti-enumeration: same response regardless of whether the email
- * exists), so the success message here is intentionally generic — "if an
- * account exists, an email has been sent". A real registered customer
- * receives a link; an attacker probing emails sees the same UI and learns
- * nothing.
- */
 export const ForgotPasswordForm: React.FC = () => {
+  const { t } = useT();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,9 +20,9 @@ export const ForgotPasswordForm: React.FC = () => {
       setSent(true);
     } catch (err) {
       if (err instanceof ApiRequestError && err.code === "RATE_LIMITED") {
-        setError("Too many attempts. Try again in a few minutes.");
+        setError(t("storefront.errors.rateLimited"));
       } else {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+        setError(err instanceof Error ? err.message : t("storefront.errors.generic"));
       }
     } finally {
       setBusy(false);
@@ -38,30 +32,22 @@ export const ForgotPasswordForm: React.FC = () => {
   return (
     <main className="container auth-page">
       <div className="auth-card card">
-        <h1>Reset your password</h1>
+        <h1>{t("storefront.auth.resetTitle")}</h1>
         {sent ? (
-          // Anti-enumeration message: identical for "email exists" and
-          // "email is unknown". Don't change this without revisiting the
-          // /forgot backend's always-ok response shape.
           <>
-            <p className="sub">
-              If an account exists for <strong>{email}</strong>, we've sent a reset link. Check your
-              inbox — the link is single-use and expires in 60 minutes.
-            </p>
+            <p className="sub">{t("storefront.auth.resetSent", { email })}</p>
             <p className="switch">
               <a href="/login" style={{ color: "var(--brand)", fontWeight: 600 }}>
-                ← Back to sign in
+                ← {t("storefront.auth.backToSignIn")}
               </a>
             </p>
           </>
         ) : (
           <>
-            <p className="sub">
-              Enter the email associated with your account and we'll send you a reset link.
-            </p>
+            <p className="sub">{t("storefront.auth.resetHint")}</p>
             <form onSubmit={submit}>
               <label>
-                <span>Email</span>
+                <span>{t("storefront.auth.email")}</span>
                 <input
                   className="input"
                   type="email"
@@ -83,17 +69,17 @@ export const ForgotPasswordForm: React.FC = () => {
                 {busy ? (
                   <>
                     <Icon name="spinner" size={17} className="is-spinning" />
-                    <span>Sending…</span>
+                    <span>{t("common.loading")}</span>
                   </>
                 ) : (
-                  <span>Send reset link</span>
+                  <span>{t("storefront.auth.sendResetLink")}</span>
                 )}
               </button>
             </form>
             <p className="switch">
-              Remembered it?{" "}
+              {t("storefront.auth.rememberedIt")}{" "}
               <a href="/login" style={{ color: "var(--brand)", fontWeight: 600 }}>
-                Sign in
+                {t("storefront.auth.signIn")}
               </a>
             </p>
           </>

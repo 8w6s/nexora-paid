@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { Dropdown } from "../Dropdown";
 import { Icon } from "../Icon";
@@ -58,12 +58,12 @@ export const AdminCategories: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const toast = useToast();
 
-  const load = () => {
+  const load = useCallback(() => {
     api
       .get<Cat[]>("/api/admin/categories")
       .then(setList)
       .catch(() => setList([]));
-  };
+  }, []);
   useEffect(() => {
     load();
   }, [load]);

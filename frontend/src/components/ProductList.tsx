@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n";
 import { api, type Product } from "../lib/api";
 import { staggerIn } from "../lib/motion";
 import { Checkbox } from "./Checkbox";
@@ -27,6 +28,7 @@ const SORTS: {
 ];
 
 export const ProductList: React.FC = () => {
+  const { t } = useT();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export const ProductList: React.FC = () => {
 
   // Re-fetch products server-side when filters change (search debounced).
   useEffect(() => {
-    const t = setTimeout(
+    const timer = setTimeout(
       async () => {
         try {
           const params = new URLSearchParams();
@@ -65,7 +67,7 @@ export const ProductList: React.FC = () => {
           setProducts(await api.get<Product[]>(`/api/products${qs ? `?${qs}` : ""}`));
           setError(null);
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Failed to load products");
+          setError(e instanceof Error ? e.message : t("storefront.errors.generic"));
         } finally {
           setLoading(false);
         }
@@ -73,8 +75,8 @@ export const ProductList: React.FC = () => {
       firstLoad.current ? 0 : 220,
     );
     firstLoad.current = false;
-    return () => clearTimeout(t);
-  }, [category, sort, inStockOnly, search]);
+    return () => clearTimeout(timer);
+  }, [category, sort, inStockOnly, search, t]);
 
   // Stagger cards in whenever the result set changes.
   useEffect(() => {
@@ -91,8 +93,8 @@ export const ProductList: React.FC = () => {
             value={search}
             name="search"
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products…"
-            aria-label="Search products"
+            placeholder={t("common.search")}
+            aria-label={t("common.search")}
           />
           {search && (
             <button className="clear" onClick={() => setSearch("")} aria-label="Clear search">
@@ -104,7 +106,7 @@ export const ProductList: React.FC = () => {
           <Checkbox
             checked={inStockOnly}
             onChange={setInStockOnly}
-            label="In stock only"
+            label={t("storefront.product.inStockOnly")}
             size={20}
           />
           <Dropdown<SortKey>
@@ -121,7 +123,7 @@ export const ProductList: React.FC = () => {
           className={`chip ${category === "All" ? "active" : ""}`}
           onClick={() => setCategory("All")}
         >
-          All
+          {t("storefront.product.allCategories")}
         </button>
         {categories.map((c) => (
           <button
@@ -144,7 +146,7 @@ export const ProductList: React.FC = () => {
       ) : products.length === 0 ? (
         <div className="pl-state">
           <Icon name="search" size={30} />
-          <p>No products match your search.</p>
+          <p>{t("storefront.product.noResults")}</p>
         </div>
       ) : (
         <div className="grid" ref={gridRef}>

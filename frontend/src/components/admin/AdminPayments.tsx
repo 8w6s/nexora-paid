@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Dropdown } from "../Dropdown";
 import { Icon } from "../Icon";
+import { PasswordPromptModal } from "../PasswordPromptModal";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { useToast } from "../Toast";
 import { ToggleSwitch } from "../ToggleSwitch";
@@ -243,6 +244,7 @@ export const AdminPayments: React.FC = () => {
   const [country, setCountry] = useState("*");
   const [draft, setDraft] = useState<Record<string, Record<string, string>>>({});
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+  const [pwPrompt, setPwPrompt] = useState<{ provider: Provider; config: Record<string, string> } | null>(null);
   const toast = useToast();
 
   const load = () =>
@@ -278,29 +280,11 @@ export const AdminPayments: React.FC = () => {
     }
   };
 
-  const saveConfig = async (p: Provider) => {
-    const config = { ...(draft[p.id] ?? {}) };
-    // Re-auth gate: crypto-native providers (LTC/BTC/ETH self-hosted)
-    // require the admin's current password before rotating the receiving
-    // xpub. Without this any stolen admin cookie could redirect every
-    // customer's crypto deposit to an attacker wallet — same pattern
-    // Sellauth uses on its Profile page wallet-rotation flow. Strip the
-    // currentPassword key from `config` so it isn't sent as a provider
-    // field; pass it as a sibling instead.
-    let currentPassword: string | undefined;
-    const isCryptoNative = p.kind === "crypto-native";
-    const touchingWallet =
-      isCryptoNative && "xpub" in config && String(config.xpub ?? "").trim() !== "";
-    if (touchingWallet) {
-      const pw = window.prompt(
-        "Confirm your admin password to rotate the receiving wallet — every future payment will route to the new xpub.",
-      );
-      if (pw == null || pw === "") {
-        toast.error("Wallet rotation cancelled.");
-        return;
-      }
-      currentPassword = pw;
-    }
+  const submitConfig = async (
+    p: Provider,
+    config: Record<string, string>,
+    currentPassword?: string,
+  ) => {
     try {
       await api.put(`/api/admin/payments/${p.id}/config`, {
         config,
@@ -309,10 +293,27 @@ export const AdminPayments: React.FC = () => {
       setDraft((d) => ({ ...d, [p.id]: {} }));
       toast.success(`${p.label} settings saved.`);
       setExpandedProvider(null);
+      setPwPrompt(null);
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     }
+  };
+
+  const saveConfig = async (p: Provider) => {
+    const config = { ...(draft[p.id] ?? {}) };
+    // Re-auth gate: crypto-native providers (LTC/BTC/ETH self-hosted) require
+    // the admin's current password before rotating the receiving xpub.
+    // Without this any stolen admin cookie could redirect every customer's
+    // crypto deposit to an attacker wallet.
+    const isCryptoNative = p.kind === "crypto-native";
+    const touchingWallet =
+      isCryptoNative && "xpub" in config && String(config.xpub ?? "").trim() !== "";
+    if (touchingWallet) {
+      setPwPrompt({ provider: p, config });
+      return;
+    }
+    await submitConfig(p, config);
   };
 
   const setField = (pid: string, key: string, val: string) =>
@@ -474,6 +475,20 @@ export const AdminPayments: React.FC = () => {
           {renderGroup("OTHER METHODS", others)}
         </div>
       )}
+
+      <PasswordPromptModal
+        open={!!pwPrompt}
+        title="Confirm wallet rotation"
+        message="Confirm your admin password to rotate the receiving wallet. Every future payment will route to the new xpub."
+        confirmLabel="Rotate wallet"
+        onCancel={() => {
+          setPwPrompt(null);
+          toast.error("Wallet rotation cancelled.");
+        }}
+        onSubmit={(pw) => {
+          if (pwPrompt) submitConfig(pwPrompt.provider, pwPrompt.config, pw);
+        }}
+      />
 
       <style>{`
         .pay-admin { display: flex; flex-direction: column; gap: 24px; }

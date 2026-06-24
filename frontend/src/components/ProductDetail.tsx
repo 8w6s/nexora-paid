@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n";
 import { api, fmtUsd, type Product } from "../lib/api";
 import { fadeRise, staggerIn } from "../lib/motion";
 import { useCart } from "./CartContext";
@@ -16,8 +17,8 @@ import { ProductReviews } from "./ProductReviews";
 function stripHtml(html: string): string {
   if (!html) return "";
   return html
-    .replace(new RegExp("<br\\s*/?>", "gi"), " ")
-    .replace(new RegExp("</(p|div|h[1-6]|li|tr)\\s*>", "gi"), " ")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/(p|div|h[1-6]|li|tr)\s*>/gi, " ")
     .replace(/<[^>]*>/g, "")
     .replace(/ /g, " ")
     .replace(/</g, "<")
@@ -32,6 +33,7 @@ function stripHtml(html: string): string {
 // Product is fetched server-side and passed in as a prop (SSR -> good SEO + no client flash).
 export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
   const { addToCart } = useCart();
+  const { t } = useT();
   const addBtnRef = useRef<HTMLButtonElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const relRef = useRef<HTMLDivElement>(null);
@@ -108,9 +110,9 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
               <Icon name="package" size={64} style={{ opacity: 0.3, color: "var(--ink-soft)" }} />
             </div>
           )}
-          {activeOut && <span className="pd-soldout">Out of stock</span>}
+          {activeOut && <span className="pd-soldout">{t("storefront.product.outOfStock")}</span>}
           <span className="pd-tag">
-            <Icon name="zap" size={13} /> Instant delivery
+            <Icon name="zap" size={13} /> {t("storefront.product.instantDelivery")}
           </span>
         </div>
 

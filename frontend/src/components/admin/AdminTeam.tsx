@@ -114,9 +114,7 @@ const AdminSessionsCard: React.FC = () => {
       );
       const n = res?.revokedSessions ?? 0;
       setOkMsg(
-        n > 0
-          ? `Revoked ${n} other session${n === 1 ? "" : "s"}.`
-          : "No other sessions to revoke.",
+        n > 0 ? `Revoked ${n} other session${n === 1 ? "" : "s"}.` : "No other sessions to revoke.",
       );
       load();
     } catch {
@@ -179,11 +177,7 @@ const AdminSessionsCard: React.FC = () => {
         <div className="team-success" style={{ marginBottom: 12 }}>
           <Icon name="check" size={15} />
           <span>{okMsg}</span>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setOkMsg(null)}
-          >
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOkMsg(null)}>
             <Icon name="close" size={13} />
           </button>
         </div>
@@ -233,12 +227,8 @@ const AdminSessionsCard: React.FC = () => {
                     </div>
                   )}
                 </td>
-                <td style={{ fontSize: ".82rem" }}>
-                  {new Date(s.createdAt).toLocaleString()}
-                </td>
-                <td style={{ fontSize: ".82rem" }}>
-                  {new Date(s.lastSeenAt).toLocaleString()}
-                </td>
+                <td style={{ fontSize: ".82rem" }}>{new Date(s.createdAt).toLocaleString()}</td>
+                <td style={{ fontSize: ".82rem" }}>{new Date(s.lastSeenAt).toLocaleString()}</td>
                 <td style={{ textAlign: "right" }}>
                   {!s.current && (
                     <button
@@ -357,11 +347,7 @@ const AdminAccountCard: React.FC = () => {
         <div className="team-success" style={{ marginTop: 14 }}>
           <Icon name="check" size={15} />
           <span>{okMsg}</span>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setOkMsg(null)}
-          >
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOkMsg(null)}>
             <Icon name="close" size={13} />
           </button>
         </div>

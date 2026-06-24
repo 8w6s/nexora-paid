@@ -1,25 +1,15 @@
 import type React from "react";
 import { useState } from "react";
+import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { Icon } from "./Icon";
 import { PasswordInput } from "./PasswordInput";
 import { useToast } from "./Toast";
 
-/**
- * Self-service email-on-record change. Sellauth's profile General form
- * has the same field; without it a customer who typoed at register
- * (or whose provider went away) is locked out of /orders forever.
- *
- * Backend gates the change on currentPassword so a stolen cookie alone
- * can't rotate the email — that would let an attacker use the password-
- * reset flow against the new address to fully take over the account.
- * On success the backend revokes other sessions and best-effort notifies
- * the OLD address so a legitimate owner who didn't request it has a
- * recovery trail.
- */
 export const AccountEmailCard: React.FC = () => {
   const { user, refresh } = useAuth();
+  const { t } = useT();
   const toast = useToast();
   const [newEmail, setNewEmail] = useState("");
   const [current, setCurrent] = useState("");
@@ -29,15 +19,15 @@ export const AccountEmailCard: React.FC = () => {
     e.preventDefault();
     const trimmed = newEmail.trim().toLowerCase();
     if (!trimmed.includes("@")) {
-      toast.error("Enter a valid email address");
+      toast.error(t("storefront.account.invalidEmail"));
       return;
     }
     if (trimmed === user?.email) {
-      toast.error("New email must differ from current");
+      toast.error(t("storefront.account.sameEmail"));
       return;
     }
     if (!current) {
-      toast.error("Current password is required");
+      toast.error(t("storefront.account.currentPasswordRequired"));
       return;
     }
     setBusy(true);
@@ -53,23 +43,24 @@ export const AccountEmailCard: React.FC = () => {
       const revoked = res.revokedSessions ?? 0;
       toast.success(
         revoked > 0
-          ? `Email updated to ${res.email}. Signed out of ${revoked} other device${revoked === 1 ? "" : "s"}.`
-          : `Email updated to ${res.email}.`,
+          ? t("storefront.account.emailUpdatedWithRevoked", {
+              email: res.email,
+              count: revoked,
+            })
+          : t("storefront.account.emailUpdated", { email: res.email }),
       );
       setNewEmail("");
       setCurrent("");
-      // Pull fresh /me so the navbar dropdown + AccountInner header
-      // reflect the new address without a hard reload.
       await refresh();
     } catch (err) {
       if (err instanceof ApiRequestError) {
-        if (err.code === "BAD_CURRENT") toast.error("Current password is incorrect");
-        else if (err.code === "EMAIL_TAKEN") toast.error("That email is already in use");
-        else if (err.code === "SAME_EMAIL") toast.error("New email must differ from current");
-        else if (err.code === "RATE_LIMITED") toast.error("Too many attempts. Wait a few minutes.");
-        else toast.error(err.message || "Could not update email");
+        if (err.code === "BAD_CURRENT") toast.error(t("storefront.account.badCurrentPassword"));
+        else if (err.code === "EMAIL_TAKEN") toast.error(t("storefront.account.emailTaken"));
+        else if (err.code === "SAME_EMAIL") toast.error(t("storefront.account.sameEmail"));
+        else if (err.code === "RATE_LIMITED") toast.error(t("storefront.errors.rateLimited"));
+        else toast.error(err.message || t("storefront.account.emailUpdateFailed"));
       } else {
-        toast.error(err instanceof Error ? err.message : "Could not update email");
+        toast.error(err instanceof Error ? err.message : t("storefront.account.emailUpdateFailed"));
       }
     } finally {
       setBusy(false);
@@ -79,25 +70,16 @@ export const AccountEmailCard: React.FC = () => {
   return (
     <section className="card acct-card">
       <div className="acct-head">
-        <h2>Change email</h2>
-        <p className="sub">
-          Update the email address used to sign in and receive order receipts. Other devices will be
-          signed out and the old address gets a notification.
-        </p>
+        <h2>{t("storefront.account.changeEmail")}</h2>
+        <p className="sub">{t("storefront.account.changeEmailHint")}</p>
       </div>
       <form onSubmit={submit}>
         <label>
-          <span>Current email</span>
-          <input
-            className="input"
-            type="email"
-            value={user?.email ?? ""}
-            disabled
-            readOnly
-          />
+          <span>{t("storefront.account.currentEmail")}</span>
+          <input className="input" type="email" value={user?.email ?? ""} disabled readOnly />
         </label>
         <label>
-          <span>New email</span>
+          <span>{t("storefront.account.newEmail")}</span>
           <input
             className="input"
             type="email"
@@ -109,28 +91,24 @@ export const AccountEmailCard: React.FC = () => {
           />
         </label>
         <label>
-          <span>Current password</span>
+          <span>{t("storefront.account.currentPassword")}</span>
           <PasswordInput
             value={current}
             onChange={setCurrent}
             required
-            placeholder="To confirm it's really you"
+            placeholder={t("storefront.account.confirmIdentity")}
             autoComplete="current-password"
           />
         </label>
         <div className="acct-actions">
-          <button
-            className="btn"
-            type="submit"
-            disabled={busy || !newEmail.trim() || !current}
-          >
+          <button className="btn" type="submit" disabled={busy || !newEmail.trim() || !current}>
             {busy ? (
               <>
                 <Icon name="spinner" size={16} className="is-spinning" />
-                <span>Updating…</span>
+                <span>{t("common.loading")}</span>
               </>
             ) : (
-              <span>Update email</span>
+              <span>{t("storefront.account.updateEmail")}</span>
             )}
           </button>
         </div>

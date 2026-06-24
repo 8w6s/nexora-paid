@@ -245,7 +245,11 @@ export const AdminOverview: React.FC = () => {
                 className="recent-row"
                 style={{ cursor: "pointer" }}
                 onClick={() => {
-                  window.location.href = `/orders/${o.id}`;
+                  // SPA navigate to admin invoices tab. Full reload would lose
+                  // the dashboard mount + auth context. Pushstate + dispatch a
+                  // popstate so AdminDashboard's tab listener picks it up.
+                window.history.pushState(null, "", "/admin/invoices");
+                  window.dispatchEvent(new PopStateEvent("popstate"));
                 }}
               >
                 <span className="recent-id" title={o.id}>

@@ -1,4 +1,5 @@
 import type React from "react";
+import { LocaleProvider } from "../i18n/LocaleProvider";
 import { AuthProvider } from "./AuthContext";
 import { AuthForm } from "./AuthForm";
 import { CartProvider } from "./CartContext";
@@ -8,15 +9,17 @@ import { Navbar } from "./Navbar";
 import { ToastProvider } from "./Toast";
 
 export const AuthApp: React.FC<{ mode: "login" | "register" }> = ({ mode }) => (
-  <ConfigProvider>
-    <ToastProvider>
-      <AuthProvider>
-        <CartProvider>
-          <Navbar />
-          <AuthForm mode={mode} />
-          <CartDrawer />
-        </CartProvider>
-      </AuthProvider>
-    </ToastProvider>
-  </ConfigProvider>
+  <LocaleProvider>
+    <ConfigProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Navbar />
+            <AuthForm mode={mode} />
+            <CartDrawer />
+          </CartProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ConfigProvider>
+  </LocaleProvider>
 );

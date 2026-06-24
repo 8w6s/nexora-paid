@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
@@ -38,11 +38,14 @@ export const AdminCustomerDetail: React.FC<{
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const load = () =>
-    api
-      .get<CustomerDetail>(`/api/admin/customers/${customerId}`)
-      .then(setC)
-      .catch((e) => setErr(e instanceof Error ? e.message : "Load failed"));
+  const load = useCallback(
+    () =>
+      api
+        .get<CustomerDetail>(`/api/admin/customers/${customerId}`)
+        .then(setC)
+        .catch((e) => setErr(e instanceof Error ? e.message : "Load failed")),
+    [customerId],
+  );
   useEffect(() => {
     load();
   }, [load]);
