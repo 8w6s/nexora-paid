@@ -1,55 +1,37 @@
-chore(audit): cycle 5 — biome cleanup, rate-limit module reviewed
+feat(scripts): nxs-restore-drill — read-only encrypted-snapshot drill
 
-Pha kiểm lỗi sau 3 commit (d5a0567 fix-blocklist-delete, 7066452
-changelog seed, 587c976 tenant-tests).
+Roadmap item 18. Counterpart to scripts/nexora-restore-drill.sh
+(which only handles plain .db backups). Verifies an encrypted .nxs
+snapshot can actually be decrypted on the customer's machine BEFORE
+the disaster — because the encrypted-snapshot path is the one the
+customer will actually run on update failure.
 
-Files read fully (3):
-  - CHANGELOG.md  (new)
-  - backend/src/lib/tenant.test.ts (expanded 10 -> 18 cases)
-  - backend/src/routes/admin-blocklist.ts (rate-limit added,
-    then fixed in d5a0567 to apply to DELETE too)
+scripts/nexora-nxs-restore-drill.ts
+  bun run scripts/nexora-nxs-restore-drill.ts <snapshot.nxs>
+    [--license-secret=<hex>] [--machine-id=<id>]
+    [--extract=<out.tar.gz>]
 
-Biome auto-fixes (2 files): line-length splits in gateRateLimit's
-multi-arg rateLimitCheck call + tenant.test.ts. No semantic change.
+Behavior:
+  - Read-only by default. With --extract, writes plaintext tar.gz
+    (which the operator can then expand into a scratch volume to
+    practice the full restore).
+  - license-secret + machine-id resolve from flag → env → file in
+    that order (license.lic, /etc/machine-id, /data/app/machine-id).
+  - Pre-checks NXS1 magic before key derivation (cheap fail).
+  - Verifies plaintext starts with gzip magic (0x1f 0x8b) — catches
+    cross-version drift where the key matches but the format doesn't.
 
-Manual scan:
-  - admin-blocklist rate-limit gate applied to BOTH POST + DELETE
-    (the fix in d5a0567 was the audit-pre-empted bug — caught it
-    before committing this cycle).
-  - tenant.test.ts: NEXORA_DATA_ROOT scoped to mkdtemp so tests
-    don't bleed into real /data. ✓
-  - CHANGELOG: no secrets / private API surface leaked; only public
-    endpoint shapes + version numbers.
+Exit codes:
+  0 PASS — decrypts, auth-tag verifies, plaintext is tar.gz
+  1 FATAL — args / file missing / required material not found
+  2 FAIL — wrong magic / decrypt failed (wrong key / wrong machine
+            / tampering)
+  3 FAIL — decrypts but plaintext format wrong (cross-version drift)
 
-TODO scan: 0 hits in window.
-i18n diff: 0 JSON changes in window.
+Why a TS script and not a shell wrapper:
+  - The crypto matches backend/src/lib/snapshot-crypto.ts exactly
+    by IMPORTING from it. A bash + openssl reimpl would drift the
+    moment we tweak HKDF salt/info strings.
 
-Security audit (module: rate-limit):
-  Threat model: a hostile client wants to exhaust the per-IP bucket
-  for ONE victim by spamming requests with their IP forged via
-  X-Forwarded-For, OR drown the LRU map itself with millions of
-  distinct keys.
-
-  - X-Forwarded-For is only honoured when TRUST_PROXY=true (set at
-    boot, default false). clientIp() falls back to req.socket.remote
-    when untrusted. Verified at backend/src/index.ts:66 + lib/rate-
-    limit.ts:clientIp.
-  - Bucket map uses a fixed window (windowMs). Entry is replaced
-    rather than reset, so a new window starts fresh — no DoS via
-    "keep the bucket pinned at 1 forever".
-  - No LRU eviction on the bucket map. POTENTIAL ISSUE: a flood of
-    unique IPs (botnet) could grow the map unboundedly until
-    next-window prune. Bun's V8 string interning + 60s windows
-    bound this in practice (entries auto-prune as their window
-    expires on next touch), but a 10M-key spike would still pin
-    memory for ~60s. Acceptable for a self-hosted single-tenant
-    shop; if a customer hits this, switch to a TTL-aware LRU.
-    Flagged for v1.2 polish list rather than blocking v1.1.
-
-  No active vulns found. Map-growth pattern noted for future tuning.
-
-Verification:
-  cd backend && bun build src/index.ts  → 510 modules
-  cd updater && bun build server.ts     → ok
-  cd backend && bun test src/lib        → 88 pass / 0 fail
-  bunx biome check (2 files)            → clean
+Reuses existing lib code — no new prod-path surface, no test churn.
+Build still 510 modules. Lib tests 88/88 untouched.
