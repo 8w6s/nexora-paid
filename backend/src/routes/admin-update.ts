@@ -1,14 +1,13 @@
 import { existsSync } from "node:fs";
 import { Elysia, t } from "elysia";
+import { APP_VERSION } from "../lib/app-version.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
-import { APP_VERSION } from "../lib/app-version.ts";
-import { signRequest } from "../lib/updater-handshake.ts";
 import { ensureMachineId, readLicenseSecret } from "../lib/tenant.ts";
+import { signRequest } from "../lib/updater-handshake.ts";
 
 const FILESERVER_URL =
-  Bun.env.NEXORA_FILESERVER_URL ??
-  "https://raw.githubusercontent.com/8w6s/nexora-releases/main";
+  Bun.env.NEXORA_FILESERVER_URL ?? "https://raw.githubusercontent.com/8w6s/nexora-releases/main";
 const UPDATE_CHANNEL = Bun.env.NEXORA_UPDATE_CHANNEL ?? "stable";
 
 // In-process cache: avoid hammering FileServer on every admin tab refresh.
@@ -61,7 +60,7 @@ async function fetchManifest(): Promise<VersionManifest> {
 export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
   .derive(async ({ cookie, set }) => {
     const u = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
-    if (!u || u.role !== "admin") {
+    if (u?.role !== "admin") {
       set.status = 401;
       return { __unauthorized: true as const, user: null };
     }
@@ -157,6 +156,7 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
           licenseSecret = readLicenseSecret();
           machineId = ensureMachineId();
         } catch (e) {
+          // biome-ignore lint/suspicious/noConsole: operator-facing warning on degraded path
           console.warn("[admin-update] snapshot will be unencrypted:", e);
         }
         const bodyStr = JSON.stringify({

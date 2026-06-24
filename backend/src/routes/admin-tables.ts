@@ -14,11 +14,11 @@
  *   admins (the "no-SQL" track of the spec). Same security model but with
  *   much smaller blast radius per request.
  */
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { Elysia, t } from "elysia";
+import { recordAudit } from "../lib/audit-log.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
-import { recordAudit } from "../lib/audit-log.ts";
 
 const PAGE_MAX = 200;
 
@@ -85,7 +85,7 @@ function pkColumn(cols: ColInfo[]): string {
 export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
   .derive(async ({ cookie, set }) => {
     const u = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
-    if (!u || u.role !== "admin") {
+    if (u?.role !== "admin") {
       set.status = 401;
       return { __unauthorized: true as const, user: null };
     }
@@ -107,7 +107,9 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
     const cols = tableColumns(db, params.name);
     const limit = Math.min(Math.max(Number(query?.limit ?? 50), 1), PAGE_MAX);
     const offset = Math.max(Number(query?.offset ?? 0), 0);
-    const total = (db.query(`SELECT COUNT(*) AS c FROM ${quoteIdent(params.name)}`).get() as { c: number }).c;
+    const total = (
+      db.query(`SELECT COUNT(*) AS c FROM ${quoteIdent(params.name)}`).get() as { c: number }
+    ).c;
     const rows = db
       .query(`SELECT * FROM ${quoteIdent(params.name)} LIMIT ? OFFSET ?`)
       .all(limit, offset);
@@ -120,16 +122,25 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
     async ({ params, body, request, set, user }) => {
       const ip = clientIp(request);
       const rl = rateLimitCheck(`admin-tables-write:${ip}`, 60, 60_000);
-      if (!rl.allowed) { set.status = 429; return { error: "Too many writes", code: "RATE_LIMITED" }; }
+      if (!rl.allowed) {
+        set.status = 429;
+        return { error: "Too many writes", code: "RATE_LIMITED" };
+      }
       const db = getRawDb();
-      try { assertTable(db, params.name); } catch (e) {
+      try {
+        assertTable(db, params.name);
+      } catch (e) {
         set.status = 404;
         return { error: e instanceof Error ? e.message : String(e), code: "UNKNOWN_TABLE" };
       }
       const cols = tableColumns(db, params.name);
       let payload: Record<string, unknown>;
-      try { payload = pickPayload(cols, body as Record<string, unknown>); }
-      catch (e) { set.status = 400; return { error: e instanceof Error ? e.message : String(e), code: "BAD_PAYLOAD" }; }
+      try {
+        payload = pickPayload(cols, body as Record<string, unknown>);
+      } catch (e) {
+        set.status = 400;
+        return { error: e instanceof Error ? e.message : String(e), code: "BAD_PAYLOAD" };
+      }
       if (Object.keys(payload).length === 0) {
         set.status = 400;
         return { error: "empty payload", code: "BAD_PAYLOAD" };
@@ -140,17 +151,31 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
       try {
         const r = db.query(sql).run(...keys.map((k) => payload[k] as never));
         recordAudit(db, {
-          actorEmail: user?.email, actorIp: ip,
-          action: "table.insert", target: params.name, statement: sql,
-          rowsAffected: Number(r.changes ?? 0), elapsedMs: Date.now() - start, success: true,
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "table.insert",
+          target: params.name,
+          statement: sql,
+          rowsAffected: Number(r.changes ?? 0),
+          elapsedMs: Date.now() - start,
+          success: true,
         });
-        return { ok: true, lastInsertRowid: r.lastInsertRowid != null ? Number(r.lastInsertRowid) : null, changes: Number(r.changes ?? 0) };
+        return {
+          ok: true,
+          lastInsertRowid: r.lastInsertRowid != null ? Number(r.lastInsertRowid) : null,
+          changes: Number(r.changes ?? 0),
+        };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         recordAudit(db, {
-          actorEmail: user?.email, actorIp: ip,
-          action: "table.insert.failed", target: params.name, statement: sql,
-          elapsedMs: Date.now() - start, success: false, error: msg,
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "table.insert.failed",
+          target: params.name,
+          statement: sql,
+          elapsedMs: Date.now() - start,
+          success: false,
+          error: msg,
         });
         set.status = 400;
         return { error: msg, code: "INSERT_FAILED" };
@@ -165,18 +190,30 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
     async ({ params, body, request, set, user }) => {
       const ip = clientIp(request);
       const rl = rateLimitCheck(`admin-tables-write:${ip}`, 60, 60_000);
-      if (!rl.allowed) { set.status = 429; return { error: "Too many writes", code: "RATE_LIMITED" }; }
+      if (!rl.allowed) {
+        set.status = 429;
+        return { error: "Too many writes", code: "RATE_LIMITED" };
+      }
       const db = getRawDb();
-      try { assertTable(db, params.name); } catch (e) {
+      try {
+        assertTable(db, params.name);
+      } catch (e) {
         set.status = 404;
         return { error: e instanceof Error ? e.message : String(e), code: "UNKNOWN_TABLE" };
       }
       const cols = tableColumns(db, params.name);
       const pk = pkColumn(cols);
       let payload: Record<string, unknown>;
-      try { payload = pickPayload(cols, body as Record<string, unknown>); }
-      catch (e) { set.status = 400; return { error: e instanceof Error ? e.message : String(e), code: "BAD_PAYLOAD" }; }
-      if (Object.keys(payload).length === 0) { set.status = 400; return { error: "empty payload", code: "BAD_PAYLOAD" }; }
+      try {
+        payload = pickPayload(cols, body as Record<string, unknown>);
+      } catch (e) {
+        set.status = 400;
+        return { error: e instanceof Error ? e.message : String(e), code: "BAD_PAYLOAD" };
+      }
+      if (Object.keys(payload).length === 0) {
+        set.status = 400;
+        return { error: "empty payload", code: "BAD_PAYLOAD" };
+      }
       const keys = Object.keys(payload);
       const setClause = keys.map((k) => `${quoteIdent(k)} = ?`).join(", ");
       const sql = `UPDATE ${quoteIdent(params.name)} SET ${setClause} WHERE ${quoteIdent(pk)} = ?`;
@@ -184,17 +221,27 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
       try {
         const r = db.query(sql).run(...keys.map((k) => payload[k] as never), params.id as never);
         recordAudit(db, {
-          actorEmail: user?.email, actorIp: ip,
-          action: "table.update", target: `${params.name}#${params.id}`, statement: sql,
-          rowsAffected: Number(r.changes ?? 0), elapsedMs: Date.now() - start, success: true,
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "table.update",
+          target: `${params.name}#${params.id}`,
+          statement: sql,
+          rowsAffected: Number(r.changes ?? 0),
+          elapsedMs: Date.now() - start,
+          success: true,
         });
         return { ok: true, changes: Number(r.changes ?? 0) };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         recordAudit(db, {
-          actorEmail: user?.email, actorIp: ip,
-          action: "table.update.failed", target: `${params.name}#${params.id}`, statement: sql,
-          elapsedMs: Date.now() - start, success: false, error: msg,
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "table.update.failed",
+          target: `${params.name}#${params.id}`,
+          statement: sql,
+          elapsedMs: Date.now() - start,
+          success: false,
+          error: msg,
         });
         set.status = 400;
         return { error: msg, code: "UPDATE_FAILED" };
@@ -207,9 +254,14 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
   .delete("/:name/rows/:id", async ({ params, request, set, user }) => {
     const ip = clientIp(request);
     const rl = rateLimitCheck(`admin-tables-write:${ip}`, 60, 60_000);
-    if (!rl.allowed) { set.status = 429; return { error: "Too many writes", code: "RATE_LIMITED" }; }
+    if (!rl.allowed) {
+      set.status = 429;
+      return { error: "Too many writes", code: "RATE_LIMITED" };
+    }
     const db = getRawDb();
-    try { assertTable(db, params.name); } catch (e) {
+    try {
+      assertTable(db, params.name);
+    } catch (e) {
       set.status = 404;
       return { error: e instanceof Error ? e.message : String(e), code: "UNKNOWN_TABLE" };
     }
@@ -220,17 +272,27 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
     try {
       const r = db.query(sql).run(params.id as never);
       recordAudit(db, {
-        actorEmail: user?.email, actorIp: ip,
-        action: "table.delete", target: `${params.name}#${params.id}`, statement: sql,
-        rowsAffected: Number(r.changes ?? 0), elapsedMs: Date.now() - start, success: true,
+        actorEmail: user?.email,
+        actorIp: ip,
+        action: "table.delete",
+        target: `${params.name}#${params.id}`,
+        statement: sql,
+        rowsAffected: Number(r.changes ?? 0),
+        elapsedMs: Date.now() - start,
+        success: true,
       });
       return { ok: true, changes: Number(r.changes ?? 0) };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       recordAudit(db, {
-        actorEmail: user?.email, actorIp: ip,
-        action: "table.delete.failed", target: `${params.name}#${params.id}`, statement: sql,
-        elapsedMs: Date.now() - start, success: false, error: msg,
+        actorEmail: user?.email,
+        actorIp: ip,
+        action: "table.delete.failed",
+        target: `${params.name}#${params.id}`,
+        statement: sql,
+        elapsedMs: Date.now() - start,
+        success: false,
+        error: msg,
       });
       set.status = 400;
       return { error: msg, code: "DELETE_FAILED" };

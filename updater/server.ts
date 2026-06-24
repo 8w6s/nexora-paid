@@ -11,9 +11,10 @@
  * Concurrency: one job at a time. A second /apply while a job is running
  * returns 409.
  */
-import { unlinkSync, existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+
 import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { verifyRequest } from "./handshake.ts";
 import { encryptFileInPlace, type KeyMaterial } from "./snapshot-crypto.ts";
 
@@ -22,12 +23,21 @@ const BACKUP_DIR = process.env.BACKUP_DIR ?? "/var/backups/nexora";
 const COMPOSE_FILE = process.env.COMPOSE_FILE ?? "/nexora/docker-compose.yml";
 const NEXORA_VOLUME = process.env.NEXORA_VOLUME ?? "nexora-db";
 const PROJECT = process.env.COMPOSE_PROJECT_NAME ?? "nexora";
-const BACKEND_HEALTH_URL = process.env.BACKEND_HEALTH_URL ?? "http://nexora-backend:3000/api/health";
+const BACKEND_HEALTH_URL =
+  process.env.BACKEND_HEALTH_URL ?? "http://nexora-backend:3000/api/health";
 
 mkdirSync(BACKUP_DIR, { recursive: true });
 mkdirSync(dirname(SOCKET_PATH), { recursive: true });
 
-type JobStatus = "pending" | "snapshotting" | "pulling" | "swapping" | "healthchecking" | "ok" | "rolled-back" | "failed";
+type JobStatus =
+  | "pending"
+  | "snapshotting"
+  | "pulling"
+  | "swapping"
+  | "healthchecking"
+  | "ok"
+  | "rolled-back"
+  | "failed";
 
 interface Job {
   id: string;
@@ -49,19 +59,22 @@ const jobs = new Map<string, Job>();
 
 function step(j: Job, msg: string): void {
   j.steps.push({ at: Date.now(), msg });
+  // biome-ignore lint/suspicious/noConsole: structured operator log
   console.log(`[updater] [${j.id}] ${msg}`);
 }
 
-function run(cmd: string, args: string[], opts: { timeoutMs?: number } = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+function run(
+  cmd: string,
+  args: string[],
+  opts: { timeoutMs?: number } = {},
+): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     let err = "";
     child.stdout.on("data", (d) => (out += d.toString()));
     child.stderr.on("data", (d) => (err += d.toString()));
-    const t = opts.timeoutMs
-      ? setTimeout(() => child.kill("SIGKILL"), opts.timeoutMs)
-      : null;
+    const t = opts.timeoutMs ? setTimeout(() => child.kill("SIGKILL"), opts.timeoutMs) : null;
     child.on("close", (code) => {
       if (t) clearTimeout(t);
       resolve({ code: code ?? -1, stdout: out, stderr: err });
@@ -77,10 +90,15 @@ async function snapshotVolume(j: Job, keyMaterial: KeyMaterial | null): Promise<
   const r = await run(
     "docker",
     [
-      "run", "--rm",
-      "-v", `${PROJECT}_${NEXORA_VOLUME}:/data:ro`,
-      "-v", `${BACKUP_DIR}:/backup`,
-      "alpine:3", "sh", "-c",
+      "run",
+      "--rm",
+      "-v",
+      `${PROJECT}_${NEXORA_VOLUME}:/data:ro`,
+      "-v",
+      `${BACKUP_DIR}:/backup`,
+      "alpine:3",
+      "sh",
+      "-c",
       `cd /data && tar czf /backup/${plainName} .`,
     ],
     { timeoutMs: 5 * 60_000 },
@@ -117,7 +135,13 @@ async function pullImage(j: Job): Promise<void> {
     const tagRef = `${j.imageRepo}:${j.imageTag}`;
     const t = await run("docker", ["tag", ref, tagRef]);
     if (t.code !== 0) throw new Error(`docker tag failed: ${t.stderr}`);
-    const inspect = await run("docker", ["image", "inspect", "--format", "{{index .RepoDigests 0}}", tagRef]);
+    const inspect = await run("docker", [
+      "image",
+      "inspect",
+      "--format",
+      "{{index .RepoDigests 0}}",
+      tagRef,
+    ]);
     if (inspect.code === 0 && !inspect.stdout.includes(normalizedDigest)) {
       throw new Error(`puled image digest mismatch (expected ${normalizedDigest})`);
     }
@@ -230,6 +254,7 @@ Bun.serve({
     const rawBody = req.method === "POST" ? await req.text() : "";
     const v = verifyRequest(req.headers, rawBody);
     if (!v.ok) {
+      // biome-ignore lint/suspicious/noConsole: operator-facing reject log
       console.warn(`[updater] reject ${req.method} ${url.pathname}: ${v.reason}`);
       return json({ error: "handshake failed", reason: v.reason }, 401);
     }
@@ -315,10 +340,13 @@ Bun.serve({
       // Verify digest if pinned.
       let digestVerified: string | null = null;
       if (normalizedDigest) {
-        const inspect = await run(
-          "docker",
-          ["image", "inspect", "--format", "{{index .RepoDigests 0}}", ref],
-        );
+        const inspect = await run("docker", [
+          "image",
+          "inspect",
+          "--format",
+          "{{index .RepoDigests 0}}",
+          ref,
+        ]);
         if (inspect.code === 0 && inspect.stdout.includes(normalizedDigest)) {
           digestVerified = normalizedDigest;
         } else {
@@ -339,8 +367,8 @@ Bun.serve({
       const id = url.searchParams.get("jobId");
       const j =
         id && id !== "latest"
-          ? jobs.get(id) ?? null
-          : [...jobs.values()].sort((a, b) => b.startedAt - a.startedAt)[0] ?? null;
+          ? (jobs.get(id) ?? null)
+          : ([...jobs.values()].sort((a, b) => b.startedAt - a.startedAt)[0] ?? null);
       if (!j) return json({ error: "no jobs" }, 404);
       return json(j);
     }
@@ -348,6 +376,7 @@ Bun.serve({
   },
 });
 
+// biome-ignore lint/suspicious/noConsole: boot log
 console.log(`[updater] listening on ${SOCKET_PATH}`);
 
 function json(payload: unknown, status = 200): Response {

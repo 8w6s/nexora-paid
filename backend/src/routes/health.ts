@@ -22,7 +22,9 @@ function pingDb(): { ok: boolean; ms: number; error?: string } {
   const t0 = performance.now();
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("../db/connection.ts") as { db: { $client: { query: (s: string) => { get: () => unknown } } } };
+    const mod = require("../db/connection.ts") as {
+      db: { $client: { query: (s: string) => { get: () => unknown } } };
+    };
     mod.db.$client.query("SELECT 1").get();
     return { ok: true, ms: Math.round((performance.now() - t0) * 100) / 100 };
   } catch (e) {
