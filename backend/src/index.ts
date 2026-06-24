@@ -11,22 +11,23 @@ import {
 } from "./lib/auth.ts";
 import { printBootBanner } from "./lib/banner.ts";
 import { EmailService } from "./lib/email.ts";
+import { initIntegrity, toBannerInfo } from "./lib/integrity-state.ts";
 import { loadPlugins } from "./lib/plugin/loader.ts";
 import { clientIp, rateLimitCheck } from "./lib/rate-limit.ts";
 import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watcher.ts";
-import { admin2faRoutes } from "./routes/admin-2fa.ts";
-import { customer2faRoutes } from "./routes/customer-2fa.ts";
-import { adminBlocklistRoutes } from "./routes/admin-blocklist.ts";
 import { adminRoutes } from "./routes/admin.ts";
+import { admin2faRoutes } from "./routes/admin-2fa.ts";
+import { adminBlocklistRoutes } from "./routes/admin-blocklist.ts";
 import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
 import { categoryRoutes } from "./routes/categories.ts";
 import { checkoutRoutes } from "./routes/checkout.ts";
 import { configRoutes } from "./routes/config.ts";
+import { customer2faRoutes } from "./routes/customer-2fa.ts";
+import { devRoutes } from "./routes/dev.ts";
 import { clearCatalogCache, productRoutes } from "./routes/products.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { adminTicketRoutes, ticketRoutes } from "./routes/tickets.ts";
-import { devRoutes } from "./routes/dev.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 
@@ -237,14 +238,11 @@ const baseApp = new Elysia()
         return { error: "Too many requests", code: "RATE_LIMITED" };
       }
       const sanitize = (s: unknown, max: number): string =>
-        typeof s === "string"
-          ? s.replace(/[\x00-\x1F\x7F]/g, " ").slice(0, max)
-          : "";
+        typeof s === "string" ? s.replace(/[\x00-\x1F\x7F]/g, " ").slice(0, max) : "";
       const msg = sanitize(body.message, 2048) || "(empty)";
       const stack = sanitize(body.stack, 2048);
       const url = sanitize(body.url, 1024);
-      const sev =
-        body.severity === "HIGH" || body.severity === "MEDIUM" ? body.severity : "LOW";
+      const sev = body.severity === "HIGH" || body.severity === "MEDIUM" ? body.severity : "LOW";
       console.error(
         `[CLIENT_REPORT] [advisory:${sev}] [ip:${ip}] ${msg} | url=${url}${stack ? ` | stack=${stack}` : ""}`,
       );
@@ -295,16 +293,39 @@ const baseApp = new Elysia()
 
       set.headers["content-type"] = "text/event-stream";
       set.headers["cache-control"] = "no-cache";
-      set.headers["connection"] = "keep-alive";
+      set.headers.connection = "keep-alive";
       set.headers["x-accel-buffering"] = "no"; // disable proxy buffering
 
       let cleanup: (() => void) | null = null;
       let heartbeat: ReturnType<typeof setInterval> | null = null;
       let closed = false;
 
+      // Single source of truth for stream teardown. Called from:
+      //   1. cancel() — consumer aborts the ReadableStream
+      //   2. send() catch — enqueue threw (client disconnected mid-write)
+      //   3. abort listener — request signal fired
+      // Idempotent via the `closed` guard so multiple triggers only release
+      // the slot once. Previously the send() catch flipped `closed=true` but
+      // did NOT release the deliverHook subscription or clear the heartbeat
+      // interval — when cancel() failed to fire afterwards (e.g. abort raced
+      // the enqueue), both leaked until process exit. Over a busy storefront
+      // that pushes deliverHooks toward DELIVER_HOOKS_MAX and stalls payment
+      // delivery.
+      const teardown = () => {
+        if (closed) return;
+        closed = true;
+        if (cleanup) cleanup();
+        if (heartbeat) clearInterval(heartbeat);
+        cleanup = null;
+        heartbeat = null;
+        const c = sseConnections.get(sseKey) ?? 0;
+        if (c <= 1) sseConnections.delete(sseKey);
+        else sseConnections.set(sseKey, c - 1);
+      };
+
       // Lifecycle: subscriber appends to deliverHooks[] + arms heartbeat.
       // Tear both down on client disconnect or the list grows unbounded and
-      // controller.enqueue() against a closed stream throws.
+      // controller.enque() against a closed stream throws.
       return new ReadableStream({
         start(controller) {
           const send = (data: unknown) => {
@@ -314,7 +335,13 @@ const baseApp = new Elysia()
 
 `);
             } catch {
-              closed = true;
+              // Enqueue against a closed/aborted stream: tear down NOW.
+              // cancel() is not guaranteed to fire (the runtime may have
+              // already discarded the stream), so this is the cleanup site.
+              teardown();
+              try {
+                controller.close();
+              } catch {}
             }
           };
 
@@ -326,18 +353,14 @@ const baseApp = new Elysia()
           heartbeat = setInterval(() => send({ type: "heartbeat" }), 30_000);
 
           request.signal?.addEventListener("abort", () => {
-            try { controller.close(); } catch {}
+            teardown();
+            try {
+              controller.close();
+            } catch {}
           });
         },
         cancel() {
-          closed = true;
-          if (cleanup) cleanup();
-          if (heartbeat) clearInterval(heartbeat);
-          cleanup = null;
-          heartbeat = null;
-          const c = sseConnections.get(sseKey) ?? 0;
-          if (c <= 1) sseConnections.delete(sseKey);
-          else sseConnections.set(sseKey, c - 1);
+          teardown();
         },
       });
     },
@@ -351,9 +374,20 @@ const baseApp = new Elysia()
   // ───── Public routes (no auth required) ─────
   .use(configRoutes);
 
+// Integrity verifier — reads manifest.signed.json, hashes every listed
+// file, returns OK / degraded / skipped (dev mode). MUST run before
+// loadPlugins() so the loader can refuse paid plugins on a tampered
+// build instead of registering routes against a hashed-mismatch binary.
+// In dev without a manifest the verifier reports `manifest_not_found`
+// and the policy in lib/integrity-state.ts tolerates that — `bun dev`
+// stays frictionless. In prod, missing/invalid manifest → degraded mode,
+// paid plugins skipped, banner red, admin mutations gated.
+const integrityResult = await initIntegrity();
+
 // Paid modules register BEFORE productRoutes so static paths like
 // /api/products/suggest are not shadowed by the dynamic /api/products/:idOrSlug
-// route. Loader is licence-gated and a no-op when no paid registry is shipped.
+// route. Loader is licence-gated AND integrity-gated; on a degraded build
+// every paid plugin is skipped with reason "integrity degraded".
 const app = (await loadPlugins(baseApp))
   .use(productRoutes)
   .use(categoryRoutes)
@@ -413,6 +447,7 @@ app.listen(Number(Bun.env.PORT ?? 3000));
 
 printBootBanner({
   license: (globalThis as any).__nexora_license ?? null,
+  integrity: toBannerInfo(integrityResult),
   plugins: (globalThis as any).__nexora_plugins ?? [],
   adminEmail: (globalThis as any).__nexora_admin_email ?? null,
 });

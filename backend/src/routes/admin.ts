@@ -26,6 +26,7 @@ import {
 import { EmailService } from "../lib/email.ts";
 import { FEATURES, type FeatureKey, getFlags, setFlag } from "../lib/features.ts";
 import { validateXpub } from "../lib/hd.ts";
+import { getIntegrityState, isDegraded, summarizeIntegrity } from "../lib/integrity-state.ts";
 import {
   adminProviderList,
   PROVIDER_BY_ID,
@@ -36,6 +37,7 @@ import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { getAllSettings, setSetting } from "../lib/settings.ts";
 import { SETTINGS_SCHEMA } from "../lib/settings-schema.ts";
 import { uniqueSlug } from "../lib/slug.ts";
+import { NEXORA_VERSION } from "../lib/version.ts";
 
 // Defense-in-depth rate limit on admin mutations. The admin is already
 // authenticated, but if their cookie is ever stolen (XSS in a third-party
@@ -145,10 +147,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     // Pass clientIp so the session's lastIp refresh tracks roaming — the
     // device-list UI then surfaces a session that started on home wifi
     // and resurfaced from a totally different country.
-    const user = await validateSession(
-      cookie[SESSION_COOKIE]?.value as string | undefined,
-      { ip: clientIp(request) },
-    );
+    const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined, {
+      ip: clientIp(request),
+    });
     if (!user) return status(401, { error: "Authentication required", code: "UNAUTHENTICATED" });
     if (user.role !== "admin") return status(403, { error: "Admin only", code: "FORBIDDEN" });
     // Defense-in-depth: cap admin mutation rate per user id. GET reads remain
@@ -157,6 +158,20 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     // but can't burst-write the catalog.
     const m = request.method;
     if (m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE") {
+      // Integrity gate: when the build's verifier reports DEGRADED (tampered
+      // files or invalid manifest signature in production), refuse every
+      // mutation so an attacker who patched a binary can't run admin writes
+      // against the catalog. GETs stay open so the admin can still see the
+      // red banner and reach /api/admin/system/health to diagnose.
+      // Dev mode without a manifest is NOT degraded (see lib/integrity-state.ts).
+      if (isDegraded()) {
+        set.status = 503;
+        return {
+          error: "Integrity verification failed — admin mutations disabled until resolved",
+          code: "INTEGRITY_DEGRADED",
+          hint: "GET /api/admin/system/health",
+        };
+      }
       const rl = rateLimitCheck(
         `admin-mutate:${user.id}`,
         ADMIN_MUTATE_MAX,
@@ -790,12 +805,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
           .orderBy(desc(orders.createdAt))
           .limit(limit)
           .offset(offset)
-      : db
-          .select()
-          .from(orders)
-          .orderBy(desc(orders.createdAt))
-          .limit(limit)
-          .offset(offset));
+      : db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
 
     if (list.length === 0) return [];
 
@@ -951,11 +961,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     const today = Math.floor(Date.now() / dayMs);
     const rangeStart = (today - (days - 1)) * dayMs;
 
-    const [statusRows, totalRow, revenueRow, recentRows, seriesRows] = await Promise.all([
-      db
-        .select({ status: orders.status, n: count() })
-        .from(orders)
-        .groupBy(orders.status),
+    const [statusRows, totalRow, revenueRow, recentRows, seriesRows, topSpenderRows] =
+      await Promise.all([
+      db.select({ status: orders.status, n: count() }).from(orders).groupBy(orders.status),
       db.select({ n: count() }).from(orders),
       db
         .select({
@@ -992,6 +1000,21 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
           ),
         )
         .groupBy(sql`CAST(${orders.createdAt} / ${dayMs} AS INTEGER)`),
+      // Top spenders — rank customers by lifetime paid+completed revenue.
+      // Group by email (not userId) so guest checkouts collapse correctly when
+      // the same email pays multiple times without an account. LIMIT 5 to keep
+      // the admin overview tile compact.
+      db
+        .select({
+          email: orders.email,
+          totalUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
+          orderCount: count(),
+        })
+        .from(orders)
+        .where(inArray(orders.status, ["paid", "completed"] as any))
+        .groupBy(orders.email)
+        .orderBy(sql`SUM(${orders.totalUsd}) DESC`)
+        .limit(5),
     ]);
 
     const byStatus: Record<string, number> = {
@@ -1035,12 +1058,21 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       .filter((p) => p.available <= 5)
       .sort((a, b) => a.available - b.available);
 
+    const topSpenders = topSpenderRows
+      .filter((r) => r.email)
+      .map((r) => ({
+        email: r.email,
+        totalUsd: Math.round(Number(r.totalUsd) * 100) / 100,
+        orderCount: r.orderCount,
+      }));
+
     const payload = {
       totalOrders,
       ordersByStatus: byStatus,
       revenueUsd: Math.round(revenueUsd * 100) / 100,
       revenueLtc: (revenueLtcLitoshi / 1e8).toFixed(8),
       topProducts,
+      topSpenders,
       lowStock,
       revenueSeries: series,
       recentOrders: recentRows.map((o) => ({
@@ -1231,6 +1263,52 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     };
   })
 
+  /* ───────── System health (integrity verdict + uptime + version) ────── */
+  // Operator-visible health snapshot. Authed admin only (prefix .onBeforeHandle
+  // gate runs first). Surfaces enough to diagnose a degraded boot — banner
+  // reason, file mismatch count, build id, plus simple uptime/version. The
+  // full mismatches list (60+ paths possible) is intentionally truncated to 5
+  // path samples; full list is in the server logs.
+  .get("/system/health", () => {
+    let state: unknown = null;
+    try {
+      const r = getIntegrityState();
+      if (r.ok && r.skipped) {
+        state = { ok: true, skipped: true };
+      } else if (r.ok) {
+        state = {
+          ok: true,
+          skipped: false,
+          buildId: r.buildId,
+          customerId: r.customerId,
+          issuedAt: r.issuedAt,
+          checked: r.checked,
+        };
+      } else {
+        state = {
+          ok: false,
+          reason: r.reason,
+          buildId: r.buildId ?? null,
+          mismatchCount: r.mismatches.length,
+          mismatchSample: r.mismatches.slice(0, 5).map((mm) => mm.path),
+        };
+      }
+    } catch {
+      // initIntegrity() never ran — should not happen in production, but
+      // surface as null so the operator can spot the misconfiguration.
+      state = null;
+    }
+    return {
+      integrity: {
+        state,
+        summary: summarizeIntegrity(),
+        degraded: isDegraded(),
+      },
+      uptime: Math.floor(process.uptime()),
+      version: NEXORA_VERSION,
+    };
+  })
+
   .post(
     "/plugins/:id/enabled",
     async ({ params, body, set, adminEmail }) => {
@@ -1240,9 +1318,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       // would pollute the settings table with `feature_plugin_*` keys —
       // storage bloat + cache poisoning vector for any future setting that
       // shares the prefix.
-      const loaded = (globalThis as any).__nexora_plugins as
-        | { id: string }[]
-        | undefined;
+      const loaded = (globalThis as any).__nexora_plugins as { id: string }[] | undefined;
       if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id) || !loaded?.some((p) => p.id === id)) {
         set.status = 400;
         return { error: "Unknown plugin", code: "BAD_PLUGIN" };
@@ -1889,9 +1965,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       .from(sessions)
       .where(eq(sessions.userId, adminId))
       .orderBy(desc(sessions.lastSeenAt));
-    const currentId = currentToken
-      ? createHash("sha256").update(currentToken).digest("hex")
-      : null;
+    const currentId = currentToken ? createHash("sha256").update(currentToken).digest("hex") : null;
     return {
       sessions: rows.map((s) => ({
         // 12-char prefix of the stored sha256 — non-reversible to the cookie

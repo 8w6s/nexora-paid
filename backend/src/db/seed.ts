@@ -118,10 +118,38 @@ const mockProducts = [
 
 // Demo variant tiers — only prod-2 (Gemini) gets a 1m/3m/12m breakdown so the
 // storefront shows a working multi-variant flow without overwhelming the demo.
-const variantPlan: { id: string; productId: string; name: string; priceUsd: number; compareAtPrice: number; keys: number }[] = [
-  { id: "var-prod2-1m",  productId: "prod-2", name: "1 Month",   priceUsd: 2.49,  compareAtPrice: 4.99,  keys: 15 },
-  { id: "var-prod2-3m",  productId: "prod-2", name: "3 Months",  priceUsd: 6.49,  compareAtPrice: 12.99, keys: 15 },
-  { id: "var-prod2-12m", productId: "prod-2", name: "12 Months", priceUsd: 17.99, compareAtPrice: 49.99, keys: 15 },
+const variantPlan: {
+  id: string;
+  productId: string;
+  name: string;
+  priceUsd: number;
+  compareAtPrice: number;
+  keys: number;
+}[] = [
+  {
+    id: "var-prod2-1m",
+    productId: "prod-2",
+    name: "1 Month",
+    priceUsd: 2.49,
+    compareAtPrice: 4.99,
+    keys: 15,
+  },
+  {
+    id: "var-prod2-3m",
+    productId: "prod-2",
+    name: "3 Months",
+    priceUsd: 6.49,
+    compareAtPrice: 12.99,
+    keys: 15,
+  },
+  {
+    id: "var-prod2-12m",
+    productId: "prod-2",
+    name: "12 Months",
+    priceUsd: 17.99,
+    compareAtPrice: 49.99,
+    keys: 15,
+  },
 ];
 
 // Demo inventory: how many real keys to seed per product (out-of-stock products get 0).

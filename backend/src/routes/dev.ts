@@ -20,11 +20,7 @@ type LogEntry = { ts: string; source: string; level: string; message: string };
 const logRing: LogEntry[] = [];
 const sseClients = new Set<(entry: LogEntry) => void>();
 
-export function pushDevLog(
-  source: string,
-  level: string,
-  message: string,
-) {
+export function pushDevLog(source: string, level: string, message: string) {
   const entry: LogEntry = {
     ts: new Date().toISOString(),
     source,
@@ -53,18 +49,14 @@ export function pushDevLog(
 const DEV_LOGS_TOKEN =
   Bun.env.DEV_LOGS_TOKEN ??
   (() => {
-    const t =
-      crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+    const t = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
     if (Bun.env.NODE_ENV !== "production") {
       console.warn(`[dev] DEV_LOGS_TOKEN not set; generated ephemeral token=${t.slice(0, 8)}...`);
     }
     return t;
   })();
 
-async function devLogsAllowed(
-  request: Request,
-  cookieToken: string | undefined,
-): Promise<boolean> {
+async function devLogsAllowed(request: Request, cookieToken: string | undefined): Promise<boolean> {
   // Admin session is sufficient — same trust level the rest of /api/admin uses.
   const user = await validateSession(cookieToken);
   if (user?.role === "admin") return true;
@@ -92,10 +84,7 @@ export const devRoutes = new Elysia()
     // Auth gate: admin session cookie OR DEV_LOGS_TOKEN. Without this any
     // process that can reach the backend port can siphon every console line,
     // which routinely contains emails, IPs, and internal stack traces.
-    const ok = await devLogsAllowed(
-      request,
-      cookie[SESSION_COOKIE]?.value as string | undefined,
-    );
+    const ok = await devLogsAllowed(request, cookie[SESSION_COOKIE]?.value as string | undefined);
     if (!ok) {
       set.status = 401;
       return { error: "Unauthorized", code: "UNAUTHENTICATED" };
@@ -137,7 +126,9 @@ export const devRoutes = new Elysia()
         request.signal?.addEventListener("abort", () => {
           sseClients.delete(handler);
           if (heartbeat) clearInterval(heartbeat);
-          try { controller.close(); } catch {}
+          try {
+            controller.close();
+          } catch {}
         });
       },
       cancel() {

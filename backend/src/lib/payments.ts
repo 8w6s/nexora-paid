@@ -107,7 +107,12 @@ export const PROVIDERS: ProviderDef[] = [
     fields: [
       { key: "publishable_key", label: "Stripe publishable key" },
       { key: "secret_key", label: "Stripe secret key", secret: true },
-      { key: "webhook_secret", label: "Webhook signing secret", secret: true, optional: true },
+      {
+        key: "webhook_secret",
+        label: "Webhook signing secret",
+        secret: true,
+        hint: "Required. Without this any caller of the webhook URL can forge 'payment_intent.succeeded' events and mark unpaid orders as paid. Get it from Stripe Dashboard → Developers → Webhooks → your endpoint.",
+      },
     ],
     note: "Cards via Stripe Elements embedded in your own styled checkout (PCI-safe).",
   },

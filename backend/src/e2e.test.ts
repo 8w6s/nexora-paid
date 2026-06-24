@@ -18,9 +18,11 @@ const ok = (_label: string, cond: boolean, _extra = "") => {
 `);
   }
 };
-process.on("exit", () => process.stderr.write(`
+process.on("exit", () =>
+  process.stderr.write(`
 E2E: ${_pass} pass, ${fail} fail
-`));
+`),
+);
 const jar: Record<string, string> = {};
 async function call(method: string, path: string, body?: unknown, who?: "c" | "a") {
   const headers: Record<string, string> = { "Content-Type": "application/json", Origin: O };
@@ -107,7 +109,11 @@ const mkCoupon = await call(
   { code: couponCode, type: "percent", value: 10, active: true },
   "a",
 );
-ok("admin creates coupon", mkCoupon.status === 201 || mkCoupon.status === 200, `code=${couponCode}`);
+ok(
+  "admin creates coupon",
+  mkCoupon.status === 201 || mkCoupon.status === 200,
+  `code=${couponCode}`,
+);
 await new Promise((r) => setTimeout(r, 1500));
 const email3 = `e2e3_${Date.now()}@test.com`;
 await call("POST", "/api/auth/register", { email: email3, password: "secret123" }, "k");
@@ -117,7 +123,11 @@ const coWithCoupon = await call(
   { items: [{ productId: "prod-3", qty: 1 }], coupon: couponCode },
   "k",
 );
-ok("checkout accepts valid coupon", coWithCoupon.status === 201, `order=${coWithCoupon.data.orderId}`);
+ok(
+  "checkout accepts valid coupon",
+  coWithCoupon.status === 201,
+  `order=${coWithCoupon.data.orderId}`,
+);
 const couponOrderId = coWithCoupon.data.orderId as string;
 const orderDetail = await call("GET", `/api/orders/${couponOrderId}`, undefined, "k");
 ok(
@@ -137,7 +147,11 @@ const variantOrder = await call(
   { items: [{ productId: "prod-2", variantId: "var-prod2-1m", qty: 1 }] },
   "v",
 );
-ok("variant checkout creates order", variantOrder.status === 201, `order=${variantOrder.data.orderId}`);
+ok(
+  "variant checkout creates order",
+  variantOrder.status === 201,
+  `order=${variantOrder.data.orderId}`,
+);
 const variantOrderId = variantOrder.data.orderId as string;
 const variantDetail = await call("GET", `/api/orders/${variantOrderId}`, undefined, "v");
 ok(
@@ -147,7 +161,10 @@ ok(
 );
 
 const db = new Database("sqlite.db");
-db.run("UPDATE product_keys SET status='available', order_id=NULL, reserved_at=NULL, delivered_at=NULL WHERE order_id=?", [couponOrderId]);
+db.run(
+  "UPDATE product_keys SET status='available', order_id=NULL, reserved_at=NULL, delivered_at=NULL WHERE order_id=?",
+  [couponOrderId],
+);
 db.run("DELETE FROM order_items WHERE order_id=?", [couponOrderId]);
 db.run("DELETE FROM orders WHERE id=?", [couponOrderId]);
 db.run("DELETE FROM coupons WHERE code=?", [couponCode]);

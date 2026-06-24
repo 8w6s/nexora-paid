@@ -111,7 +111,7 @@ export async function markPaidAndDeliver(
   txId: string | null,
   receivedLitoshi: number,
   confirmations: number,
-): Promise<{ name: string; code: string }[] | null> {
+): Promise<{ productId: string; name: string; code: string }[] | null> {
   return db.transaction(async (tx) => {
     // Idempotent guard via SELECT-then-conditional-UPDATE inside the
     // transaction. The previous version relied on Drizzle's UPDATE result
@@ -125,11 +125,7 @@ export async function markPaidAndDeliver(
       .from(orders)
       .where(eq(orders.id, orderId));
     const curStatus = cur[0]?.status;
-    if (
-      curStatus !== "pending" &&
-      curStatus !== "awaiting_payment" &&
-      curStatus !== "underpaid"
-    ) {
+    if (curStatus !== "pending" && curStatus !== "awaiting_payment" && curStatus !== "underpaid") {
       return null; // already delivered/expired/cancelled — not payable
     }
     await tx
@@ -160,11 +156,15 @@ export async function markPaidAndDeliver(
         .where(eq(products.id, k.productId));
     }
 
-    // Build delivered payload (name from product) for display/email.
-    const delivered: { name: string; code: string }[] = [];
+    // Build delivered payload (productId for plugin filtering + name for display).
+    // productId MUST be included — watcher.checkOrder groups by productId before
+    // emitting product.delivered to the hook bus; without it every event would
+    // be keyed under `undefined` and plugin filters silently break across both
+    // real-time and crash-recovery paths.
+    const delivered: { productId: string; name: string; code: string }[] = [];
     for (const k of reserved) {
       const p = (await tx.select().from(products).where(eq(products.id, k.productId)))[0];
-      delivered.push({ name: p?.name ?? "Item", code: k.code });
+      delivered.push({ productId: k.productId, name: p?.name ?? "Item", code: k.code });
     }
     await tx.update(orders).set({ deliveredAt: now }).where(eq(orders.id, orderId));
     return delivered;

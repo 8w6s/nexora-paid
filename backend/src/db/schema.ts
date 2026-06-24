@@ -262,9 +262,7 @@ export const orders = sqliteTable(
     // payable backlog crosses ~90 orders. lastCheckedAt lets us prioritise
     // oldest-pending first and skip recently-checked. Migration 0006 backfills
     // existing rows to 0 so the first tick after deploy covers them all.
-    lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" })
-      .notNull()
-      .default(sql`0`),
+    lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" }).notNull().default(sql`0`),
   },
   (t) => ({
     statusIdx: index("orders_status_idx").on(t.status),

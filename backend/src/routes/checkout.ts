@@ -277,14 +277,20 @@ export const checkoutRoutes = new Elysia()
       // Allocate a unique HD index + address, reserve keys, insert order — all in
       try {
         const result = await db.transaction(async (tx) => {
-          // HD index MUST be monotonic — never derive from `max(orders.addressIndex)`
-          // because an admin DELETE on a stuck pending order would shrink the
-          // max and the next checkout would reuse that index → address reuse,
-          // which leaks the buyer's privacy by linking unrelated orders to one
-          // on-chain address. Read+bump `hd_next_index` inside the tx so SQLite's
-          // write serialization gives us a unique increasing value; UNIQUE on
-          // ltc_address + addressIndex remains the hard backstop.
-          const counter = await getSettingNumber("hd_next_index", 0);
+          // HD index MUST be monotonic — never deraddress + addressIndex remains the hard backstop.
+          //
+          // CRITICAL: read the counter via `tx`, not the outer db handle —
+          // `getSettingNumber` queries through the connection pool and can
+          // observe a stale value from before another checkout's commit,
+          // letting two simultaneous orders land on the same addressIndex
+          // (the UNIQUE backstop then fails one of them with a 500).
+          const counterRow = (
+            await tx
+              .select({ value: settings.value })
+              .from(settings)
+              .where(eq(settings.key, "hd_next_index"))
+          )[0];
+          const counter = Number(counterRow?.value ?? 0) || 0;
           // Backfill: if existing orders went past `counter` (older builds),
           // jump forward — we never go backward.
           const maxRow = await tx

@@ -67,10 +67,7 @@ function runMigrations(db: Database): void {
         db.query("INSERT INTO _migrations (filename) VALUES (?)").run(file);
       })();
     } catch (e) {
-      console.error(
-        `[migrate] ${file} failed:`,
-        e instanceof Error ? e.message : String(e),
-      );
+      console.error(`[migrate] ${file} failed:`, e instanceof Error ? e.message : String(e));
       throw e;
     }
   }

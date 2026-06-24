@@ -1,5 +1,6 @@
 import type { Elysia } from "elysia";
 import { db } from "../../db/connection.ts";
+import { isDegraded, summarizeIntegrity } from "../integrity-state.ts";
 import { verifyLicense } from "../license.ts";
 import { getAllSettings } from "../settings.ts";
 import { NEXORA_VERSION } from "../version.ts";
@@ -19,7 +20,10 @@ interface LoadedRecord {
 /**
  * Discover, gate, migrate, register, and hook-subscribe every plugin from
  * the in-tree registry at `../paid/index.ts` (when present). The pipeline:
- *   1. License gate — verifyLicense() must pass; otherwise NO plugin loads.
+ *   1a. Integrity gate — verifyManifest() must not be degraded; otherwise
+ *       NO paid plugin loads even if license is valid. Encodes the
+ *       paid-tamper rule "patched binary cannot serve paid features".
+ *   1b. License gate — verifyLicense() must pass; otherwise NO plugin loads.
  *   2. Per-plugin compat check — manifest.nexoraVersion vs NEXORA_VERSION.
  *   3. Per-plugin enabled flag — `feature_plugin_<id>` setting; default true.
  *      Plugins disabled here are skipped completely (no migrate, no register,
@@ -29,9 +33,15 @@ interface LoadedRecord {
  *   5. register() — append routes to Elysia. Failures isolated per plugin.
  *   6. hooks subscribe — wire each declared hook handler into hookBus.
  *
- * We always return an app (possibly unchanged). A bad plugin is logged, not
+ * We always return an app (possibly unchanged). A bad plugin is loged, not
  * fatal. We also write a summary to `globalThis.__nexora_plugins` so the
- * admin endpoint added in Task 6 can render plugin state without rescanning.
+ * admin /api/admin/system/health endpoint can render plugin state without
+ * rescanning.
+ *
+ * Boot ordering: `initIntegrity()` MUST run before `loadPlugins()` in
+ * `backend/src/index.ts` so step 1a sees a real verdict. Without that
+ * ordering `isDegraded()` returns false (pre-init policy: assume healthy)
+ * and a tampered build would silently load paid plugins.
  */
 export async function loadPlugins<A extends Elysia<any, any, any, any, any, any, any, any>>(
   app: A,
@@ -54,7 +64,27 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
     return app;
   }
 
-  // 1. License gate (build-wide; per-plugin signing comes in Phase 2).
+  // 1a. Integrity gate. When the build's signed manifest fails (tampered
+  // file, invalid signature, missing in prod), refuse to register ANY paid
+  // plugin. Without this gate an attacker who patched a binary could still
+  // get search-suggest / admin-bulk / admin-export wired up against the
+  // hashed-mismatch code. Dev tolerance for missing manifest is encoded
+  // inside isDegraded() — `bun dev` without manifest is NOT degraded.
+  if (isDegraded()) {
+    const reason = `integrity degraded: ${summarizeIntegrity()}`;
+    for (const p of plugins)
+      records.push({
+        id: p.manifest.id,
+        version: p.manifest.version,
+        description: p.manifest.description,
+        loaded: false,
+        reason,
+      });
+    (globalThis as any).__nexora_plugins = records;
+    return app;
+  }
+
+  // 1b. License gate (build-wide; per-plugin signing comes in Phase 2).
   const lic = await verifyLicense();
   (globalThis as any).__nexora_license = lic;
   if (!lic.valid) {

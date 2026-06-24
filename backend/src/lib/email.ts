@@ -1,3 +1,4 @@
+import { type Locale, t } from "./i18n.ts";
 import { getAllSettings } from "./settings.ts";
 
 /**
@@ -94,7 +95,13 @@ async function send(input: SendInput): Promise<SendResult> {
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-function renderDeliveredKeys(orderId: string, keys: { name: string; code: string }[]) {
+function renderDeliveredKeys(
+  orderId: string,
+  keys: { name: string; code: string }[],
+  locale: Locale | null = null,
+) {
+  const _heading = t(locale, "email.orderPaid.heading");
+  const _body = t(locale, "email.orderPaid.body", { orderId });
   const rows = keys
     .map(
       (k) =>
@@ -106,7 +113,11 @@ function renderDeliveredKeys(orderId: string, keys: { name: string; code: string
   return { html, text };
 }
 
-function renderPasswordReset(resetUrl: string, expiresMinutes: number) {
+function renderPasswordReset(
+  resetUrl: string,
+  expiresMinutes: number,
+  _locale: Locale | null = null,
+) {
   const html = `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#0f172a"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden"><tr><td style="background:#4f46e5;padding:22px 28px;color:#fff;font-size:20px;font-weight:bold">Nexora</td></tr><tr><td style="padding:28px"><h1 style="margin:0 0 8px;font-size:21px">Reset your password</h1><p style="margin:0 0 18px;color:#475569;font-size:14px">Someone (hopefully you) asked to reset the password for your Nexora account. The link below expires in ${expiresMinutes} minutes and can only be used once.</p><p style="margin:0 0 22px"><a href="${esc(resetUrl)}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;font-size:14px">Reset password</a></p><p style="margin:0 0 12px;color:#475569;font-size:13px">Or paste this URL into your browser:</p><p style="margin:0 0 18px;color:#0f172a;font-size:12px;word-break:break-all;background:#f1f5f9;padding:10px 12px;border-radius:6px">${esc(resetUrl)}</p><p style="margin:18px 0 0;color:#94a3b8;font-size:12px">If you didn't request this, you can ignore this email — your password won't change.</p></td></tr></table></td></tr></table></body></html>`;
   const text = `Reset your Nexora password
 
@@ -132,12 +143,17 @@ const SAFE_HEADER_RE = /[\r]+/g;
 const safeHeader = (s: string, max = 200) => s.replace(SAFE_HEADER_RE, " ").slice(0, max);
 
 export const EmailService = {
-  deliveredKeys: (orderId: string, to: string, keys: { name: string; code: string }[]) =>
+  deliveredKeys: (
+    orderId: string,
+    to: string,
+    keys: { name: string; code: string }[],
+    locale: Locale | null = null,
+  ) =>
     send({
       to,
-      subject: safeHeader(`Your Nexora order ${orderId} — keys inside`),
+      subject: safeHeader(t(locale, "email.orderPaid.subject", { orderId })),
       idempotencyKey: `delivered-keys/${orderId}`,
-      ...renderDeliveredKeys(orderId, keys),
+      ...renderDeliveredKeys(orderId, keys, locale),
     }),
   ticketReply: (to: string, subject: string, body: string) =>
     send({
@@ -145,11 +161,16 @@ export const EmailService = {
       subject: safeHeader(`Re: ${subject} — Nexora Support`),
       ...renderTicketReply(subject, body),
     }),
-  passwordReset: (to: string, resetUrl: string, expiresMinutes: number) =>
+  passwordReset: (
+    to: string,
+    resetUrl: string,
+    expiresMinutes: number,
+    locale: Locale | null = null,
+  ) =>
     send({
       to,
-      subject: safeHeader("Reset your Nexora password"),
-      ...renderPasswordReset(resetUrl, expiresMinutes),
+      subject: safeHeader(t(locale, "email.passwordReset.subject")),
+      ...renderPasswordReset(resetUrl, expiresMinutes, locale),
     }),
   // Notify the OLD address when the email-on-record changes. Best-effort —
   // if email is unconfigured / fails the change still proceeds, but a

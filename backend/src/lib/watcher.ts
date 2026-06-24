@@ -73,11 +73,29 @@ const PAYABLE = sql`${orders.status} in ('pending','awaiting_payment','underpaid
 async function expireStaleOrders(): Promise<void> {
   const now = new Date();
   const stale = await db
-    .select({ id: orders.id })
+    .select({
+      id: orders.id,
+      status: orders.status,
+      receivedLitoshi: orders.receivedLitoshi,
+      ltcAddress: orders.ltcAddress,
+    })
     .from(orders)
     .where(and(PAYABLE, lte(orders.expiresAt, now)));
   if (stale.length === 0) return;
   for (const o of stale) {
+    // Surface underpaid-on-expire BEFORE the transaction so the operator
+    // sees the orderId + address + amount even if tx commit races with a
+    // concurrent payment that won. Inventory MUST still flow (release the
+    // keys for other customers) but the customer's partial LTC is real money
+    // that needs manual reconciliation: scan this WARN in logs to find
+    // orders eligible for off-chain refund via wallet UI. Without this an
+    // expired-underpaid order is silently identical to expired-no-payment
+    // and the operator never knows funds are sitting in a derived address.
+    if (o.status === "underpaid" && o.receivedLitoshi > 0) {
+      console.warn(
+        `[watcher] expiring underpaid order order=${o.id} address=${o.ltcAddress} received_litoshi=${o.receivedLitoshi} — keys will be released; reconcile customer's partial payment manually`,
+      );
+    }
     await db.transaction(async (tx) => {
       // SELECT-then-UPDATE guard. Drizzle's UPDATE result shape (.changes /
       // .rowsAffected) is version-dependent; relying on it for the
@@ -141,14 +159,23 @@ async function checkOrder(
       hookBus
         .emit("payment.paid", { orderId: o.id, userId: o.userId, amountUsd: o.totalUsd })
         .catch(() => {});
-      // Emit per-product delivered hooks
+      // Group delivered keys by productId so external integrations get one
+      // event per product line with all that line's codes — not N empty-
+      // productId events with one code each. Previously `productId: ""` was
+      // emitted for every key, making any plugin filter on productId useless.
+      const byProduct = new Map<string, string[]>();
       for (const dk of delivered) {
+        const arr = byProduct.get(dk.productId) ?? [];
+        arr.push(dk.code);
+        byProduct.set(dk.productId, arr);
+      }
+      for (const [productId, codes] of byProduct) {
         hookBus
           .emit("product.delivered", {
             orderId: o.id,
             userId: o.userId,
-            productId: "",
-            deliveredKeys: [dk.code],
+            productId,
+            deliveredKeys: codes,
           })
           .catch(() => {});
       }
@@ -275,7 +302,10 @@ export async function recoverStuckOrders(): Promise<void> {
 // Emits hooks like the normal path so plugin analytics/webhooks see the same
 // stream of events whether delivery happened in real time or via recovery.
 // Previously recovery silently bypassed the hook bus, causing analytics
-// double-count drift after crashes.
+// double-count drift after crashes. Hook payload shape (grouped by productId,
+// one event per product line with all that line's codes) MUST match the
+// real-time path in checkOrder() — otherwise plugin filters on productId
+// would silently break on recovery deliveries.
 async function redeliverPaid(orderId: string): Promise<void> {
   const result = await db.transaction(async (tx) => {
     const reserved = await tx
@@ -284,9 +314,11 @@ async function redeliverPaid(orderId: string): Promise<void> {
       .where(and(eq(productKeys.orderId, orderId), eq(productKeys.status, "reserved")));
     if (reserved.length === 0) return null;
     const now = new Date();
-    const codes: string[] = [];
+    const byProduct = new Map<string, string[]>();
     for (const k of reserved) {
-      codes.push(k.code);
+      const arr = byProduct.get(k.productId) ?? [];
+      arr.push(k.code);
+      byProduct.set(k.productId, arr);
       await tx
         .update(productKeys)
         .set({ status: "delivered", deliveredAt: now })
@@ -298,7 +330,7 @@ async function redeliverPaid(orderId: string): Promise<void> {
     }
     await tx.update(orders).set({ deliveredAt: now }).where(eq(orders.id, orderId));
     const o = (await tx.select().from(orders).where(eq(orders.id, orderId)))[0];
-    return { o, codes };
+    return { o, byProduct };
   });
   if (!result?.o) return;
   hookBus
@@ -308,13 +340,13 @@ async function redeliverPaid(orderId: string): Promise<void> {
       amountUsd: result.o.totalUsd,
     })
     .catch(() => {});
-  for (const code of result.codes) {
+  for (const [productId, codes] of result.byProduct) {
     hookBus
       .emit("product.delivered", {
         orderId: result.o.id,
         userId: result.o.userId,
-        productId: "",
-        deliveredKeys: [code],
+        productId,
+        deliveredKeys: codes,
       })
       .catch(() => {});
   }

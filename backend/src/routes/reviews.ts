@@ -26,17 +26,24 @@ function maskEmail(email: string): string {
 }
 
 // Has this user actually bought (paid/completed) the product?
+// Single bounded join — previously fetched the entire order history for the
+// user (DoS-able for heavy customers, especially before pagination) then ran
+// a second IN-list query over the result. The inner-join + limit(1) here
+// returns within a few rows regardless of order count.
 async function hasPurchased(userId: string, productId: string): Promise<boolean> {
-  const userOrders = await db.select().from(orders).where(eq(orders.userId, userId));
-  const paidIds = userOrders
-    .filter((o) => o.status === "paid" || o.status === "completed")
-    .map((o) => o.id);
-  if (paidIds.length === 0) return false;
-  const items = await db
+  const rows = await db
     .select({ id: orderItems.id })
     .from(orderItems)
-    .where(and(inArray(orderItems.orderId, paidIds), eq(orderItems.productId, productId)));
-  return items.length > 0;
+    .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .where(
+      and(
+        eq(orders.userId, userId),
+        eq(orderItems.productId, productId),
+        inArray(orders.status, ["paid", "completed"]),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 export const reviewRoutes = new Elysia()
