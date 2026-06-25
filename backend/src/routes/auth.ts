@@ -230,7 +230,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         id: user.id,
         email: user.email,
         role: user.role,
-        locale: (user as { locale?: string | null }).locale ?? null,
+        locale: user.locale,
       },
     };
   })

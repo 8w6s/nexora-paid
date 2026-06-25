@@ -94,7 +94,12 @@ export async function createSession(
   return { token, expiresAt };
 }
 
-export type SessionUser = { id: string; email: string; role: "customer" | "admin" };
+export type SessionUser = {
+  id: string;
+  email: string;
+  role: "customer" | "admin";
+  locale: string | null;
+};
 
 export async function validateSession(
   token: string | undefined,
@@ -146,7 +151,7 @@ export async function validateSession(
       .where(eq(sessions.token, id));
   }
 
-  return { id: u.id, email: u.email, role: u.role };
+  return { id: u.id, email: u.email, role: u.role, locale: u.locale ?? null };
 }
 
 export async function destroySession(token: string | undefined): Promise<void> {
