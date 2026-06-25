@@ -29,7 +29,13 @@ const PAGE_SIZES = [25, 50, 100, 200];
 
 export function AdminNativeEditor(): React.ReactElement {
   const [tables, setTables] = useState<SchemaTable[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("nx.native-editor.table");
+    } catch {
+      return null;
+    }
+  });
   const [data, setData] = useState<TableData | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -73,7 +79,13 @@ export function AdminNativeEditor(): React.ReactElement {
             !t.name.startsWith("sqlite_") && t.name !== "_migrations" && t.name !== "audit_log",
         );
         setTables(list);
-        if (list.length && !selected) setSelected(list[0].name);
+        // Restore last selected table if still present, otherwise pick first
+        if (list.length) {
+          const stored = selected;
+          if (!stored || !list.some((t) => t.name === stored)) {
+            setSelected(list[0].name);
+          }
+        }
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, []);
@@ -114,6 +126,13 @@ export function AdminNativeEditor(): React.ReactElement {
     setOrder(null);
     setDir("asc");
     setQ("");
+    if (selected) {
+      try {
+        localStorage.setItem("nx.native-editor.table", selected);
+      } catch {
+        /* ignore */
+      }
+    }
   }, [selected]);
 
   useEffect(() => {
@@ -193,6 +212,30 @@ export function AdminNativeEditor(): React.ReactElement {
 
   const visibleCols = useMemo(() => data?.columns.filter((c) => c.name !== "_rowid") ?? [], [data]);
 
+  const exportCsv = () => {
+    if (!data || !selected) return;
+    const cols = visibleCols.map((c) => c.name);
+    const escape = (v: unknown): string => {
+      if (v == null) return "";
+      const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const lines = [
+      cols.join(","),
+      ...data.rows.map((row) => cols.map((c) => escape(row[c])).join(",")),
+    ];
+    const blob = new Blob(["﻿", lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selected}_offset${offset}_limit${limit}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="nx-nae">
       <aside className="nx-nae__side">
@@ -229,6 +272,15 @@ export function AdminNativeEditor(): React.ReactElement {
               onChange={(e) => setQ(e.target.value)}
               className="nx-nae__search"
             />
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={!data || data.rows.length === 0}
+              className="nx-nae__btn nx-nae__btn--ghost"
+              title="Download current page as CSV"
+            >
+              Export CSV
+            </button>
             <button
               type="button"
               onClick={loadTable}
