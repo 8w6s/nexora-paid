@@ -32,7 +32,7 @@ const FORBIDDEN_PATTERNS: Array<{ re: RegExp; reason: string }> = [
   },
 ];
 
-function guardStatement(sql: string): void {
+export function guardStatement(sql: string): void {
   if (typeof sql !== "string") throw new Error("statement must be a string");
   const trimmed = sql.trim();
   if (!trimmed) throw new Error("empty statement");
@@ -48,7 +48,7 @@ function guardStatement(sql: string): void {
   }
 }
 
-function isMutation(sql: string): boolean {
+export function isMutation(sql: string): boolean {
   const head = sql.trim().slice(0, 16).toUpperCase();
   return /^(INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE|TRUNCATE)\b/.test(head);
 }
@@ -460,7 +460,7 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
   );
 
 // Whitelist a table name to a safe identifier or reject.
-function validateTableName(raw: unknown): string | null {
+export function validateTableName(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(raw)) return null;
   if (raw.startsWith("sqlite_") || raw === "_migrations" || raw === "audit_log") return null;
