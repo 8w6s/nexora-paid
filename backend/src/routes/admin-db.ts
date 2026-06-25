@@ -421,20 +421,31 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
         set.status = 400;
         return { error: "Invalid table name", code: "BAD_TABLE" };
       }
-      const rowid = Number(body?.rowid);
-      if (!Number.isFinite(rowid)) {
+      // Accept either single { rowid } or bulk { rowids: [..] }
+      const rawRowids = Array.isArray(body?.rowids)
+        ? (body.rowids as unknown[])
+        : body?.rowid != null
+          ? [body.rowid]
+          : [];
+      const rowids = rawRowids.map((r) => Number(r)).filter((n) => Number.isFinite(n));
+      if (rowids.length === 0) {
         set.status = 400;
-        return { error: "rowid required", code: "BAD_BODY" };
+        return { error: "rowid or rowids required", code: "BAD_BODY" };
       }
-      const sql = `DELETE FROM "${name}" WHERE rowid = ?`;
+      if (rowids.length > 500) {
+        set.status = 400;
+        return { error: "max 500 rows per bulk delete", code: "TOO_MANY" };
+      }
+      const placeholders = rowids.map(() => "?").join(",");
+      const sql = `DELETE FROM "${name}" WHERE rowid IN (${placeholders})`;
       const start = Date.now();
       try {
-        const r = db.query(sql).run(rowid);
+        const r = db.query(sql).run(...(rowids as never[]));
         recordAudit(db, {
           actorEmail: user?.email,
           actorIp: ip,
-          action: "db.row.delete",
-          target: `${name}#${rowid}`,
+          action: rowids.length > 1 ? "db.row.delete.bulk" : "db.row.delete",
+          target: `${name}#${rowids.length > 1 ? `${rowids.length} rows` : rowids[0]}`,
           statement: sql,
           rowsAffected: Number(r.changes ?? 0),
           elapsedMs: Date.now() - start,
@@ -447,7 +458,7 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
           actorEmail: user?.email,
           actorIp: ip,
           action: "db.row.delete.failed",
-          target: `${name}#${rowid}`,
+          target: `${name}#${rowids.length} rows`,
           statement: sql,
           success: false,
           error: msg,
@@ -456,7 +467,12 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
         return { error: msg, code: "DELETE_FAILED" };
       }
     },
-    { body: t.Object({ rowid: t.Number() }) },
+    {
+      body: t.Object({
+        rowid: t.Optional(t.Number()),
+        rowids: t.Optional(t.Array(t.Number())),
+      }),
+    },
   );
 
 // Whitelist a table name to a safe identifier or reject.

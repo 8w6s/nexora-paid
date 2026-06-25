@@ -51,6 +51,7 @@ export function AdminNativeEditor(): React.ReactElement {
     values: Record<string, unknown>;
   } | null>(null);
   const [viewCell, setViewCell] = useState<{ col: string; value: unknown } | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   // Debounce search input
   useEffect(() => {
@@ -126,6 +127,7 @@ export function AdminNativeEditor(): React.ReactElement {
     setOrder(null);
     setDir("asc");
     setQ("");
+    setSelectedRows(new Set());
     if (selected) {
       try {
         localStorage.setItem("nx.native-editor.table", selected);
@@ -137,7 +139,13 @@ export function AdminNativeEditor(): React.ReactElement {
 
   useEffect(() => {
     setOffset(0);
+    setSelectedRows(new Set());
   }, [qDebounced]);
+
+  // Clear selection when the displayed rows change (e.g. pagination)
+  useEffect(() => {
+    setSelectedRows(new Set());
+  }, [offset, limit]);
 
   const sortBy = (col: string) => {
     if (order === col) {
@@ -160,6 +168,44 @@ export function AdminNativeEditor(): React.ReactElement {
     const values: Record<string, unknown> = {};
     for (const c of data.columns) values[c.name] = row[c.name] ?? null;
     setEditing({ mode: "edit", rowid: Number(row._rowid), values });
+  };
+
+  const deleteSelected = async () => {
+    if (!selected || selectedRows.size === 0) return;
+    if (!confirm(`Delete ${selectedRows.size} selected row(s)? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/admin/db/table/${encodeURIComponent(selected)}/row`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rowids: Array.from(selectedRows) }),
+      });
+      if (!res.ok)
+        throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`);
+      setSelectedRows(new Set());
+      await loadTable();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const toggleRow = (rowid: number) => {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowid)) next.delete(rowid);
+      else next.add(rowid);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (!data) return;
+    const allIds = data.rows.map((r) => Number(r._rowid));
+    if (selectedRows.size === allIds.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(allIds));
+    }
   };
 
   const deleteRow = async (row: Record<string, unknown>) => {
@@ -297,6 +343,30 @@ export function AdminNativeEditor(): React.ReactElement {
 
         {err ? <div className="nx-nae__err">{err}</div> : null}
 
+        {selectedRows.size > 0 ? (
+          <div className="nx-nae__bulkbar">
+            <span>
+              <strong>{selectedRows.size}</strong> row(s) selected
+            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                className="nx-nae__btn nx-nae__btn--ghost"
+                onClick={() => setSelectedRows(new Set())}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="nx-nae__btn nx-nae__btn--danger"
+                onClick={deleteSelected}
+              >
+                Delete selected
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {!data || data.rows.length === 0 ? (
           <div className="nx-nae__empty">
             {loading
@@ -311,6 +381,20 @@ export function AdminNativeEditor(): React.ReactElement {
               <table className="nx-nae__table">
                 <thead>
                   <tr>
+                    <th className="nx-nae__th-check">
+                      <input
+                        type="checkbox"
+                        checked={data.rows.length > 0 && selectedRows.size === data.rows.length}
+                ref={(el) => {
+                          if (el) {
+                            el.indeterminate =
+                              selectedRows.size > 0 && selectedRows.size < data.rows.length;
+                          }
+                        }}
+                        onChange={toggleAll}
+                        title="Select all on this page"
+                      />
+                    </th>
                     <th className="nx-nae__th-actions">Actions</th>
                     {visibleCols.map((c) => (
                       <th
@@ -335,8 +419,18 @@ export function AdminNativeEditor(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((row) => (
-                    <tr key={Number(row._rowid)}>
+                  {data.rows.map((row) => {
+                    const rid = Number(row._rowid);
+                    return (
+                    <tr key={rid} className={selectedRows.has(rid) ? "nx-nae__row--sel" : undefined}>
+                      <td className="nx-nae__cell-check">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.has(rid)}
+                          onChange={() => toggleRow(rid)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
                       <td className="nx-nae__cell-actions">
                         <button
                           type="button"
@@ -366,7 +460,8 @@ export function AdminNativeEditor(): React.ReactElement {
                         </td>
                       ))}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
