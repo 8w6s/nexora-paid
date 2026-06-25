@@ -14,6 +14,7 @@
  */
 import type { Database } from "bun:sqlite";
 import { Elysia, t } from "elysia";
+import { sqlite } from "../db/connection.ts";
 import { readAudit, recordAudit } from "../lib/audit-log.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
@@ -95,13 +96,12 @@ function executeSql(db: Database, sql: string): ExecResult {
 }
 
 function getRawDb(): Database {
-  // The Drizzle wrapper hides the bun:sqlite handle; reach for it via the
-  // module that created it. We import lazily to avoid an init-order cycle.
-  // connection.ts exports `db` (Drizzle) — the underlying Database lives
-  // on db.$client (Drizzle's escape hatch).
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require("../db/connection.ts") as { db: { $client: Database } };
-  return mod.db.$client;
+  // Use the raw bun:sqlite handle directly. We deliberately bypass the
+  // Drizzle wrapper here because this route runs arbitrary SQL — Drizzle's
+  // typed API is not the right tool. Previously this used require() to dodge
+  // an init-order cycle, but require() returns undefined under Bun ESM, so
+  // every db/* call would crash with "undefined is not an object".
+  return sqlite;
 }
 
 export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })

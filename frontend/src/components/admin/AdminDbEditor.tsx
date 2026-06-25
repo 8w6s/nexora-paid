@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../../lib/api";
+import { api, ApiRequestError } from "../../lib/api";
 import { Icon } from "../Icon";
 
 interface SchemaColumn {
@@ -59,10 +59,10 @@ export function AdminDbEditor(): React.ReactElement {
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    api("/api/admin/db/schema")
-      .then((r) => r.json())
-      .then((d: { tables: SchemaTable[] }) => setTables(d.tables ?? []))
-      .catch((e) => setErr(String(e)));
+    api
+      .get<{ tables: SchemaTable[] }>("/api/admin/db/schema")
+      .then((d) => setTables(d.tables ?? []))
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, []);
 
   useEffect(() => {
@@ -72,8 +72,7 @@ export function AdminDbEditor(): React.ReactElement {
   const loadAudit = useCallback(async () => {
     setAuditLoading(true);
     try {
-      const r = await api("/api/admin/db/audit?limit=200");
-      const d = (await r.json()) as { rows: AuditRow[] };
+      const d = await api.get<{ rows: AuditRow[] }>("/api/admin/db/audit?limit=200");
       setAuditRows(d.rows ?? []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -91,19 +90,14 @@ export function AdminDbEditor(): React.ReactElement {
     setErr(null);
     setResult(null);
     try {
-      const r = await api("/api/admin/db/query", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ statement }),
-      });
-      const data = (await r.json()) as QueryResult | QueryError;
-      if (!r.ok || "error" in data) {
-        setErr("error" in data ? data.error : `HTTP ${r.status}`);
-      } else {
-        setResult(data);
-      }
+      const data = await api.post<QueryResult>("/api/admin/db/query", { statement });
+      setResult(data);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      if (e instanceof ApiRequestError) {
+        setErr(e.message);
+      } else {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setRunning(false);
     }

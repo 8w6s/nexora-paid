@@ -13,12 +13,12 @@ export function AdminNativeEditor(): React.ReactElement {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api("/api/admin/db/schema")
-      .then((r) => r.json())
-      .then((d: { tables: Array<{ name: string }> }) => {
+    api
+      .get<{ tables: Array<{ name: string }> }>("/api/admin/db/schema")
+      .then((d) => {
         setTables((d.tables ?? []).map((t) => t.name).filter((n) => !n.startsWith("sqlite_") && n !== "_migrations" && n !== "audit_log"));
       })
-      .catch((e) => setErr(String(e)));
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const openRow = useCallback((name: string) => {

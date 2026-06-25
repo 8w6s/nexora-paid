@@ -12,7 +12,7 @@ import * as schema from "./schema.ts";
 // different SQLite files.
 const __here = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = Bun.env.DB_PATH ? resolve(Bun.env.DB_PATH) : resolve(__here, "../../sqlite.db");
-const sqlite = new Database(DB_PATH);
+export const sqlite = new Database(DB_PATH);
 
 // WAL + sane defaults: WAL lets readers proceed during writes (watcher tick
 // doesn't block API requests), busy_timeout retries instead of throwing
