@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
-import { RichTextEditor } from "../RichTextEditor";
 
 interface Group {
   id: string;

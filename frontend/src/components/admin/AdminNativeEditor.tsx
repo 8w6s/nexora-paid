@@ -271,7 +271,7 @@ export function AdminNativeEditor(): React.ReactElement {
   const exportCsv = () => {
     if (!data || !selected) return;
     const cols = visibleCols.map((c) => c.name);
-    const escape = (v: unknown): string => {
+    const escapeCsv = (v: unknown): string => {
       if (v == null) return "";
       const s = typeof v === "object" ? JSON.stringify(v) : String(v);
       if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -279,7 +279,7 @@ export function AdminNativeEditor(): React.ReactElement {
     };
     const lines = [
       cols.join(","),
-      ...data.rows.map((row) => cols.map((c) => escape(row[c])).join(",")),
+      ...data.rows.map((row) => cols.map((c) => escapeCsv(row[c])).join(",")),
     ];
     const blob = new Blob(["﻿", lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);

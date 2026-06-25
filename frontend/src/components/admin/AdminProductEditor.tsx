@@ -1,7 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { Checkbox } from "../Checkbox";
 import { Dropdown } from "../Dropdown";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";

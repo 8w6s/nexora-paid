@@ -22,7 +22,7 @@ const ROLES: { key: TeamRole; label: string; description: string }[] = [
   { key: "viewer", label: "Viewer", description: "Read-only access to dashboard." },
 ];
 
-const ROLE_COLORS: Record<TeamRole, string> = {
+const _ROLE_COLORS: Record<TeamRole, string> = {
   admin: "badge-red",
   manager: "badge-blue",
   support: "badge-green",

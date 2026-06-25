@@ -102,7 +102,7 @@ Bun.serve({
       try {
         const data = await fetchGitHub(`versions/${channel}.json`, true);
         return json(data);
-      } catch (e) {
+      } catch (_e) {
         return json({ error: "channel not found", channel }, 404);
       }
     }
@@ -135,7 +135,7 @@ Bun.serve({
         return json({ error: "bad json" }, 400);
       }
       const lic = safeUtf8(body.licenseFile ?? "");
-      const machineId = safeUtf8(body.machineId ?? "").slice(0, 256);
+      const _machineId = safeUtf8(body.machineId ?? "").slice(0, 256);
       if (!lic) return json({ error: "missing licenseFile" }, 400);
 
       // license file format: base64(JSON({payload, signature}))
@@ -180,10 +180,6 @@ Bun.serve({
       } catch {
         // Revocation list missing → fail open (license still verified by signature).
       }
-
-      console.log(
-        `[lic] verify ok licenseId=${p.licenseId ?? "?"} email=${p.email ?? "?"} machine=${machineId.slice(0, 16)} ip=${ip}`,
-      );
       return json({
         valid: true,
         licenseId: p.licenseId ?? null,
@@ -197,5 +193,3 @@ Bun.serve({
     return json({ error: "not found" }, 404);
   },
 });
-
-console.log(`[fileserver] listening on :${PORT} repo=${RELEASES_REPO}@${RELEASES_BRANCH}`);
