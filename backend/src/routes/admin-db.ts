@@ -216,4 +216,229 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
     const since = query?.since ? Number(query.since) : undefined;
     const rows = readAudit(db, { limit, actor, action, since });
     return { rows };
-  });
+  })
+
+  // ====== Table CRUD (phpMyAdmin-style) ======
+
+  // GET /api/admin/db/table/:name — paginated row listing with sort + count.
+  .get("/table/:name", async ({ params, query, set }) => {
+    const db = getRawDb();
+    const name = validateTableName(params.name);
+    if (!name) {
+      set.status = 400;
+      return { error: "Invalid table name", code: "BAD_TABLE" };
+    }
+    const limit = Math.min(Math.max(Number(query?.limit ?? 50), 1), 500);
+    const offset = Math.max(Number(query?.offset ?? 0), 0);
+    const orderCol = typeof query?.order === "string" ? query.order : null;
+    const dir = query?.dir === "desc" ? "DESC" : "ASC";
+
+    const cols = db.query(`PRAGMA table_info("${name}")`).all() as Array<{
+      name: string;
+      type: string;
+      notnull: number;
+      dflt_value: unknown;
+      pk: number;
+    }>;
+    const colNames = new Set(cols.map((c) => c.name));
+    const safeOrder = orderCol && colNames.has(orderCol) ? `"${orderCol}"` : "rowid";
+
+    const total = (db.query(`SELECT COUNT(*) AS n FROM "${name}"`).get() as { n: number }).n;
+    const rows = db
+      .query(`SELECT rowid AS _rowid, * FROM "${name}" ORDER BY ${safeOrder} ${dir} LIMIT ? OFFSET ?`)
+      .all(limit, offset) as Array<Record<string, unknown>>;
+    return { columns: cols, rows, total, limit, offset };
+  })
+
+  // POST /api/admin/db/table/:name/row — insert new row.
+  .post(
+    "/table/:name/row",
+    async ({ params, body, request, set, user }) => {
+      const ip = clientIp(request);
+      const rl = rateLimitCheck(`admin-db-write:${ip}`, 30, 60_000);
+      if (!rl.allowed) {
+        set.status = 429;
+        return { error: "Too many writes", code: "RATE_LIMITED" };
+      }
+      const db = getRawDb();
+      const name = validateTableName(params.name);
+      if (!name) {
+        set.status = 400;
+        return { error: "Invalid table name", code: "BAD_TABLE" };
+      }
+      const data = body?.data as Record<string, unknown>;
+      if (!data || typeof data !== "object") {
+        set.status = 400;
+        return { error: "data object required", code: "BAD_BODY" };
+      }
+      const cols = db.query(`PRAGMA table_info("${name}")`).all() as Array<{ name: string }>;
+      const colNames = new Set(cols.map((c) => c.name));
+      const validKeys = Object.keys(data).filter((k) => colNames.has(k));
+      if (validKeys.length === 0) {
+        set.status = 400;
+        return { error: "no valid columns in data", code: "BAD_BODY" };
+      }
+      const placeholders = validKeys.map(() => "?").join(", ");
+      const colsList = validKeys.map((k) => `"${k}"`).join(", ");
+      const sql = `INSERT INTO "${name}" (${colsList}) VALUES (${placeholders})`;
+      const args = validKeys.map((k) => data[k]);
+      const start = Date.now();
+      try {
+        const r = db.query(sql).run(...(args as never[]));
+        recordAudit(db, {
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "db.row.insert",
+          target: name,
+          statement: sql,
+          rowsAffected: Number(r.changes ?? 0),
+          elapsedMs: Date.now() - start,
+          success: true,
+        });
+        return {
+          ok: true,
+          lastInsertRowid: r.lastInsertRowid != null ? Number(r.lastInsertRowid) : null,
+        };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        recordAudit(db, {
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "db.row.insert.failed",
+          target: name,
+          statement: sql,
+          success: false,
+          error: msg,
+        });
+        set.status = 400;
+        return { error: msg, code: "INSERT_FAILED" };
+      }
+    },
+    { body: t.Object({ data: t.Record(t.String(), t.Any()) }) },
+  )
+
+  // PATCH /api/admin/db/table/:name/row — update row by rowid.
+  .patch(
+    "/table/:name/row",
+    async ({ params, body, request, set, user }) => {
+      const ip = clientIp(request);
+      const rl = rateLimitCheck(`admin-db-write:${ip}`, 30, 60_000);
+      if (!rl.allowed) {
+        set.status = 429;
+        return { error: "Too many writes", code: "RATE_LIMITED" };
+      }
+      const db = getRawDb();
+      const name = validateTableName(params.name);
+      if (!name) {
+        set.status = 400;
+        return { error: "Invalid table name", code: "BAD_TABLE" };
+      }
+      const rowid = Number(body?.rowid);
+      const data = body?.data as Record<string, unknown>;
+      if (!Number.isFinite(rowid) || !data || typeof data !== "object") {
+        set.status = 400;
+        return { error: "rowid and data required", code: "BAD_BODY" };
+      }
+      const cols = db.query(`PRAGMA table_info("${name}")`).all() as Array<{ name: string }>;
+      const colNames = new Set(cols.map((c) => c.name));
+      const validKeys = Object.keys(data).filter((k) => colNames.has(k));
+      if (validKeys.length === 0) {
+        set.status = 400;
+        return { error: "no valid columns in data", code: "BAD_BODY" };
+      }
+      const setClause = validKeys.map((k) => `"${k}" = ?`).join(", ");
+      const sql = `UPDATE "${name}" SET ${setClause} WHERE rowid = ?`;
+      const args = [...validKeys.map((k) => data[k]), rowid];
+      const start = Date.now();
+      try {
+        const r = db.query(sql).run(...(args as never[]));
+        recordAudit(db, {
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "db.row.update",
+          target: `${name}#${rowid}`,
+          statement: sql,
+          rowsAffected: Number(r.changes ?? 0),
+          elapsedMs: Date.now() - start,
+          success: true,
+        });
+        return { ok: true, rowsAffected: Number(r.changes ?? 0) };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        recordAudit(db, {
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "db.row.update.failed",
+          target: `${name}#${rowid}`,
+          statement: sql,
+          success: false,
+          error: msg,
+        });
+        set.status = 400;
+        return { error: msg, code: "UPDATE_FAILED" };
+      }
+    },
+    { body: t.Object({ rowid: t.Number(), data: t.Record(t.String(), t.Any()) }) },
+  )
+
+  // DELETE /api/admin/db/table/:name/row — delete row by rowid.
+  .delete(
+    "/table/:name/row",
+    async ({ params, body, request, set, user }) => {
+      const ip = clientIp(request);
+      const rl = rateLimitCheck(`admin-db-write:${ip}`, 30, 60_000);
+      if (!rl.allowed) {
+        set.status = 429;
+        return { error: "Too many writes", code: "RATE_LIMITED" };
+      }
+      const db = getRawDb();
+      const name = validateTableName(params.name);
+      if (!name) {
+        set.status = 400;
+        return { error: "Invalid table name", code: "BAD_TABLE" };
+      }
+      const rowid = Number(body?.rowid);
+      if (!Number.isFinite(rowid)) {
+        set.status = 400;
+        return { error: "rowid required", code: "BAD_BODY" };
+      }
+      const sql = `DELETE FROM "${name}" WHERE rowid = ?`;
+      const start = Date.now();
+      try {
+        const r = db.query(sql).run(rowid);
+        recordAudit(db, {
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "db.row.delete",
+          target: `${name}#${rowid}`,
+          statement: sql,
+          rowsAffected: Number(r.changes ?? 0),
+          elapsedMs: Date.now() - start,
+          success: true,
+        });
+        return { ok: true, rowsAffected: Number(r.changes ?? 0) };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        recordAudit(db, {
+          actorEmail: user?.email,
+          actorIp: ip,
+          action: "db.row.delete.failed",
+          target: `${name}#${rowid}`,
+          statement: sql,
+          success: false,
+          error: msg,
+        });
+        set.status = 400;
+        return { error: msg, code: "DELETE_FAILED" };
+      }
+    },
+    { body: t.Object({ rowid: t.Number() }) },
+  );
+
+// Whitelist a table name to a safe identifier or reject.
+function validateTableName(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(raw)) return null;
+  if (raw.startsWith("sqlite_") || raw === "_migrations" || raw === "audit_log") return null;
+  return raw;
+}
