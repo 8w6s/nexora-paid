@@ -147,20 +147,20 @@ const NAV_GROUPS_FULL: {
     items: [
       { key: "orders", label: "Invoices", icon: "receipt" },
       { key: "customers", label: "Customers", icon: "users" },
+      { key: "reviews", label: "Feedbacks", icon: "star" },
+      { key: "tickets", label: "Tickets", icon: "ticket" },
+      { key: "abandoned", label: "Abandoned Checkouts", icon: "close" },
     ],
   },
-  { items: [{ key: "reviews", label: "Feedbacks", icon: "star" }] },
-  { items: [{ key: "tickets", label: "Tickets", icon: "ticket" }] },
-  { items: [{ key: "abandoned", label: "Abandoned Checkouts", icon: "close" }] },
   {
     title: "Storefront",
     items: [
       { key: "settings", label: "Configure", icon: "settings" },
       { key: "blog", label: "Blog", icon: "receipt" },
       { key: "notifications", label: "Push Notifications", icon: "bell" },
+      { key: "activity", label: "Activity Logs", icon: "activity" },
     ],
   },
-  { items: [{ key: "activity", label: "Activity Logs", icon: "activity" }] },
   {
     title: "Settings",
     items: [

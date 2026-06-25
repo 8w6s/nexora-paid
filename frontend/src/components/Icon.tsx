@@ -38,7 +38,9 @@ type IconName =
   | "settings"
   | "globe"
   | "envelope"
-  | "link";
+  | "link"
+  | "database"
+  | "table";
 
 interface IconProps {
   name: IconName;
@@ -212,6 +214,19 @@ const paths: Record<IconName, React.ReactNode> = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </>
   ),
+  database: (
+    <>
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" />
+    </>
+  ),
+  table: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+    </>
+  ),
 };
 
 // Map our icon names → Font Awesome icon names (used when a FA Pro Kit is loaded).
@@ -254,6 +269,8 @@ const faName: Record<IconName, string> = {
   globe: "globe",
   envelope: "envelope",
   link: "link",
+  database: "database",
+  table: "table",
 };
 
 export const Icon: React.FC<IconProps> = ({
