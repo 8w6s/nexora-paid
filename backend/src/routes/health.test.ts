@@ -38,6 +38,7 @@ describe("health routes", () => {
     expect(typeof body.db.ok).toBe("boolean");
     expect(typeof body.db.latencyMs).toBe("number");
     expect(typeof body.updater.available).toBe("boolean");
+    expect(body.db.ok).toBe(true);
   });
 
   it("/api/health/deep never leaks env/paths/secrets", async () => {
