@@ -37,7 +37,19 @@ export function AdminNativeEditor(): React.ReactElement {
   const [offset, setOffset] = useState<number>(0);
   const [order, setOrder] = useState<string | null>(null);
   const [dir, setDir] = useState<"asc" | "desc">("asc");
-  const [editing, setEditing] = useState<{ mode: "insert" | "edit"; rowid?: number; values: Record<string, unknown> } | null>(null);
+  const [q, setQ] = useState<string>("");
+  const [qDebounced, setQDebounced] = useState<string>("");
+  const [editing, setEditing] = useState<{
+    mode: "insert" | "edit";
+    rowid?: number;
+    values: Record<string, unknown>;
+  } | null>(null);
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q), 250);
+    return () => clearTimeout(t);
+  }, [q]);
 
   // Load schema once
   useEffect(() => {
@@ -66,6 +78,7 @@ export function AdminNativeEditor(): React.ReactElement {
         params.set("order", order);
         params.set("dir", dir);
       }
+      if (qDebounced) params.set("q", qDebounced);
       const d = await api.get<TableData>(`/api/admin/db/table/${encodeURIComponent(selected)}?${params}`);
       setData(d);
     } catch (e) {
@@ -74,18 +87,23 @@ export function AdminNativeEditor(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [selected, limit, offset, order, dir]);
+  }, [selected, limit, offset, order, dir, qDebounced]);
 
   useEffect(() => {
     loadTable();
   }, [loadTable]);
 
-  // Reset offset when switching tables
+  // Reset state when switching tables or query changes
   useEffect(() => {
     setOffset(0);
     setOrder(null);
     setDir("asc");
+    setQ("");
   }, [selected]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [qDebounced]);
 
   const sortBy = (col: string) => {
     if (order === col) {
@@ -186,10 +204,27 @@ export function AdminNativeEditor(): React.ReactElement {
             ) : null}
           </div>
           <div className="nx-nae__toolbar">
-            <button type="button" onClick={loadTable} disabled={loading} className="nx-nae__btn nx-nae__btn--ghost">
+            <input
+              type="search"
+              placeholder="Search text columns…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="nx-nae__search"
+            />
+            <button
+              type="button"
+              onClick={loadTable}
+              disabled={loading}
+              className="nx-nae__btn nx-nae__btn--ghost"
+            >
               {loading ? "Loading…" : "Refresh"}
             </button>
-            <button type="button" onClick={startInsert} disabled={!data} className="nx-nae__btn">
+            <button
+              type="button"
+              onClick={startInsert}
+              disabled={!data}
+              className="nx-nae__btn"
+            >
               + Insert row
             </button>
           </div>

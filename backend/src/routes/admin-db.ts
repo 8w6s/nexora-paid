@@ -232,6 +232,7 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
     const offset = Math.max(Number(query?.offset ?? 0), 0);
     const orderCol = typeof query?.order === "string" ? query.order : null;
     const dir = query?.dir === "desc" ? "DESC" : "ASC";
+    const q = typeof query?.q === "string" ? query.q.trim() : "";
 
     const cols = db.query(`PRAGMA table_info("${name}")`).all() as Array<{
       name: string;
@@ -243,11 +244,32 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
     const colNames = new Set(cols.map((c) => c.name));
     const safeOrder = orderCol && colNames.has(orderCol) ? `"${orderCol}"` : "rowid";
 
-    const total = (db.query(`SELECT COUNT(*) AS n FROM "${name}"`).get() as { n: number }).n;
+    // Build optional LIKE filter across TEXT columns
+    let whereSql = "";
+    const whereArgs: unknown[] = [];
+    if (q) {
+      const textCols = cols.filter((c) =>
+        /text|char|clob/i.test(c.type) || c.type === "" || /json/i.test(c.type),
+      );
+      if (textCols.length > 0) {
+        const clauses = textCols.map((c) => `"${c.name}" LIKE ?`);
+        whereSql = `WHERE ${clauses.join(" OR ")}`;
+        const pat = `%${q}%`;
+        for (let i = 0; i < textCols.length; i++) whereArgs.push(pat);
+      }
+    }
+
+    const total = (
+      db.query(`SELECT COUNT(*) AS n FROM "${name}" ${whereSql}`).get(...whereArgs as never[]) as {
+        n: number;
+      }
+    ).n;
     const rows = db
-      .query(`SELECT rowid AS _rowid, * FROM "${name}" ORDER BY ${safeOrder} ${dir} LIMIT ? OFFSET ?`)
-      .all(limit, offset) as Array<Record<string, unknown>>;
-    return { columns: cols, rows, total, limit, offset };
+      .query(
+        `SELECT rowid AS _rowid, * FROM "${name}" ${whereSql} ORDER BY ${safeOrder} ${dir} LIMIT ? OFFSET ?`,
+      )
+      .all(...whereArgs as never[], limit, offset) as Array<Record<string, unknown>>;
+    return { columns: cols, rows, total, limit, offset, q };
   })
 
   // POST /api/admin/db/table/:name/row — insert new row.
