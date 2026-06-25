@@ -1,11 +1,13 @@
 import type React from "react";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useT } from "../i18n";
 import { api } from "../lib/api";
 
 export interface AuthUser {
   id: string;
   email: string;
   role: string;
+  locale?: string | null;
 }
 
 interface AuthContextType {
@@ -20,9 +22,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const LOCALE_ALLOWED: ReadonlySet<string> = new Set(["en", "vi", "zh", "es", "de"]);
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const { locale, setLocale } = useT();
+  const lastPushedLocale = useRef<string | null>(null);
 
   // Hydrate from /api/auth/me. Backend returns {user: AuthUser | null} —
   // 200 in both cases so an anonymous visitor doesn't log a red 401 in
@@ -48,6 +54,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       active = false;
     };
   }, [refresh]);
+
+  // Adopt user's saved locale once when auth resolves. After that, the user
+  // can still switch via the UI; the next effect pushes that change to the
+  // server so other devices pick it up.
+  useEffect(() => {
+    if (!user) return;
+    const serverLocale = user.locale ?? null;
+    if (serverLocale && LOCALE_ALLOWED.has(serverLocale) && serverLocale !== locale) {
+      setLocale(serverLocale as Parameters<typeof setLocale>[0]);
+      lastPushedLocale.current = serverLocale;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Push locale changes to the server when logged in. Skip the no-op echo
+  // that the adopt-effect above sets via lastPushedLocale.
+  useEffect(() => {
+    if (!user) return;
+    if (!LOCALE_ALLOWED.has(locale)) return;
+    if (lastPushedLocale.current === locale) return;
+    lastPushedLocale.current = locale;
+    api.patch("/api/auth/locale", { locale }).catch(() => {
+      // Non-fatal: localStorage already has it; let the next change retry.
+      lastPushedLocale.current = null;
+    });
+  }, [user?.id, locale]);
 
   const login = useCallback(
     async (email: string, password: string, code?: string) => {
@@ -90,3 +122,8 @@ export const useAuth = () => {
   }
   return context;
 };
+
+/** Same as useAuth but returns null when used outside an AuthProvider.
+ *  Safe for providers/components that legitimately render at the very top
+ *  of the tree (e.g. LocaleProvider) and only need auth opportunistically. */
+export const useAuthOptional = () => useContext(AuthContext);
