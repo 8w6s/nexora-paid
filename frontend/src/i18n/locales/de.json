@@ -95,7 +95,8 @@
       "emailNotConfigured": "Speichere diese Seite — der Beleg ist nach Bestätigung der Zahlung verfügbar.",
       "successContinue": "Weiter einkaufen",
       "yourKeys": "Deine Schlüssel",
-      "viewOrder": "Bestellung ansehen"
+      "viewOrder": "Bestellung ansehen",
+      "expiresIn": "Läuft ab in"
     },
     "account": {
       "title": "Konto",

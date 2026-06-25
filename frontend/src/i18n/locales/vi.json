@@ -95,7 +95,8 @@
       "emailNotConfigured": "Hãy lưu trang này — biên nhận sẽ có sau khi xác nhận thanh toán.",
       "successContinue": "Tiếp tục mua sắm",
       "yourKeys": "Key của bạn",
-      "viewOrder": "Xem đơn hàng"
+      "viewOrder": "Xem đơn hàng",
+      "expiresIn": "Hết hạn sau"
     },
     "account": {
       "title": "Tài khoản",

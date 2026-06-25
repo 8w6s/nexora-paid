@@ -360,7 +360,7 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
               <strong>{fmtUsd(detail.totalUsd)}</strong>
             </div>
             <div>
-              <span>{t("storefront.checkout.expired")}</span>
+              <span>{t("storefront.checkout.expiresIn")}</span>
               <strong className="mono">{st ? mmss(st.expiresInSec) : "—"}</strong>
             </div>
           </div>
@@ -789,7 +789,7 @@ const ReviewView: React.FC = () => {
           </>
         )}
       </button>
-      <p className="hint">{t("storefront.checkout.guestNotice")}</p>
+      {!user && <p className="hint">{t("storefront.checkout.guestNotice")}</p>}
       <CheckoutStyles />
     </div>
   );

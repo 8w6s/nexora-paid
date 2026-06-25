@@ -95,7 +95,8 @@
       "emailNotConfigured": "Guarda esta página — el recibo estará disponible tras confirmar el pago.",
       "successContinue": "Seguir comprando",
       "yourKeys": "Tus claves",
-      "viewOrder": "Ver pedido"
+      "viewOrder": "Ver pedido",
+      "expiresIn": "Expira en"
     },
     "account": {
       "title": "Cuenta",

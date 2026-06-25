@@ -95,7 +95,8 @@
       "emailNotConfigured": "Save this page — receipts will be available after payment is confirmed.",
       "successContinue": "Continue shopping",
       "yourKeys": "Your keys",
-      "viewOrder": "View order"
+      "viewOrder": "View order",
+      "expiresIn": "Expires in"
     },
     "account": {
       "title": "Account",

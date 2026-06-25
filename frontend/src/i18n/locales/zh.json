@@ -95,7 +95,8 @@
       "emailNotConfigured": "保存此页面 — 付款确认后将提供收据。",
       "successContinue": "继续购物",
       "yourKeys": "您的密钥",
-      "viewOrder": "查看订单"
+      "viewOrder": "查看订单",
+      "expiresIn": "剩余时间"
     },
     "account": {
       "title": "账户",
