@@ -61,7 +61,7 @@
       "continueShopping": "Continue shopping",
       "priceChanged": "Price for {product} changed from {old} to {new}",
       "openEmpty": "Cart (empty)",
-      "openWithCount": "Cart ({{count}})"
+      "openWithCount": "Cart ({count})"
     },
     "checkout": {
       "title": "Checkout",

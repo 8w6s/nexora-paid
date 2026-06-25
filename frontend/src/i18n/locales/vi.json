@@ -61,7 +61,7 @@
       "continueShopping": "Tiếp tục mua sắm",
       "priceChanged": "Giá của {product} đã đổi từ {old} sang {new}",
       "openEmpty": "Giỏ hàng (trống)",
-      "openWithCount": "Giỏ hàng ({{count}})"
+      "openWithCount": "Giỏ hàng ({count})"
     },
     "checkout": {
       "title": "Thanh toán",

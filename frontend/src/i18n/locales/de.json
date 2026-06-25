@@ -61,7 +61,7 @@
       "continueShopping": "Weiter einkaufen",
       "priceChanged": "Der Preis für {product} hat sich von {old} auf {new} geändert",
       "openEmpty": "Warenkorb (leer)",
-      "openWithCount": "Warenkorb ({{count}})"
+      "openWithCount": "Warenkorb ({count})"
     },
     "checkout": {
       "title": "Kasse",

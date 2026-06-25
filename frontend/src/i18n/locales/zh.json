@@ -61,7 +61,7 @@
       "continueShopping": "继续购物",
       "priceChanged": "{product} 的价格从 {old} 变为 {new}",
       "openEmpty": "购物车（空）",
-      "openWithCount": "购物车 ({{count}})"
+      "openWithCount": "购物车 ({count})"
     },
     "checkout": {
       "title": "结账",
