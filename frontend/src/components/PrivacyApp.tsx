@@ -30,8 +30,8 @@ const PrivacyPage: React.FC = () => {
         </h1>
         <div className="info-content" style={{ lineHeight: "1.7", color: "var(--ink-soft)" }}>
           <p>
-            At Nexora, we respect your privacy and are committed to protecting your personal
-            data. This privacy policy explains how we collect, use, and store your information.
+            At Nexora, we respect your privacy and are committed to protecting your personal data.
+            This privacy policy explains how we collect, use, and store your information.
           </p>
 
           <h2>1. Information We Collect</h2>
@@ -41,9 +41,7 @@ const PrivacyPage: React.FC = () => {
           </p>
           <ul>
             <li>Your email address (to deliver keys and communicate support replies).</li>
-            <li>
-              Cryptocurrency wallet addresses and transaction IDs associated with payments.
-            </li>
+            <li>Cryptocurrency wallet addresses and transaction IDs associated with payments.</li>
           </ul>
 
           <h2>2. How We Use Your Information</h2>
@@ -55,9 +53,9 @@ const PrivacyPage: React.FC = () => {
 
           <h2>3. Cookies</h2>
           <p>
-            We use small HTTP cookies to maintain your login session (opaque session
-            identifiers) and manage the shopping cart. You can disable cookies in your browser
-            settings, but doing so will prevent you from logging in or completing a purchase.
+            We use small HTTP cookies to maintain your login session (opaque session identifiers)
+            and manage the shopping cart. You can disable cookies in your browser settings, but
+            doing so will prevent you from logging in or completing a purchase.
           </p>
         </div>
       </main>

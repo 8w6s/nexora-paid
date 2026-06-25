@@ -21,11 +21,18 @@ export interface KeyMaterial {
 function deriveKey(km: KeyMaterial): Buffer {
   if (!km.licenseSecret || km.licenseSecret.length < 16) throw new Error("license-secret missing");
   if (!km.machineId || km.machineId.length < 8) throw new Error("machine-id missing");
-  const ikm = Buffer.concat([Buffer.from(km.licenseSecret, "utf8"), Buffer.from(km.machineId, "utf8")]);
+  const ikm = Buffer.concat([
+    Buffer.from(km.licenseSecret, "utf8"),
+    Buffer.from(km.machineId, "utf8"),
+  ]);
   return Buffer.from(hkdfSync("sha256", ikm, SALT, INFO, KEY_LEN));
 }
 
-export async function encryptFileInPlace(plainPath: string, encPath: string, km: KeyMaterial): Promise<void> {
+export async function encryptFileInPlace(
+  plainPath: string,
+  encPath: string,
+  km: KeyMaterial,
+): Promise<void> {
   const key = deriveKey(km);
   const nonce = randomBytes(NONCE_LEN);
   const cipher = createCipheriv("aes-256-gcm", key, nonce);
@@ -38,7 +45,11 @@ export async function encryptFileInPlace(plainPath: string, encPath: string, km:
   dst.write(cipher.getAuthTag());
   await new Promise<void>((res, rej) => dst.end((err?: Error | null) => (err ? rej(err) : res())));
   renameSync(tmp, encPath);
-  try { unlinkSync(plainPath); } catch { /* ignore */ }
+  try {
+    unlinkSync(plainPath);
+  } catch {
+    /* ignore */
+  }
   // Zero the key buffer so it doesn't linger in heap longer than needed.
   key.fill(0);
 }

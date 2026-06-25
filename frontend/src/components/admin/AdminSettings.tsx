@@ -1463,7 +1463,9 @@ export const AdminSettings: React.FC = () => {
                     DNS Setup Instructions
                   </span>
                   <p className="section-subtitle" style={{ fontSize: "0.78rem" }}>
-                    Point your domain at this server. Use the public hostname or IP of the machine running Nexora (or your Cloudflare Tunnel hostname) as the record value. SSL is provisioned automatically by Caddy on first request.
+                    Point your domain at this server. Use the public hostname or IP of the machine
+                    running Nexora (or your Cloudflare Tunnel hostname) as the record value. SSL is
+                    provisioned automatically by Caddy on first request.
                   </p>
 
                   <table
@@ -1491,9 +1493,7 @@ export const AdminSettings: React.FC = () => {
                         <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>
                           Value
                         </th>
-                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>
-                          TL
-                        </th>
+                        <th style={{ padding: "8px", textAlign: "left", fontWeight: "700" }}>TL</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1523,7 +1523,8 @@ export const AdminSettings: React.FC = () => {
                   <div className="xpub-status ok" style={{ marginTop: "12px" }}>
                     <Icon name="check" size={14} />
                     <span>
-                      Once the DNS record propagates, SSL will be provisioned automatically. Verify status with `curl https://your-domain` from the host machine.
+                      Once the DNS record propagates, SSL will be provisioned automatically. Verify
+                      status with `curl https://your-domain` from the host machine.
                     </span>
                   </div>
                 </div>

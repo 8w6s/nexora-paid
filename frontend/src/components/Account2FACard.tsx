@@ -53,10 +53,9 @@ export const Account2FACard: React.FC = () => {
     }
     setBusy(true);
     try {
-      const res = await api.post<{ ok: boolean; revokedSessions: number }>(
-        "/api/auth/2fa/enable",
-        { code },
-      );
+      const res = await api.post<{ ok: boolean; revokedSessions: number }>("/api/auth/2fa/enable", {
+        code,
+      });
       const revoked = res.revokedSessions ?? 0;
       toast.success(
         revoked > 0

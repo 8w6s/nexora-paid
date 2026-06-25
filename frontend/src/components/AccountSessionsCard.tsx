@@ -140,7 +140,7 @@ export const AccountSessionsCard: React.FC = () => {
               <div className="sessions-row">
                 <div className="sessions-meta">
                   <div className="sessions-device">
-                <span title={s.userAgent ?? ""}>{summarizeUserAgent(s.userAgent)}</span>
+                    <span title={s.userAgent ?? ""}>{summarizeUserAgent(s.userAgent)}</span>
                     {s.current && (
                       <span className="sessions-badge">{t("storefront.sessions.thisDevice")}</span>
                     )}

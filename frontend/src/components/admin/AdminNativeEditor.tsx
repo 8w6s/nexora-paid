@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, ApiRequestError } from "../../lib/api";
+import { ApiRequestError, api } from "../../lib/api";
 import { Icon } from "../Icon";
 import "./AdminNativeEditor.css";
 
@@ -58,7 +58,8 @@ export function AdminNativeEditor(): React.ReactElement {
       .get<{ tables: SchemaTable[] }>("/api/admin/db/schema")
       .then((d) => {
         const list = (d.tables ?? []).filter(
-          (t) => !t.name.startsWith("sqlite_") && t.name !== "_migrations" && t.name !== "audit_log",
+          (t) =>
+            !t.name.startsWith("sqlite_") && t.name !== "_migrations" && t.name !== "audit_log",
         );
         setTables(list);
         if (list.length && !selected) setSelected(list[0].name);
@@ -80,7 +81,9 @@ export function AdminNativeEditor(): React.ReactElement {
         params.set("dir", dir);
       }
       if (qDebounced) params.set("q", qDebounced);
-      const d = await api.get<TableData>(`/api/admin/db/table/${encodeURIComponent(selected)}?${params}`);
+      const d = await api.get<TableData>(
+        `/api/admin/db/table/${encodeURIComponent(selected)}?${params}`,
+      );
       setData(d);
     } catch (e) {
       if (e instanceof ApiRequestError) setErr(e.message);
@@ -139,7 +142,8 @@ export function AdminNativeEditor(): React.ReactElement {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rowid: Number(row._rowid) }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`);
+      if (!res.ok)
+        throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`);
       await loadTable();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -160,7 +164,9 @@ export function AdminNativeEditor(): React.ReactElement {
         cleanValues[k] = v === "" ? null : v;
       }
       if (editing.mode === "insert") {
-        await api.post(`/api/admin/db/table/${encodeURIComponent(selected)}/row`, { data: cleanValues });
+        await api.post(`/api/admin/db/table/${encodeURIComponent(selected)}/row`, {
+          data: cleanValues,
+        });
       } else {
         await api.patch(`/api/admin/db/table/${encodeURIComponent(selected)}/row`, {
           rowid: editing.rowid,
@@ -220,12 +226,7 @@ export function AdminNativeEditor(): React.ReactElement {
             >
               {loading ? "Loading…" : "Refresh"}
             </button>
-            <button
-              type="button"
-              onClick={startInsert}
-              disabled={!data}
-              className="nx-nae__btn"
-            >
+            <button type="button" onClick={startInsert} disabled={!data} className="nx-nae__btn">
               + Insert row
             </button>
           </div>
@@ -235,7 +236,11 @@ export function AdminNativeEditor(): React.ReactElement {
 
         {!data || data.rows.length === 0 ? (
           <div className="nx-nae__empty">
-            {loading ? "Loading…" : data?.rows.length === 0 ? "Table is empty." : "Select a table to view rows."}
+            {loading
+              ? "Loading…"
+              : data?.rows.length === 0
+                ? "Table is empty."
+                : "Select a table to view rows."}
           </div>
         ) : (
           <>
@@ -245,7 +250,11 @@ export function AdminNativeEditor(): React.ReactElement {
                   <tr>
                     <th className="nx-nae__th-actions">Actions</th>
                     {visibleCols.map((c) => (
-                      <th key={c.name} onClick={() => sortBy(c.name)} title={`${c.type}${c.pk ? " (PK)" : ""}`}>
+                      <th
+                        key={c.name}
+                        onClick={() => sortBy(c.name)}
+                        title={`${c.type}${c.pk ? " (PK)" : ""}`}
+                      >
                         {c.name}
                         {order === c.name ? (
                           <span className="nx-nae__sort">{dir === "asc" ? "▲" : "▼"}</span>
@@ -260,7 +269,7 @@ export function AdminNativeEditor(): React.ReactElement {
                       <td className="nx-nae__cell-actions">
                         <button
                           type="button"
-                className="nx-nae__btn-icon"
+                          className="nx-nae__btn-icon"
                           onClick={() => startEdit(row)}
                           title="Edit row"
                         >
@@ -293,7 +302,8 @@ export function AdminNativeEditor(): React.ReactElement {
 
             <div className="nx-nae__pagi">
               <span className="nx-nae__pagi-info">
-                Showing {offset + 1}–{Math.min(offset + data.rows.length, data.total)} of {data.total.toLocaleString()}
+                Showing {offset + 1}–{Math.min(offset + data.rows.length, data.total)} of{" "}
+                {data.total.toLocaleString()}
               </span>
               <select
                 value={limit}
@@ -335,7 +345,8 @@ export function AdminNativeEditor(): React.ReactElement {
           <div className="nx-nae__modal" onClick={(e) => e.stopPropagation()}>
             <div className="nx-nae__modal-head">
               <h3 className="nx-nae__modal-title">
-                {editing.mode === "insert" ? "Insert row" : `Edit row #${editing.rowid}`} — {selected}
+                {editing.mode === "insert" ? "Insert row" : `Edit row #${editing.rowid}`} —{" "}
+                {selected}
               </h3>
               <button type="button" className="nx-nae__btn-icon" onClick={() => setEditing(null)}>
                 ×
@@ -357,12 +368,15 @@ export function AdminNativeEditor(): React.ReactElement {
                         {c.notnull ? " · required" : " · nullable"}
                       </span>
                     </label>
-                {isLong || /text|json|blob/i.test(c.type) ? (
+                    {isLong || /text|json|blob/i.test(c.type) ? (
                       <textarea
                         className="nx-nae__field-textarea"
                         value={v == null ? "" : String(v)}
                         onChange={(e) =>
-                          setEditing({ ...editing, values: { ...editing.values, [c.name]: e.target.value } })
+                          setEditing({
+                            ...editing,
+                            values: { ...editing.values, [c.name]: e.target.value },
+                          })
                         }
                       />
                     ) : (
@@ -371,7 +385,10 @@ export function AdminNativeEditor(): React.ReactElement {
                         className="nx-nae__field-input"
                         value={v == null ? "" : String(v)}
                         onChange={(e) =>
-                          setEditing({ ...editing, values: { ...editing.values, [c.name]: e.target.value } })
+                          setEditing({
+                            ...editing,
+                            values: { ...editing.values, [c.name]: e.target.value },
+                          })
                         }
                       />
                     )}
@@ -395,7 +412,11 @@ export function AdminNativeEditor(): React.ReactElement {
               })}
             </div>
             <div className="nx-nae__modal-foot">
-              <button type="button" className="nx-nae__btn nx-nae__btn--ghost" onClick={() => setEditing(null)}>
+              <button
+                type="button"
+                className="nx-nae__btn nx-nae__btn--ghost"
+                onClick={() => setEditing(null)}
+              >
                 Cancel
               </button>
               <button type="button" className="nx-nae__btn" onClick={submitEdit}>
@@ -419,8 +440,18 @@ export function AdminNativeEditor(): React.ReactElement {
               {viewCell.value == null ? (
                 <span className="nx-nae__null">null</span>
               ) : (
-                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontSize: "12px", fontFamily: "ui-monospace, monospace" }}>
-                  {typeof viewCell.value === "object" ? JSON.stringify(viewCell.value, null, 2) : String(viewCell.value)}
+                <pre
+                  style={{
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    fontSize: "12px",
+                    fontFamily: "ui-monospace, monospace",
+                  }}
+                >
+                  {typeof viewCell.value === "object"
+                    ? JSON.stringify(viewCell.value, null, 2)
+                    : String(viewCell.value)}
                 </pre>
               )}
             </div>

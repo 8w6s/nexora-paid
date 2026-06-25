@@ -82,7 +82,7 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
                   placeholder={
                     isLogin
                       ? t("storefront.auth.passwordPlaceholder")
-                : t("storefront.auth.passwordHint")
+                      : t("storefront.auth.passwordHint")
                   }
                   autoComplete={isLogin ? "current-password" : "new-password"}
                 />

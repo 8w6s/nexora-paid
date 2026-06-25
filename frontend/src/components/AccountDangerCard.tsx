@@ -66,9 +66,7 @@ export const AccountDangerCard: React.FC = () => {
           <div className="danger-warn">
             <Icon name="shield" size={18} />
             <div>
-              <strong>
-                {t("storefront.account.deleteWarning", { email: user?.email ?? "" })}
-              </strong>
+              <strong>{t("storefront.account.deleteWarning", { email: user?.email ?? "" })}</strong>
               <br />
               {t("storefront.account.deleteWarningSub")}
             </div>

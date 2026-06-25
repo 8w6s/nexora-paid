@@ -11,7 +11,9 @@ export const SiteFooter: React.FC = () => {
       <div className="container sf-foot-inner">
         <div className="sf-foot-brand">
           <span className="sf-foot-name">{config.storeName ?? "Nexora"}</span>
-          <span className="sf-foot-cr">© {year} — {t("storefront.footer.tagline")}</span>
+          <span className="sf-foot-cr">
+            © {year} — {t("storefront.footer.tagline")}
+          </span>
         </div>
         <nav className="sf-foot-links" aria-label={t("storefront.footer.ariaLabel")}>
           <a href="/terms">{t("storefront.footer.terms")}</a>

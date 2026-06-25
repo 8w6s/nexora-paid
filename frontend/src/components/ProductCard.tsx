@@ -46,7 +46,11 @@ export const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
         <p className="desc">{product.description}</p>
 
         <div className="meta">
-          <span>{product.inStock ? t("storefront.product.inStock", { count: product.stock }) : t("storefront.product.outOfStock")}</span>
+          <span>
+            {product.inStock
+              ? t("storefront.product.inStock", { count: product.stock })
+              : t("storefront.product.outOfStock")}
+          </span>
         </div>
 
         <div className="footer">

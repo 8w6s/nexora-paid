@@ -109,7 +109,7 @@ export const ResetPasswordForm: React.FC = () => {
                   <>
                     <Icon name="spinner" size={17} className="is-spinning" />
                     <span>{t("common.loading")}</span>
-                </>
+                  </>
                 ) : (
                   <span>{t("storefront.auth.setNewPassword")}</span>
                 )}

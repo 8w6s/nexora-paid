@@ -248,8 +248,8 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
     let whereSql = "";
     const whereArgs: unknown[] = [];
     if (q) {
-      const textCols = cols.filter((c) =>
-        /text|char|clob/i.test(c.type) || c.type === "" || /json/i.test(c.type),
+      const textCols = cols.filter(
+        (c) => /text|char|clob/i.test(c.type) || c.type === "" || /json/i.test(c.type),
       );
       if (textCols.length > 0) {
         const clauses = textCols.map((c) => `"${c.name}" LIKE ?`);
@@ -260,7 +260,9 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
     }
 
     const total = (
-      db.query(`SELECT COUNT(*) AS n FROM "${name}" ${whereSql}`).get(...whereArgs as never[]) as {
+      db
+        .query(`SELECT COUNT(*) AS n FROM "${name}" ${whereSql}`)
+        .get(...(whereArgs as never[])) as {
         n: number;
       }
     ).n;
@@ -268,7 +270,7 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
       .query(
         `SELECT rowid AS _rowid, * FROM "${name}" ${whereSql} ORDER BY ${safeOrder} ${dir} LIMIT ? OFFSET ?`,
       )
-      .all(...whereArgs as never[], limit, offset) as Array<Record<string, unknown>>;
+      .all(...(whereArgs as never[]), limit, offset) as Array<Record<string, unknown>>;
     return { columns: cols, rows, total, limit, offset, q };
   })
 

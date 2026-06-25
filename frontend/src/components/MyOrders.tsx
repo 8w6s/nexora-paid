@@ -83,7 +83,8 @@ export const MyOrders: React.FC = () => {
               window.location.href = "/";
             }}
           >
-            <Icon name="cart" size={16} variant="duotone-regular" /> {t("storefront.orders.startShopping")}
+            <Icon name="cart" size={16} variant="duotone-regular" />{" "}
+            {t("storefront.orders.startShopping")}
           </div>
         </div>
       ) : (

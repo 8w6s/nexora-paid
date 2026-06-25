@@ -24,9 +24,11 @@ function pskOrThrow(): string {
 }
 
 function hmac(psk: string, ts: string, nonce: string, body: string): string {
-  return createHmac("sha256", psk).update(`${ts}
+  return createHmac("sha256", psk)
+    .update(`${ts}
 ${nonce}
-${body}`).digest("hex");
+${body}`)
+    .digest("hex");
 }
 
 export function signRequest(body: string): Record<string, string> {

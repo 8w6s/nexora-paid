@@ -49,7 +49,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: background-color 120ms ease, color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .nx-nae__tbl-btn:hover {
@@ -109,7 +111,10 @@
   font-size: 12.5px;
   font-weight: 500;
   font-family: inherit;
-  transition: background-color 150ms ease, box-shadow 150ms ease, transform 80ms ease;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 80ms ease;
 }
 
 .nx-nae__btn:hover:not(:disabled) {
@@ -117,8 +122,13 @@
   box-shadow: var(--shadow-hover, 0 2px 8px rgba(31, 111, 235, 0.25));
 }
 
-.nx-nae__btn:active:not(:disabled) { transform: translateY(1px); }
-.nx-nae__btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.nx-nae__btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.nx-nae__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .nx-nae__btn--ghost {
   background: transparent;
@@ -126,7 +136,7 @@
   border: 1px solid var(--line, #e5e5e5);
 }
 .nx-nae__btn--ghost:hover:not(:disabled) {
-  background: var(--surface-alt, rgba(0,0,0,0.03));
+  background: var(--surface-alt, rgba(0, 0, 0, 0.03));
   box-shadow: none;
 }
 
@@ -146,10 +156,12 @@
   border-radius: 4px;
   color: var(--muted, #666);
   font-size: 13px;
-  transition: background-color 120ms ease, color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 .nx-nae__btn-icon:hover {
-  background: var(--surface-alt, rgba(0,0,0,0.04));
+  background: var(--surface-alt, rgba(0, 0, 0, 0.04));
   color: var(--ink, #1a1a1a);
 }
 .nx-nae__btn-icon--danger:hover {
@@ -189,7 +201,9 @@
   user-select: none;
 }
 
-.nx-nae__table th:hover { color: var(--brand, #1f6feb); }
+.nx-nae__table th:hover {
+  color: var(--brand, #1f6feb);
+}
 
 .nx-nae__th-actions {
   cursor: default;
@@ -355,7 +369,9 @@
   border: 1px solid var(--line, #e5e5e5);
   border-radius: var(--radius-sm, 6px);
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .nx-nae__field-input:focus,
@@ -378,7 +394,9 @@
   gap: 4px;
   cursor: pointer;
 }
-.nx-nae__field-null input { margin: 0; }
+.nx-nae__field-null input {
+  margin: 0;
+}
 .nx-nae__search {
   padding: 7px 10px;
   font-size: 12.5px;
@@ -389,7 +407,9 @@
   border-radius: var(--radius-sm, 6px);
   outline: none;
   width: 240px;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .nx-nae__search:focus {

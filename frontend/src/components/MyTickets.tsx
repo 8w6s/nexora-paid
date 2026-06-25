@@ -140,9 +140,7 @@ export const MyTickets: React.FC = () => {
   if (needLogin)
     return (
       <main className="container tk-page">
-        <div className="tk-state">
-          {t("storefront.tickets.pleaseSignIn")}
-        </div>
+        <div className="tk-state">{t("storefront.tickets.pleaseSignIn")}</div>
         <Styles />
       </main>
     );
@@ -202,7 +200,9 @@ export const MyTickets: React.FC = () => {
                   <span className={`badge ${tk.status}`}>{statusLabel(tk.status)}</span>
                 </div>
                 <span className="muted">
-                {t("storefront.tickets.updatedAt", { when: new Date(tk.updatedAt).toLocaleString() })}
+                  {t("storefront.tickets.updatedAt", {
+                    when: new Date(tk.updatedAt).toLocaleString(),
+                  })}
                 </span>
               </button>
             ))}

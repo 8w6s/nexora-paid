@@ -94,7 +94,9 @@ async function main(): Promise<number> {
   const { positional, flags } = parseArgs(process.argv.slice(2));
   const snapshotPath = positional[0];
   if (!snapshotPath) {
-    err("FATAL: usage: bun run scripts/nexora-nxs-restore-drill.ts <snapshot.nxs> [--license-secret=hex] [--machine-id=id] [--extract=out.tar.gz]");
+    err(
+      "FATAL: usage: bun run scripts/nexora-nxs-restore-drill.ts <snapshot.nxs> [--license-secret=hex] [--machine-id=id] [--extract=out.tar.gz]",
+    );
     return 1;
   }
   if (!existsSync(snapshotPath)) {
@@ -104,15 +106,18 @@ async function main(): Promise<number> {
 
   const licenseSecret =
     flags["license-secret"] ?? process.env.NEXORA_LICENSE_SECRET ?? readLicenseSecretFromFile();
-  const machineId =
-    flags["machine-id"] ?? process.env.NEXORA_MACHINE_ID ?? readMachineIdFromFile();
+  const machineId = flags["machine-id"] ?? process.env.NEXORA_MACHINE_ID ?? readMachineIdFromFile();
 
   if (!licenseSecret) {
-    err("FATAL: license-secret not found. Pass --license-secret=<hex> or set NEXORA_LICENSE_SECRET or place license.lic next to script.");
+    err(
+      "FATAL: license-secret not found. Pass --license-secret=<hex> or set NEXORA_LICENSE_SECRET or place license.lic next to script.",
+    );
     return 1;
   }
   if (!machineId) {
-    err("FATAL: machine-id not found. Pass --machine-id=<id> or set NEXORA_MACHINE_ID or run on the same host as the snapshot.");
+    err(
+      "FATAL: machine-id not found. Pass --machine-id=<id> or set NEXORA_MACHINE_ID or run on the same host as the snapshot.",
+    );
     return 1;
   }
 
@@ -139,7 +144,9 @@ async function main(): Promise<number> {
     plain = decryptSnapshot(enc, km);
   } catch (e) {
     err(`FAIL: decrypt failed — ${e instanceof Error ? e.message : String(e)}`);
-    err("Common causes: snapshot encrypted on a different machine, license rotated, or file corrupted.");
+    err(
+      "Common causes: snapshot encrypted on a different machine, license rotated, or file corrupted.",
+    );
     return 2;
   }
 
@@ -152,7 +159,9 @@ async function main(): Promise<number> {
   }
   const gzipMagic = plain[0] === 0x1f && plain[1] === 0x8b;
   if (!gzipMagic) {
-    err(`FAIL: plaintext does not start with gzip magic (got 0x${plain[0].toString(16)} 0x${plain[1].toString(16)}) — snapshot format unrecognized`);
+    err(
+      `FAIL: plaintext does not start with gzip magic (got 0x${plain[0].toString(16)} 0x${plain[1].toString(16)}) — snapshot format unrecognized`,
+    );
     return 3;
   }
 
@@ -166,7 +175,9 @@ async function main(): Promise<number> {
   return 0;
 }
 
-main().then((code) => process.exit(code)).catch((e) => {
-  err(`FATAL: unhandled — ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
-  process.exit(1);
-});
+main()
+  .then((code) => process.exit(code))
+  .catch((e) => {
+    err(`FATAL: unhandled — ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+    process.exit(1);
+  });

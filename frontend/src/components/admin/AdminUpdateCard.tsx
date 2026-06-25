@@ -152,12 +152,7 @@ export const AdminUpdateCard: React.FC = () => {
                 : `Up to date · ${info.current}`}
           </span>
         </div>
-        <button
-          type="button"
-          className="upd-btn upd-btn-ghost"
-          onClick={check}
-          disabled={loading}
-        >
+        <button type="button" className="upd-btn upd-btn-ghost" onClick={check} disabled={loading}>
           {loading ? "Checking…" : "Check now"}
         </button>
       </div>
@@ -172,9 +167,7 @@ export const AdminUpdateCard: React.FC = () => {
             <span className="upd-k">Latest</span>
             <span className="upd-v">
               {info.latest}{" "}
-              {info.publishedAt && (
-                <span className="upd-faint">· {fmtDate(info.publishedAt)}</span>
-              )}
+              {info.publishedAt && <span className="upd-faint">· {fmtDate(info.publishedAt)}</span>}
             </span>
           </div>
           <div className="upd-row">
@@ -197,14 +190,19 @@ export const AdminUpdateCard: React.FC = () => {
                 type="button"
                 className="upd-btn upd-btn-primary"
                 onClick={() => setConfirmOpen(true)}
-                disabled={applying || (job ? job.status !== "ok" && job.status !== "failed" && job.status !== "rolled-back" : false)}
+                disabled={
+                  applying ||
+                  (job
+                    ? job.status !== "ok" && job.status !== "failed" && job.status !== "rolled-back"
+                    : false)
+                }
               >
                 Apply update
               </button>
             ) : (
               <span className="upd-faint">
-                In-place apply unavailable — re-deploy with{" "}
-                <code>docker-compose.updater.yml</code> overlay to enable.
+                In-place apply unavailable — re-deploy with <code>docker-compose.updater.yml</code>{" "}
+                overlay to enable.
               </span>
             )}
           </div>
@@ -220,7 +218,9 @@ export const AdminUpdateCard: React.FC = () => {
           {job.backupPath && (
             <div className="upd-row">
               <span className="upd-k">Backup</span>
-              <span className="upd-v"><code>{job.backupPath}</code></span>
+              <span className="upd-v">
+                <code>{job.backupPath}</code>
+              </span>
             </div>
           )}
           {job.error && (
@@ -234,10 +234,7 @@ export const AdminUpdateCard: React.FC = () => {
             <ol className="upd-steps">
               {job.steps.map((s) => (
                 <li key={`${s.at}-${s.msg}`}>
-                  <span className="upd-faint">
-                    {new Date(s.at).toLocaleTimeString()}
-                  </span>{" "}
-                  {s.msg}
+                  <span className="upd-faint">{new Date(s.at).toLocaleTimeString()}</span> {s.msg}
                 </li>
               ))}
             </ol>
@@ -250,9 +247,9 @@ export const AdminUpdateCard: React.FC = () => {
           <div className="upd-confirm-body">
             <strong>Apply update to {info.latest}?</strong>
             <p>
-              A backup of the database volume will be taken first. The service
-              restarts briefly; existing customer sessions stay intact.
-              Automatic rollback if the new version fails its healthcheck.
+              A backup of the database volume will be taken first. The service restarts briefly;
+              existing customer sessions stay intact. Automatic rollback if the new version fails
+              its healthcheck.
             </p>
             <div className="upd-confirm-actions">
               <button
@@ -262,11 +259,7 @@ export const AdminUpdateCard: React.FC = () => {
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                className="upd-btn upd-btn-primary"
-                onClick={apply}
-              >
+              <button type="button" className="upd-btn upd-btn-primary" onClick={apply}>
                 Backup & update
               </button>
             </div>

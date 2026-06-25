@@ -34,7 +34,10 @@ describe("health routes", () => {
 
   it("/api/health/deep includes db + updater sub-objects", async () => {
     const r = await call("/api/health/deep");
-    const body = r.body as { db: { ok: boolean; latencyMs: number }; updater: { available: boolean } };
+    const body = r.body as {
+      db: { ok: boolean; latencyMs: number };
+      updater: { available: boolean };
+    };
     expect(typeof body.db.ok).toBe("boolean");
     expect(typeof body.db.latencyMs).toBe("number");
     expect(typeof body.updater.available).toBe("boolean");

@@ -10,8 +10,8 @@ export const CartDrawer: React.FC = () => {
   const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity, getCartTotal } =
     useCart();
   const { t } = useT();
-// Cart drawer. Checkout requires login + LTC payment, so "Checkout" just routes to /checkout
-// (the Checkout island handles auth redirect + order creation). No customer form here anymore.
+  // Cart drawer. Checkout requires login + LTC payment, so "Checkout" just routes to /checkout
+  // (the Checkout island handles auth redirect + order creation). No customer form here anymore.
   const drawerRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -77,8 +77,14 @@ export const CartDrawer: React.FC = () => {
       />
       <aside ref={drawerRef} className="cart-drawer" style={{ transform: "translateX(100%)" }}>
         <div className="drawer-header">
-          <h2>{t("storefront.cart.title")} ({totalQty})</h2>
-          <button className="btn-close" onClick={() => setIsCartOpen(false)} aria-label={t("common.close")}>
+          <h2>
+            {t("storefront.cart.title")} ({totalQty})
+          </h2>
+          <button
+            className="btn-close"
+            onClick={() => setIsCartOpen(false)}
+            aria-label={t("common.close")}
+          >
             <Icon name="close" size={20} />
           </button>
         </div>

@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiRequestError } from "../../lib/api";
+import { ApiRequestError, api } from "../../lib/api";
 import { Icon } from "../Icon";
 import "./AdminDbEditor.css";
 
@@ -46,7 +46,11 @@ export function AdminDbEditor(): React.ReactElement {
   const [pane, setPane] = useState<Pane>("query");
   const [tables, setTables] = useState<SchemaTable[]>([]);
   const [statement, setStatement] = useState(() => {
-    try { return localStorage.getItem("nx.db-editor.stmt") ?? SAMPLE; } catch { return SAMPLE; }
+    try {
+      return localStorage.getItem("nx.db-editor.stmt") ?? SAMPLE;
+    } catch {
+      return SAMPLE;
+    }
   });
   const [result, setResult] = useState<QueryResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -63,7 +67,11 @@ export function AdminDbEditor(): React.ReactElement {
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem("nx.db-editor.stmt", statement); } catch { /* ignore */ }
+    try {
+      localStorage.setItem("nx.db-editor.stmt", statement);
+    } catch {
+      /* ignore */
+    }
   }, [statement]);
 
   const loadAudit = useCallback(async () => {
@@ -176,7 +184,9 @@ export function AdminDbEditor(): React.ReactElement {
           <>
             <div className="nx-dbe__toolbar">
               <button type="button" onClick={run} disabled={running} className="nx-dbe__btn">
-                {running ? "Running…" : (
+                {running ? (
+                  "Running…"
+                ) : (
                   <>
                     Run<span className="nx-dbe__kbd">Ctrl+↵</span>
                   </>
@@ -206,16 +216,25 @@ export function AdminDbEditor(): React.ReactElement {
               <div className="nx-dbe__result">
                 <div className="nx-dbe__result-meta nx-dbe__result-meta--ok">
                   {result.columns.length > 0 ? (
-                    <><strong>{totalRows}{moreCount}</strong> rows · <strong>{result.elapsedMs}</strong>ms</>
+                    <>
+                      <strong>
+                        {totalRows}
+                        {moreCount}
+                      </strong>{" "}
+                      rows · <strong>{result.elapsedMs}</strong>ms
+                    </>
                   ) : (
-                    <><strong>{result.rowsAffected}</strong> row(s) affected · <strong>{result.elapsedMs}</strong>ms</>
+                    <>
+                      <strong>{result.rowsAffected}</strong> row(s) affected ·{" "}
+                      <strong>{result.elapsedMs}</strong>ms
+                    </>
                   )}
                   {result.truncated ? <span> · truncated at 5000</span> : null}
                 </div>
                 {result.columns.length > 0 ? (
                   <div className="nx-dbe__grid">
                     <table className="nx-dbe__table">
-                <thead>
+                      <thead>
                         <tr>
                           {result.columns.map((c) => (
                             <th key={c}>{c}</th>
@@ -240,7 +259,12 @@ export function AdminDbEditor(): React.ReactElement {
         ) : (
           <div className="nx-dbe__result">
             <div className="nx-dbe__toolbar">
-              <button type="button" onClick={loadAudit} disabled={auditLoading} className="nx-dbe__btn">
+              <button
+                type="button"
+                onClick={loadAudit}
+                disabled={auditLoading}
+                className="nx-dbe__btn"
+              >
                 {auditLoading ? "Loading…" : "Refresh"}
               </button>
               <span className="nx-dbe__hint">Latest 200 entries, newest first</span>
@@ -277,7 +301,9 @@ export function AdminDbEditor(): React.ReactElement {
                         </td>
                         <td>{r.rows_affected ?? <span className="nx-dbe__null">—</span>}</td>
                         <td>{r.elapsed_ms ?? <span className="nx-dbe__null">—</span>}</td>
-                        <td className={r.success ? "nx-dbe__ok" : "nx-dbe__bad"}>{r.success ? "✓" : "✗"}</td>
+                        <td className={r.success ? "nx-dbe__ok" : "nx-dbe__bad"}>
+                          {r.success ? "✓" : "✗"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

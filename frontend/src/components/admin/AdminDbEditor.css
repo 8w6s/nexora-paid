@@ -65,8 +65,12 @@
   transition: color 120ms ease;
 }
 
-.nx-dbe__tbl-name::-webkit-details-marker { display: none; }
-.nx-dbe__tbl-name::marker { content: ""; }
+.nx-dbe__tbl-name::-webkit-details-marker {
+  display: none;
+}
+.nx-dbe__tbl-name::marker {
+  content: "";
+}
 
 .nx-dbe__tbl-name::before {
   content: "▸";
@@ -157,7 +161,9 @@
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
-  transition: color 150ms ease, border-color 150ms ease;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease;
   margin-bottom: -1px;
 }
 
@@ -187,7 +193,10 @@
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
-  transition: background-color 150ms ease, box-shadow 150ms ease, transform 80ms ease;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 80ms ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -241,7 +250,9 @@
   border-radius: var(--radius-md, 10px);
   resize: vertical;
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
   width: 100%;
   box-sizing: border-box;
   tab-size: 2;

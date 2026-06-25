@@ -64,7 +64,7 @@ export const Navbar: React.FC = () => {
         </span>
       );
     }
-    return <span>{name}</span>
+    return <span>{name}</span>;
   };
 
   return (

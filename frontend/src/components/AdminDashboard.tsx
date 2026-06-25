@@ -405,8 +405,8 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
                 <Icon name="bolt" size={28} />
                 <strong>Coming soon</strong>
                 <span style={{ fontSize: ".88rem", maxWidth: 420 }}>
-                  This panel is part of a future release. Backend support is not yet shipped —
-                  use the other tabs for now.
+                  This panel is part of a future release. Backend support is not yet shipped — use
+                  the other tabs for now.
                 </span>
               </div>
             ) : (

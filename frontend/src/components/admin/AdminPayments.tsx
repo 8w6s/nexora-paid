@@ -244,7 +244,10 @@ export const AdminPayments: React.FC = () => {
   const [country, setCountry] = useState("*");
   const [draft, setDraft] = useState<Record<string, Record<string, string>>>({});
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
-  const [pwPrompt, setPwPrompt] = useState<{ provider: Provider; config: Record<string, string> } | null>(null);
+  const [pwPrompt, setPwPrompt] = useState<{
+    provider: Provider;
+    config: Record<string, string>;
+  } | null>(null);
   const toast = useToast();
 
   const load = () =>

@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import {
   api,
   type CheckoutResult,
@@ -9,7 +10,6 @@ import {
   type OrderDetail,
   type OrderStatus,
 } from "../lib/api";
-import { useT } from "../i18n";
 import { useAuth } from "./AuthContext";
 import { useCart } from "./CartContext";
 import { Dropdown } from "./Dropdown";
@@ -747,9 +747,7 @@ const ReviewView: React.FC = () => {
             <Icon name="spinner" size={18} /> {t("common.loading")}
           </div>
         ) : methods.length === 0 ? (
-          <div className="warn">
-            {t("storefront.errors.noWallet")}
-          </div>
+          <div className="warn">{t("storefront.errors.noWallet")}</div>
         ) : (
           <div className="pm-list">
             {methods.map((m) => (

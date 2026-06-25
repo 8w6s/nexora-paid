@@ -115,7 +115,10 @@ Bun.serve({
       try {
         const md = (await fetchGitHub(`changelog/${ver}.md`, false)) as string;
         return new Response(md, {
-          headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "public, max-age=300" },
+          headers: {
+            "content-type": "text/markdown; charset=utf-8",
+            "cache-control": "public, max-age=300",
+          },
         });
       } catch {
         return json({ error: "changelog not found", version: ver }, 404);
@@ -148,7 +151,11 @@ Bun.serve({
       const msg = new TextEncoder().encode(JSON.stringify(parsed.payload));
       let sigOk = false;
       try {
-        sigOk = await ed.verifyAsync(hexToBytes(parsed.signature), msg, hexToBytes(LICENSE_PUBKEY_HEX));
+        sigOk = await ed.verifyAsync(
+          hexToBytes(parsed.signature),
+          msg,
+          hexToBytes(LICENSE_PUBKEY_HEX),
+        );
       } catch {
         sigOk = false;
       }
