@@ -5,6 +5,7 @@ import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { ensureMachineId, readLicenseSecret } from "../lib/tenant.ts";
 import { signRequest } from "../lib/updater-handshake.ts";
+import { verifySignedManifest } from "../../../updater/manifest-verify.ts";
 
 const FILESERVER_URL =
   Bun.env.NEXORA_FILESERVER_URL ?? "https://raw.githubusercontent.com/8w6s/nexora-releases/main";
@@ -37,22 +38,53 @@ function cmpSemver(a: string, b: string): number {
   return 0;
 }
 
+// Signed-manifest rollout flag. With NEXORA_REQUIRE_SIGNED=1 we fetch
+// versions/<channel>.signed.json and refuse to proceed if the ed25519
+// signature does not verify (see updater/manifest-verify.ts).
+// Default off so v1.0 customers whose FileServer still publishes plain
+// .json don't break before the signed-publish pipeline lands.
+const REQUIRE_SIGNED = Bun.env.NEXORA_REQUIRE_SIGNED === "1";
+
 async function fetchManifest(): Promise<VersionManifest> {
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.payload;
   // Two URL shapes supported:
   //   - Raw GitHub:     {FILESERVER_URL}/versions/{channel}.json
   //   - Hosted server:  {FILESERVER_URL}/v1/version?channel={channel}
   const isRaw = /raw\.githubusercontent\.com/.test(FILESERVER_URL);
+  const ext = REQUIRE_SIGNED ? ".signed.json" : ".json";
   const url = isRaw
-    ? `${FILESERVER_URL}/versions/${encodeURIComponent(UPDATE_CHANNEL)}.json`
-    : `${FILESERVER_URL}/v1/version?channel=${encodeURIComponent(UPDATE_CHANNEL)}`;
+    ? `${FILESERVER_URL}/versions/${encodeURIComponent(UPDATE_CHANNEL)}${ext}`
+    : `${FILESERVER_URL}/v1/version?channel=${encodeURIComponent(UPDATE_CHANNEL)}${REQUIRE_SIGNED ? "&signed=1" : ""}`;
   const r = await fetch(url, {
     signal: AbortSignal.timeout(10_000),
     headers: { "user-agent": `nexora/${APP_VERSION}` },
   });
   if (!r.ok) throw new Error(`fileserver ${r.status}`);
-  const payload = (await r.json()) as VersionManifest;
-  if (!payload.latest || !payload.imageRepo) throw new Error("invalid manifest");
+  const raw = await r.json();
+  let payload: VersionManifest;
+  if (REQUIRE_SIGNED) {
+    const v = verifySignedManifest(raw);
+    if (!v.ok || !v.payload) {
+      throw new Error(`signed manifest rejected: ${v.reason ?? "unknown"}`);
+    }
+    // The signed shape's payload only carries the fields we control at
+    // signing time; fall back to defaults for `min` / `channel` so the
+    // downstream consumer (cmpSemver) still has them.
+    payload = {
+      latest: v.payload.latest,
+      min: v.payload.min ?? v.payload.latest,
+      channel: v.payload.channel ?? UPDATE_CHANNEL,
+      imageRepo: v.payload.imageRepo,
+      imageTag: v.payload.imageTag,
+      sha256: v.payload.sha256,
+      changelogUrl: v.payload.changelogUrl,
+      publishedAt: v.payload.publishedAt,
+      notes: v.payload.notes,
+    };
+  } else {
+    payload = raw as VersionManifest;
+    if (!payload.latest || !payload.imageRepo) throw new Error("invalid manifest");
+  }
   cached = { at: Date.now(), payload };
   return payload;
 }
