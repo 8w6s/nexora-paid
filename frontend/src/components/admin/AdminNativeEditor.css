@@ -429,7 +429,9 @@
   font-size: 12.5px;
   color: var(--ink, #1a1a1a);
 }
-.nx-nae__bulkbar strong { color: var(--brand, #1f6feb); }
+.nx-nae__bulkbar strong {
+  color: var(--brand, #1f6feb);
+}
 
 /* Checkbox column */
 .nx-nae__th-check {
@@ -437,15 +439,23 @@
   cursor: default !important;
   text-align: center;
 }
-.nx-nae__th-check input { cursor: pointer; }
+.nx-nae__th-check input {
+  cursor: pointer;
+}
 .nx-nae__cell-check {
   width: 28px;
   text-align: center;
   cursor: default;
 }
-.nx-nae__cell-check input { cursor: pointer; }
-.nx-nae__row--sel { background: rgba(31, 111, 235, 0.06) !important; }
-.nx-nae__row--sel:hover { background: rgba(31, 111, 235, 0.1) !important; }
+.nx-nae__cell-check input {
+  cursor: pointer;
+}
+.nx-nae__row--sel {
+  background: rgba(31, 111, 235, 0.06) !important;
+}
+.nx-nae__row--sel:hover {
+  background: rgba(31, 111, 235, 0.1) !important;
+}
 
 /* Column header — name + type stacked */
 .nx-nae__col-head {

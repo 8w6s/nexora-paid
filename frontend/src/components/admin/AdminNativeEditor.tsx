@@ -385,7 +385,7 @@ export function AdminNativeEditor(): React.ReactElement {
                       <input
                         type="checkbox"
                         checked={data.rows.length > 0 && selectedRows.size === data.rows.length}
-                ref={(el) => {
+                        ref={(el) => {
                           if (el) {
                             el.indeterminate =
                               selectedRows.size > 0 && selectedRows.size < data.rows.length;
@@ -422,44 +422,47 @@ export function AdminNativeEditor(): React.ReactElement {
                   {data.rows.map((row) => {
                     const rid = Number(row._rowid);
                     return (
-                    <tr key={rid} className={selectedRows.has(rid) ? "nx-nae__row--sel" : undefined}>
-                      <td className="nx-nae__cell-check">
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.has(rid)}
-                          onChange={() => toggleRow(rid)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </td>
-                      <td className="nx-nae__cell-actions">
-                        <button
-                          type="button"
-                          className="nx-nae__btn-icon"
-                          onClick={() => startEdit(row)}
-                          title="Edit row"
-                        >
-                          ✎
-                        </button>
-                        <button
-                          type="button"
-                          className="nx-nae__btn-icon nx-nae__btn-icon--danger"
-                          onClick={() => deleteRow(row)}
-                          title="Delete row"
-                        >
-                          ×
-                        </button>
-                      </td>
-                      {visibleCols.map((c) => (
-                        <td
-                          key={c.name}
-                          title={String(row[c.name] ?? "")}
-                          onClick={() => setViewCell({ col: c.name, value: row[c.name] })}
-                          style={{ cursor: "pointer" }}
-                        >
-                          {formatCell(row[c.name])}
+                      <tr
+                        key={rid}
+                        className={selectedRows.has(rid) ? "nx-nae__row--sel" : undefined}
+                      >
+                        <td className="nx-nae__cell-check">
+                          <input
+                            type="checkbox"
+                            checked={selectedRows.has(rid)}
+                            onChange={() => toggleRow(rid)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </td>
-                      ))}
-                    </tr>
+                        <td className="nx-nae__cell-actions">
+                          <button
+                            type="button"
+                            className="nx-nae__btn-icon"
+                            onClick={() => startEdit(row)}
+                            title="Edit row"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            className="nx-nae__btn-icon nx-nae__btn-icon--danger"
+                            onClick={() => deleteRow(row)}
+                            title="Delete row"
+                          >
+                            ×
+                          </button>
+                        </td>
+                        {visibleCols.map((c) => (
+                          <td
+                            key={c.name}
+                            title={String(row[c.name] ?? "")}
+                            onClick={() => setViewCell({ col: c.name, value: row[c.name] })}
+                            style={{ cursor: "pointer" }}
+                          >
+                            {formatCell(row[c.name])}
+                          </td>
+                        ))}
+                      </tr>
                     );
                   })}
                 </tbody>
@@ -614,7 +617,7 @@ export function AdminNativeEditor(): React.ReactElement {
                     className="nx-nae__btn nx-nae__btn--ghost nx-nae__btn--xs"
                     onClick={() => {
                       const s =
-                typeof viewCell.value === "object"
+                        typeof viewCell.value === "object"
                           ? JSON.stringify(viewCell.value, null, 2)
                           : String(viewCell.value);
                       navigator.clipboard?.writeText(s);
@@ -637,7 +640,7 @@ export function AdminNativeEditor(): React.ReactElement {
                 <span className="nx-nae__null">null</span>
               ) : (
                 <pre className="nx-nae__view-pre">
-                {typeof viewCell.value === "object"
+                  {typeof viewCell.value === "object"
                     ? JSON.stringify(viewCell.value, null, 2)
                     : String(viewCell.value)}
                 </pre>
