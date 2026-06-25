@@ -60,7 +60,8 @@
       "quantity": "Cantidad",
       "continueShopping": "Seguir comprando",
       "priceChanged": "El precio de {product} cambió de {old} a {new}",
-      "openEmpty": "Carrito (vacío)"
+      "openEmpty": "Carrito (vacío)",
+      "openWithCount": "Carrito ({{count}})"
     },
     "checkout": {
       "title": "Pagar",
@@ -140,7 +141,11 @@
       "typeDeleteToConfirm": "Escribe DELETE en el campo para confirmar.",
       "permanentlyDelete": "Eliminar cuenta permanentemente",
       "deleteSuccess": "Tu cuenta ha sido eliminada.",
-      "deleteFailed": "No se pudo eliminar la cuenta. Inténtalo de nuevo."
+      "deleteFailed": "No se pudo eliminar la cuenta. Inténtalo de nuevo.",
+      "account": "Cuenta",
+      "adminPanel": "Panel admin",
+      "signOut": "Cerrar sesión",
+      "support": "Soporte"
     },
     "twofa": {
       "title": "Autenticación de dos factores",

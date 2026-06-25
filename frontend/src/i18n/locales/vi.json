@@ -60,7 +60,8 @@
       "quantity": "Số lượng",
       "continueShopping": "Tiếp tục mua sắm",
       "priceChanged": "Giá của {product} đã đổi từ {old} sang {new}",
-      "openEmpty": "Giỏ hàng (trống)"
+      "openEmpty": "Giỏ hàng (trống)",
+      "openWithCount": "Giỏ hàng ({{count}})"
     },
     "checkout": {
       "title": "Thanh toán",
@@ -140,7 +141,11 @@
       "typeDeleteToConfirm": "Gõ DELETE vào ô để xác nhận.",
       "permanentlyDelete": "Xóa vĩnh viễn tài khoản",
       "deleteSuccess": "Tài khoản của bạn đã bị xóa.",
-      "deleteFailed": "Không thể xóa tài khoản. Vui lòng thử lại."
+      "deleteFailed": "Không thể xóa tài khoản. Vui lòng thử lại.",
+      "account": "Tài khoản",
+      "adminPanel": "Trang quản trị",
+      "signOut": "Đăng xuất",
+      "support": "Hỗ trợ"
     },
     "twofa": {
       "title": "Xác thực hai lớp",

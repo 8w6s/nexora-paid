@@ -60,7 +60,8 @@
       "quantity": "Menge",
       "continueShopping": "Weiter einkaufen",
       "priceChanged": "Der Preis für {product} hat sich von {old} auf {new} geändert",
-      "openEmpty": "Warenkorb (leer)"
+      "openEmpty": "Warenkorb (leer)",
+      "openWithCount": "Warenkorb ({{count}})"
     },
     "checkout": {
       "title": "Kasse",
@@ -140,7 +141,11 @@
       "typeDeleteToConfirm": "Tippe DELETE in das Feld zur Bestätigung.",
       "permanentlyDelete": "Konto dauerhaft löschen",
       "deleteSuccess": "Dein Konto wurde gelöscht.",
-      "deleteFailed": "Konto konnte nicht gelöscht werden. Bitte erneut versuchen."
+      "deleteFailed": "Konto konnte nicht gelöscht werden. Bitte erneut versuchen.",
+      "account": "Konto",
+      "adminPanel": "Admin-Bereich",
+      "signOut": "Abmelden",
+      "support": "Support"
     },
     "twofa": {
       "title": "Zwei-Faktor-Authentifizierung",
