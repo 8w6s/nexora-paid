@@ -105,7 +105,7 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
 
   for (const p of plugins) {
     const { id, version, description, nexoraVersion } = p.manifest;
-    
+
     // 2. Compat
     const compat = checkCompat(NEXORA_VERSION, nexoraVersion);
     if (!compat.ok) {

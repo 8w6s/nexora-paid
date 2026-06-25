@@ -131,7 +131,7 @@ const baseApp = new Elysia()
     // ElysiaCustomStatusResponse (no .message). Narrow defensively.
     const message =
       typeof (error as { message?: unknown }).message === "string"
-        ? ((error as { message: string }).message)
+        ? (error as { message: string }).message
         : String(error);
 
     // Classify error severity

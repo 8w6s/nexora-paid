@@ -149,7 +149,6 @@ export const devRoutes = new Elysia()
   const origWarn = console.warn.bind(console);
   const origError = console.error.bind(console);
 
-  
   console.log = (...args: unknown[]) => {
     const msg = args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ");
     pushDevLog("api", "info", msg);

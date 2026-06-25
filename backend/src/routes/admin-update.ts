@@ -295,7 +295,10 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
         body: bodyStr,
         signal: AbortSignal.timeout(16 * 60_000),
       } as RequestInit & { unix: string });
-      const data = (await r.json().catch(() => ({}))) as { digestVerified?: boolean; elapsedMs?: number };
+      const data = (await r.json().catch(() => ({}))) as {
+        digestVerified?: boolean;
+        elapsedMs?: number;
+      };
       if (!r.ok) {
         set.status = r.status;
         return { error: "Warm-pull failed", code: "WARM_PULL_FAILED", detail: data };
