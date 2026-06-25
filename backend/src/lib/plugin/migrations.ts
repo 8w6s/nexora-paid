@@ -18,7 +18,7 @@ export interface MigrateResult {
  * (the core schema migration handles that on first boot).
  */
 export async function runPluginMigrations(
-  db: BunSQLiteDatabase,
+  db: BunSQLiteDatabase<Record<string, unknown>>,
   pluginId: string,
   statements: string[],
 ): Promise<MigrateResult> {

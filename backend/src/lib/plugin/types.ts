@@ -46,10 +46,10 @@ export type HookName = keyof HookPayloads;
 export interface Plugin {
   manifest: PluginManifest;
   register?: (
-    app: Elysia<any, any, any, any, any, any, any, any>,
+    app: Elysia<any, any, any, any, any, any, any>,
   ) =>
-    | Elysia<any, any, any, any, any, any, any, any>
-    | Promise<Elysia<any, any, any, any, any, any, any, any>>;
+    | Elysia<any, any, any, any, any, any, any>
+    | Promise<Elysia<any, any, any, any, any, any, any>>;
   hooks?: Partial<{ [K in HookName]: (payload: HookPayloads[K]) => Promise<void> | void }>;
   /**
    * Plugin-owned SQL migrations. Each entry is an idempotent `CREATE TABLE

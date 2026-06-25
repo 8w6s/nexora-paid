@@ -36,13 +36,13 @@ const ENTRY_BODY = t.Object({
 });
 
 export const adminBlocklistRoutes = new Elysia({ prefix: "/api/admin" })
-  .onBeforeHandle(async ({ cookie, status }) => {
+  .onBeforeHandle(async ({ cookie, status }: any) => {
     const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
     if (!user) return status(401, { error: "Authentication required", code: "UNAUTHENTICATED" });
     if (user.role !== "admin") return status(403, { error: "Admin only", code: "FORBIDDEN" });
     return;
   })
-  .derive(async ({ cookie }) => {
+  .derive(async ({ cookie }: any) => {
     const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
     return { adminEmail: user?.email ?? "unknown" };
   })
@@ -59,23 +59,23 @@ export const adminBlocklistRoutes = new Elysia({ prefix: "/api/admin" })
   // success the previous (404'd) route delivered.
   .post(
     "/blacklist",
-    async ({ body, set, adminEmail, request }) =>
+    async ({ body, set, adminEmail, request }: any) =>
       addEntry("blacklist", body, set, adminEmail, request),
     { body: ENTRY_BODY },
   )
   .post(
     "/whitelist",
-    async ({ body, set, adminEmail, request }) =>
+    async ({ body, set, adminEmail, request }: any) =>
       addEntry("whitelist", body, set, adminEmail, request),
     { body: ENTRY_BODY },
   )
 
   // ─── Remove an entry. Scoped to the requested mode so a forged id
   // from the other list can never be removed via this endpoint.
-  .delete("/blacklist/:id", async ({ params, set, adminEmail, request }) =>
+  .delete("/blacklist/:id", async ({ params, set, adminEmail, request }: any) =>
     deleteEntry("blacklist", params.id, set, adminEmail, request),
   )
-  .delete("/whitelist/:id", async ({ params, set, adminEmail, request }) =>
+  .delete("/whitelist/:id", async ({ params, set, adminEmail, request }: any) =>
     deleteEntry("whitelist", params.id, set, adminEmail, request),
   );
 

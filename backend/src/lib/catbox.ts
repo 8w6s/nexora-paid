@@ -73,7 +73,7 @@ export async function uploadBufferToCatbox(
   if (userhash) form.append("userhash", userhash);
   form.append(
     "fileToUpload",
-    new Blob([bytes as BlobPart], { type: "application/octet-stream" }),
+    new Blob([bytes as unknown as Uint8Array], { type: "application/octet-stream" }),
     safeName,
   );
 

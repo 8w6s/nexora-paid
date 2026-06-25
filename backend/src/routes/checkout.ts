@@ -26,7 +26,7 @@ import { reserveKeys } from "../lib/inventory.ts";
 import { hookBus } from "../lib/plugin/hook-bus.ts";
 import { lockOrderRate } from "../lib/rate.ts";
 import { rateLimitCheck, clientIp as resolveClientIp } from "../lib/rate-limit.ts";
-import { getSetting, getSettingNumber, setSetting } from "../lib/settings.ts";
+import { getSetting, getSettingNumber } from "../lib/settings.ts";
 
 // Hard caps on checkout request shape — defense against memory blowup, qty
 // overflow into coupon math, and per-IP request floods that drain HD address
@@ -39,13 +39,16 @@ const ORDER_STATUS_RATE_MAX = 60; // 60 polls / IP / minute (1/sec)
 const ORDER_STATUS_WINDOW_MS = 60_000;
 
 const CheckoutSchema = v.object({
-  items: v.array(
-    v.object({
-      productId: v.string(),
-      variantId: v.optional(v.nullable(v.string())),
-      qty: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_LINE_QTY)),
-    }),
-    [v.minLength(1), v.maxLength(MAX_LINES_PER_ORDER)],
+  items: v.pipe(
+    v.array(
+      v.object({
+        productId: v.string(),
+        variantId: v.optional(v.nullable(v.string())),
+        qty: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_LINE_QTY)),
+      }),
+    ),
+    v.minLength(1),
+    v.maxLength(MAX_LINES_PER_ORDER),
   ),
   method: v.optional(v.string()),
   coupon: v.optional(

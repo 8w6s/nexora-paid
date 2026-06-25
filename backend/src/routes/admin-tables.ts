@@ -93,6 +93,7 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
   })
   .onBeforeHandle(({ __unauthorized }) => {
     if (__unauthorized) return { error: "Unauthorized", code: "UNAUTHORIZED" };
+    return undefined;
   })
 
   // GET /api/admin/tables/:name/rows?limit=50&offset=0

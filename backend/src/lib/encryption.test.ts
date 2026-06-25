@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decrypt, encrypt } from "./encryption.ts";

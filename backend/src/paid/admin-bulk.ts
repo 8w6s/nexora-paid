@@ -98,7 +98,7 @@ export const adminBulkPlugin: Plugin = {
     app
       .post(
         "/api/admin/products/bulk-delete",
-        async ({ body, cookie, status }) => {
+        async ({ body, cookie, status }: any) => {
           const auth = await requireAdmin(cookie, status);
           if ("errorResponse" in auth) return auth.errorResponse;
           return bulkToggleActive(body.ids, false, auth.user, status);
@@ -107,7 +107,7 @@ export const adminBulkPlugin: Plugin = {
       )
       .post(
         "/api/admin/products/bulk-activate",
-        async ({ body, cookie, status }) => {
+        async ({ body, cookie, status }: any) => {
           const auth = await requireAdmin(cookie, status);
           if ("errorResponse" in auth) return auth.errorResponse;
           return bulkToggleActive(body.ids, true, auth.user, status);

@@ -53,6 +53,9 @@ export const users = sqliteTable(
     totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
     lastTotpCounter: integer("last_totp_counter").notNull().default(-1),
     totpBackupCodes: text("totp_backup_codes"),
+    // UI locale chosen by the user (en/vi/zh/es/de). Validated server-side at
+    // /api/auth/locale; storefront re-applies on next session bootstrap.
+    locale: text("locale"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),

@@ -11,7 +11,7 @@ type FetchFn = typeof globalThis.fetch;
 const realFetch: FetchFn = globalThis.fetch;
 
 function mockFetch(handler: (req: Request) => Response | Promise<Response>): void {
-  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = ((input: Request | URL | string, init?: RequestInit) => {
     const req = input instanceof Request ? input : new Request(String(input), init);
     return Promise.resolve(handler(req));
   }) as FetchFn;
@@ -36,7 +36,7 @@ describe("catbox.uploadBufferToCatbox", () => {
   });
 
   it("strips directory components from filename", async () => {
-    let captured: FormData | null = null;
+    let captured: unknown = null;
     mockFetch(async (req) => {
       captured = await req.formData();
       return new Response("https://files.catbox.moe/zz99.bin", { status: 200 });
@@ -91,7 +91,7 @@ describe("catbox.uploadBufferToCatbox", () => {
       return new Response("https://files.catbox.moe/aa11.bin", { status: 200 });
     });
     await uploadBufferToCatbox("a.bin", new Uint8Array([1]), { endpoint: "http://mock/catbox" });
-    expect(userhashSeen).toBe("abc123userhash");
+    expect(userhashSeen as unknown as string).toBe("abc123userhash");
   });
 
   it("omits userhash field when no env / opt", async () => {

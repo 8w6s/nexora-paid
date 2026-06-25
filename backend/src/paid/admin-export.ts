@@ -64,7 +64,7 @@ export const adminExportPlugin: Plugin = {
   register: (app) =>
     app.get(
       "/api/admin/orders/export.csv",
-      async ({ cookie, status, set, query }) => {
+      async ({ cookie, status, set, query }: any) => {
         const auth = await requireAdmin(cookie, status);
         if ("errorResponse" in auth) return auth.errorResponse;
 

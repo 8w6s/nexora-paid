@@ -24,7 +24,7 @@ E2E: ${_pass} pass, ${fail} fail
 `),
 );
 const jar: Record<string, string> = {};
-async function call(method: string, path: string, body?: unknown, who?: "c" | "a") {
+async function call(method: string, path: string, body?: unknown, who?: string) {
   const headers: Record<string, string> = { "Content-Type": "application/json", Origin: O };
   if (who && jar[who]) headers.Cookie = jar[who];
   const res = await fetch(`${B}${path}`, {

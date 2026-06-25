@@ -43,7 +43,7 @@ interface LoadedRecord {
  * ordering `isDegraded()` returns false (pre-init policy: assume healthy)
  * and a tampered build would silently load paid plugins.
  */
-export async function loadPlugins<A extends Elysia<any, any, any, any, any, any, any, any>>(
+export async function loadPlugins<A extends Elysia<any, any, any, any, any, any, any>>(
   app: A,
 ): Promise<A> {
   const records: LoadedRecord[] = [];
@@ -105,8 +105,7 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
 
   for (const p of plugins) {
     const { id, version, description, nexoraVersion } = p.manifest;
-    const _tag = `${id}@${version}`;
-
+    
     // 2. Compat
     const compat = checkCompat(NEXORA_VERSION, nexoraVersion);
     if (!compat.ok) {

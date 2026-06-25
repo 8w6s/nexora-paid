@@ -42,8 +42,8 @@ export const searchPlugin: Plugin = {
     nexoraVersion: ">=0.2 <0.3",
     description: "Storefront search autocomplete (/api/products/suggest)",
   },
-  register: (app: Elysia<any, any, any, any, any, any, any, any>) =>
-    app.get("/api/products/suggest", async ({ query, request, set }) => {
+  register: (app: Elysia<any, any, any, any, any, any, any>) =>
+    app.get("/api/products/suggest", async ({ query, request, set }: any) => {
       const ip = resolveClientIp(request);
       const rl = rateLimitCheck(`suggest:${ip}`, SUGGEST_RATE_MAX, SUGGEST_RATE_WINDOW_MS);
       if (!rl.allowed) {
