@@ -30,7 +30,8 @@
       "cart": "Carrito",
       "signIn": "Iniciar sesión",
       "signUp": "Registrarse",
-      "signOut": "Cerrar sesión"
+      "signOut": "Cerrar sesión",
+      "shop": "Tienda"
     },
     "product": {
       "addToCart": "Añadir al carrito",
@@ -42,7 +43,12 @@
       "variants": "Variantes",
       "selectVariant": "Seleccionar variante",
       "relatedProducts": "Productos relacionados",
-      "buyNow": "Comprar ahora"
+      "buyNow": "Comprar ahora",
+      "inStockOnly": "Solo en stock",
+      "allCategories": "Todos",
+      "instantDelivery": "Entrega inmediata",
+      "details": "Ver detalles",
+      "noResults": "Ningún producto coincide con los filtros."
     },
     "cart": {
       "title": "Tu carrito",
@@ -53,7 +59,8 @@
       "remove": "Quitar",
       "quantity": "Cantidad",
       "continueShopping": "Seguir comprando",
-      "priceChanged": "El precio de {product} cambió de {old} a {new}"
+      "priceChanged": "El precio de {product} cambió de {old} a {new}",
+      "openEmpty": "Carrito (vacío)"
     },
     "checkout": {
       "title": "Pagar",
@@ -216,7 +223,13 @@
       "resetTokenMissing": "Falta el token de restablecimiento. Solicita un nuevo enlace.",
       "resetTokenExpired": "Este enlace de restablecimiento ha caducado. Solicita uno nuevo.",
       "resetFailed": "No se pudo restablecer tu contraseña. Inténtalo de nuevo.",
-      "requestNewResetLink": "Solicitar un nuevo enlace"
+      "requestNewResetLink": "Solicitar un nuevo enlace",
+      "welcomeBack": "Bienvenido de nuevo",
+      "passwordPlaceholder": "Tu contraseña",
+      "noAccount": "¿No tienes cuenta?",
+      "createOne": "Crear una",
+      "signupHint": "Crea una cuenta para seguir pedidos y acceder a tus compras.",
+      "haveAccount": "¿Ya tienes cuenta?"
     },
     "legal": {
       "termsTitle": "Términos del servicio",
@@ -264,6 +277,14 @@
       "loadFailed": "No se pudo cargar el ticket",
       "createFailed": "No se pudo crear el ticket",
       "sendFailed": "No se pudo enviar la respuesta"
+    },
+    "footer": {
+      "tagline": "Productos digitales, entrega inmediata.",
+      "ariaLabel": "Pie de página",
+      "terms": "Términos",
+      "privacy": "Privacidad",
+      "refund": "Política de reembolso",
+      "support": "Soporte"
     }
   },
   "admin": {

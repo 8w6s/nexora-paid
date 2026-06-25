@@ -30,7 +30,8 @@
       "cart": "Cart",
       "signIn": "Sign in",
       "signUp": "Sign up",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "shop": "Shop"
     },
     "product": {
       "addToCart": "Add to cart",
@@ -42,7 +43,12 @@
       "variants": "Variants",
       "selectVariant": "Select variant",
       "relatedProducts": "Related products",
-      "buyNow": "Buy now"
+      "buyNow": "Buy now",
+      "inStockOnly": "In stock only",
+      "allCategories": "All",
+      "instantDelivery": "Instant delivery",
+      "details": "View details",
+      "noResults": "No products match your filters."
     },
     "cart": {
       "title": "Your cart",
@@ -53,7 +59,8 @@
       "remove": "Remove",
       "quantity": "Quantity",
       "continueShopping": "Continue shopping",
-      "priceChanged": "Price for {product} changed from {old} to {new}"
+      "priceChanged": "Price for {product} changed from {old} to {new}",
+      "openEmpty": "Cart (empty)"
     },
     "checkout": {
       "title": "Checkout",
@@ -216,7 +223,13 @@
       "resetTokenMissing": "Missing reset token. Request a new reset link.",
       "resetTokenExpired": "This reset link has expired. Request a new one.",
       "resetFailed": "Could not reset your password. Try again.",
-      "requestNewResetLink": "Request a new reset link"
+      "requestNewResetLink": "Request a new reset link",
+      "welcomeBack": "Welcome back",
+      "passwordPlaceholder": "Your password",
+      "noAccount": "Don't have an account?",
+      "createOne": "Create one",
+      "signupHint": "Create an account to track orders and access your purchases.",
+      "haveAccount": "Already have an account?"
     },
     "legal": {
       "termsTitle": "Terms of Service",
@@ -264,6 +277,14 @@
       "loadFailed": "Failed to load ticket",
       "createFailed": "Failed to create ticket",
       "sendFailed": "Failed to send reply"
+    },
+    "footer": {
+      "tagline": "Digital goods, delivered instantly.",
+      "ariaLabel": "Site footer",
+      "terms": "Terms",
+      "privacy": "Privacy",
+      "refund": "Refund policy",
+      "support": "Support"
     }
   },
   "admin": {

@@ -30,7 +30,8 @@
       "cart": "Giỏ hàng",
       "signIn": "Đăng nhập",
       "signUp": "Đăng ký",
-      "signOut": "Đăng xuất"
+      "signOut": "Đăng xuất",
+      "shop": "Cửa hàng"
     },
     "product": {
       "addToCart": "Thêm vào giỏ",
@@ -42,7 +43,12 @@
       "variants": "Phiên bản",
       "selectVariant": "Chọn phiên bản",
       "relatedProducts": "Sản phẩm liên quan",
-      "buyNow": "Mua ngay"
+      "buyNow": "Mua ngay",
+      "inStockOnly": "Chỉ còn hàng",
+      "allCategories": "Tất cả",
+      "instantDelivery": "Giao tức thì",
+      "details": "Xem chi tiết",
+      "noResults": "Không có sản phẩm nào khớp bộ lọc."
     },
     "cart": {
       "title": "Giỏ hàng của bạn",
@@ -53,7 +59,8 @@
       "remove": "Xóa",
       "quantity": "Số lượng",
       "continueShopping": "Tiếp tục mua sắm",
-      "priceChanged": "Giá của {product} đã đổi từ {old} sang {new}"
+      "priceChanged": "Giá của {product} đã đổi từ {old} sang {new}",
+      "openEmpty": "Giỏ hàng (trống)"
     },
     "checkout": {
       "title": "Thanh toán",
@@ -216,7 +223,13 @@
       "resetTokenMissing": "Thiếu token đặt lại. Vui lòng yêu cầu liên kết mới.",
       "resetTokenExpired": "Liên kết đặt lại này đã hết hạn. Vui lòng yêu cầu liên kết mới.",
       "resetFailed": "Không thể đặt lại mật khẩu. Vui lòng thử lại.",
-      "requestNewResetLink": "Yêu cầu liên kết đặt lại mới"
+      "requestNewResetLink": "Yêu cầu liên kết đặt lại mới",
+      "welcomeBack": "Chào mừng trở lại",
+      "passwordPlaceholder": "Mật khẩu của bạn",
+      "noAccount": "Chưa có tài khoản?",
+      "createOne": "Tạo tài khoản",
+      "signupHint": "Tạo tài khoản để theo dõi đơn hàng và truy cập các giao dịch của bạn.",
+      "haveAccount": "Đã có tài khoản?"
     },
     "legal": {
       "termsTitle": "Điều khoản dịch vụ",
@@ -264,6 +277,14 @@
       "loadFailed": "Không tải được phiếu",
       "createFailed": "Không tạo được phiếu",
       "sendFailed": "Không gửi được trả lời"
+    },
+    "footer": {
+      "tagline": "Hàng số, giao tức thì.",
+      "ariaLabel": "Chân trang",
+      "terms": "Điều khoản",
+      "privacy": "Quyền riêng tư",
+      "refund": "Chính sách hoàn tiền",
+      "support": "Hỗ trợ"
     }
   },
   "admin": {

@@ -30,7 +30,8 @@
       "cart": "购物车",
       "signIn": "登录",
       "signUp": "注册",
-      "signOut": "退出"
+      "signOut": "退出",
+      "shop": "商店"
     },
     "product": {
       "addToCart": "加入购物车",
@@ -42,7 +43,12 @@
       "variants": "规格",
       "selectVariant": "选择规格",
       "relatedProducts": "相关产品",
-      "buyNow": "立即购买"
+      "buyNow": "立即购买",
+      "inStockOnly": "仅显示有货",
+      "allCategories": "全部",
+      "instantDelivery": "即时发货",
+      "details": "查看详情",
+      "noResults": "没有商品符合筛选条件。"
     },
     "cart": {
       "title": "您的购物车",
@@ -53,7 +59,8 @@
       "remove": "移除",
       "quantity": "数量",
       "continueShopping": "继续购物",
-      "priceChanged": "{product} 的价格从 {old} 变为 {new}"
+      "priceChanged": "{product} 的价格从 {old} 变为 {new}",
+      "openEmpty": "购物车（空）"
     },
     "checkout": {
       "title": "结账",
@@ -216,7 +223,13 @@
       "resetTokenMissing": "缺少重置令牌。请请求新的重置链接。",
       "resetTokenExpired": "此重置链接已过期。请请求一个新链接。",
       "resetFailed": "无法重置密码,请重试。",
-      "requestNewResetLink": "请求新的重置链接"
+      "requestNewResetLink": "请求新的重置链接",
+      "welcomeBack": "欢迎回来",
+      "passwordPlaceholder": "您的密码",
+      "noAccount": "还没有账户？",
+      "createOne": "立即注册",
+      "signupHint": "创建账户以跟踪订单并访问购买记录。",
+      "haveAccount": "已有账户？"
     },
     "legal": {
       "termsTitle": "服务条款",
@@ -264,6 +277,14 @@
       "loadFailed": "加载工单失败",
       "createFailed": "创建工单失败",
       "sendFailed": "发送回复失败"
+    },
+    "footer": {
+      "tagline": "数字商品，即时交付。",
+      "ariaLabel": "页脚",
+      "terms": "服务条款",
+      "privacy": "隐私政策",
+      "refund": "退款政策",
+      "support": "支持"
     }
   },
   "admin": {

@@ -30,7 +30,8 @@
       "cart": "Warenkorb",
       "signIn": "Anmelden",
       "signUp": "Registrieren",
-      "signOut": "Abmelden"
+      "signOut": "Abmelden",
+      "shop": "Shop"
     },
     "product": {
       "addToCart": "In den Warenkorb",
@@ -42,7 +43,12 @@
       "variants": "Varianten",
       "selectVariant": "Variante wählen",
       "relatedProducts": "Ähnliche Produkte",
-      "buyNow": "Jetzt kaufen"
+      "buyNow": "Jetzt kaufen",
+      "inStockOnly": "Nur auf Lager",
+      "allCategories": "Alle",
+      "instantDelivery": "Sofortlieferung",
+      "details": "Details ansehen",
+      "noResults": "Keine Produkte entsprechen deinen Filtern."
     },
     "cart": {
       "title": "Dein Warenkorb",
@@ -53,7 +59,8 @@
       "remove": "Entfernen",
       "quantity": "Menge",
       "continueShopping": "Weiter einkaufen",
-      "priceChanged": "Der Preis für {product} hat sich von {old} auf {new} geändert"
+      "priceChanged": "Der Preis für {product} hat sich von {old} auf {new} geändert",
+      "openEmpty": "Warenkorb (leer)"
     },
     "checkout": {
       "title": "Kasse",
@@ -216,7 +223,13 @@
       "resetTokenMissing": "Reset-Token fehlt. Fordere einen neuen Reset-Link an.",
       "resetTokenExpired": "Dieser Reset-Link ist abgelaufen. Fordere einen neuen an.",
       "resetFailed": "Passwort konnte nicht zurückgesetzt werden. Versuche es erneut.",
-      "requestNewResetLink": "Neuen Reset-Link anfordern"
+      "requestNewResetLink": "Neuen Reset-Link anfordern",
+      "welcomeBack": "Willkommen zurück",
+      "passwordPlaceholder": "Dein Passwort",
+      "noAccount": "Noch kein Konto?",
+      "createOne": "Konto erstellen",
+      "signupHint": "Erstelle ein Konto, um Bestellungen zu verfolgen und auf deine Käufe zuzugreifen.",
+      "haveAccount": "Schon ein Konto?"
     },
     "legal": {
       "termsTitle": "Nutzungsbedingungen",
@@ -264,6 +277,14 @@
       "loadFailed": "Ticket konnte nicht geladen werden",
       "createFailed": "Ticket konnte nicht erstellt werden",
       "sendFailed": "Antwort konnte nicht gesendet werden"
+    },
+    "footer": {
+      "tagline": "Digitale Güter, sofort geliefert.",
+      "ariaLabel": "Fußzeile",
+      "terms": "Nutzungsbedingungen",
+      "privacy": "Datenschutz",
+      "refund": "Rückerstattungsrichtlinie",
+      "support": "Support"
     }
   },
   "admin": {
