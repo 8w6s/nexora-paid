@@ -2,6 +2,7 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiRequestError } from "../../lib/api";
 import { Icon } from "../Icon";
+import "./AdminDbEditor.css";
 
 interface SchemaColumn {
   name: string;
@@ -22,10 +23,6 @@ interface QueryResult {
   lastInsertRowid: number | null;
   elapsedMs: number;
   truncated: boolean;
-}
-interface QueryError {
-  error: string;
-  code: string;
 }
 interface AuditRow {
   id: number;
@@ -122,29 +119,32 @@ export function AdminDbEditor(): React.ReactElement {
   const moreCount = result?.truncated ? "+" : "";
 
   return (
-    <div style={styles.shell}>
-      <aside style={styles.side}>
-        <div style={styles.sideTitle}>
-          <Icon name="database" size={14} /> Schema
+    <div className="nx-dbe">
+      <aside className="nx-dbe__side">
+        <div className="nx-dbe__side-title">
+          <Icon name="database" size={13} /> Schema
         </div>
-        <div style={styles.sideList}>
+        <div className="nx-dbe__side-list">
           {tables.length === 0 ? (
-            <div style={styles.muted}>loading…</div>
+            <div className="nx-dbe__muted">loading…</div>
           ) : (
             tables.map((t) => (
-              <details key={t.name} style={styles.tbl}>
+              <details key={t.name} className="nx-dbe__tbl">
                 <summary
-                  style={styles.tblName}
+                  className="nx-dbe__tbl-name"
                   onDoubleClick={() => insertTableQuery(t.name)}
                   title="Double-click to insert SELECT"
                 >
                   {t.name}
                 </summary>
-                <ul style={styles.cols}>
+                <ul className="nx-dbe__cols">
                   {t.columns.map((c) => (
-                    <li key={c.name} style={styles.col}>
-                      <span style={styles.colName}>{c.name}</span>
-                      <span style={styles.colType}>{c.type}{c.pk ? " 🔑" : ""}</span>
+                    <li key={c.name} className="nx-dbe__col">
+                      <span className="nx-dbe__col-name">{c.name}</span>
+                      <span className="nx-dbe__col-type">
+                        {c.type.toLowerCase()}
+                        {c.pk ? <span className="nx-dbe__col-pk">PK</span> : null}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -154,32 +154,36 @@ export function AdminDbEditor(): React.ReactElement {
         </div>
       </aside>
 
-      <section style={styles.main}>
-        <div style={styles.tabs}>
+      <section className="nx-dbe__main">
+        <div className="nx-dbe__tabs">
           <button
             type="button"
-            style={{ ...styles.tab, ...(pane === "query" ? styles.tabActive : {}) }}
+            className={`nx-dbe__tab${pane === "query" ? " nx-dbe__tab--active" : ""}`}
             onClick={() => setPane("query")}
           >
-            SQL
+            SQL Query
           </button>
           <button
             type="button"
-            style={{ ...styles.tab, ...(pane === "audit" ? styles.tabActive : {}) }}
+            className={`nx-dbe__tab${pane === "audit" ? " nx-dbe__tab--active" : ""}`}
             onClick={() => setPane("audit")}
           >
-            Audit log
+            Audit Log
           </button>
         </div>
 
         {pane === "query" ? (
           <>
-            <div style={styles.toolbar}>
-              <button type="button" onClick={run} disabled={running} style={styles.btnPrimary}>
-                {running ? "Running…" : "Run (Ctrl+Enter)"}
+            <div className="nx-dbe__toolbar">
+              <button type="button" onClick={run} disabled={running} className="nx-dbe__btn">
+                {running ? "Running…" : (
+                  <>
+                    Run<span className="nx-dbe__kbd">Ctrl+↵</span>
+                  </>
+                )}
               </button>
-              <span style={styles.warn} title="Write queries land in audit_log immediately">
-                full-SQL · all writes audited
+              <span className="nx-dbe__hint" title="Write queries land in audit_log immediately">
+                full-SQL access · all writes audited
               </span>
             </div>
             <textarea
@@ -188,31 +192,33 @@ export function AdminDbEditor(): React.ReactElement {
               onChange={(e) => setStatement(e.target.value)}
               onKeyDown={onKey}
               spellCheck={false}
-              style={styles.editor}
+              className="nx-dbe__editor"
               placeholder="SELECT * FROM users LIMIT 50;"
             />
 
             {err ? (
-              <div style={styles.err}>
+              <div className="nx-dbe__err">
                 <Icon name="alert-triangle" size={14} /> {err}
               </div>
             ) : null}
 
             {result ? (
-              <div style={styles.resultWrap}>
-                <div style={styles.resultMeta}>
-                  {result.columns.length > 0
-                    ? `${totalRows}${moreCount} rows · ${result.elapsedMs}ms`
-                    : `${result.rowsAffected} row(s) affected · ${result.elapsedMs}ms`}
-                  {result.truncated ? " · truncated at 5000" : ""}
+              <div className="nx-dbe__result">
+                <div className="nx-dbe__result-meta nx-dbe__result-meta--ok">
+                  {result.columns.length > 0 ? (
+                    <><strong>{totalRows}{moreCount}</strong> rows · <strong>{result.elapsedMs}</strong>ms</>
+                  ) : (
+                    <><strong>{result.rowsAffected}</strong> row(s) affected · <strong>{result.elapsedMs}</strong>ms</>
+                  )}
+                  {result.truncated ? <span> · truncated at 5000</span> : null}
                 </div>
                 {result.columns.length > 0 ? (
-                  <div style={styles.grid}>
-                    <table style={styles.table}>
-                      <thead>
+                  <div className="nx-dbe__grid">
+                    <table className="nx-dbe__table">
+                <thead>
                         <tr>
                           {result.columns.map((c) => (
-                            <th key={c} style={styles.th}>{c}</th>
+                            <th key={c}>{c}</th>
                           ))}
                         </tr>
                       </thead>
@@ -220,7 +226,7 @@ export function AdminDbEditor(): React.ReactElement {
                         {result.rows.map((row, i) => (
                           <tr key={i}>
                             {result.columns.map((c) => (
-                              <td key={c} style={styles.td}>{formatCell(row[c])}</td>
+                              <td key={c}>{formatCell(row[c])}</td>
                             ))}
                           </tr>
                         ))}
@@ -232,46 +238,46 @@ export function AdminDbEditor(): React.ReactElement {
             ) : null}
           </>
         ) : (
-          <div style={styles.auditWrap}>
-            <div style={styles.toolbar}>
-              <button type="button" onClick={loadAudit} disabled={auditLoading} style={styles.btnPrimary}>
+          <div className="nx-dbe__result">
+            <div className="nx-dbe__toolbar">
+              <button type="button" onClick={loadAudit} disabled={auditLoading} className="nx-dbe__btn">
                 {auditLoading ? "Loading…" : "Refresh"}
               </button>
-              <span style={styles.warn}>Latest 200 entries, newest first</span>
+              <span className="nx-dbe__hint">Latest 200 entries, newest first</span>
             </div>
             {auditRows.length === 0 ? (
-              <div style={styles.muted}>
+              <div className="nx-dbe__muted">
                 {auditLoading ? "Loading…" : "No audit entries yet — run a query in the SQL tab."}
               </div>
             ) : (
-              <div style={styles.grid}>
-                <table style={styles.table}>
+              <div className="nx-dbe__grid">
+                <table className="nx-dbe__table">
                   <thead>
                     <tr>
-                      <th style={styles.th}>When</th>
-                      <th style={styles.th}>Actor</th>
-                      <th style={styles.th}>Action</th>
-                      <th style={styles.th}>Statement</th>
-                      <th style={styles.th}>Rows</th>
-                      <th style={styles.th}>ms</th>
-                      <th style={styles.th}>OK</th>
+                      <th>When</th>
+                      <th>Actor</th>
+                      <th>Action</th>
+                      <th>Statement</th>
+                      <th>Rows</th>
+                      <th>ms</th>
+                      <th>OK</th>
                     </tr>
                   </thead>
                   <tbody>
                     {auditRows.map((r) => (
                       <tr key={r.id}>
-                        <td style={styles.td} title={new Date(r.at).toISOString()}>
+                        <td title={new Date(r.at).toISOString()}>
                           {new Date(r.at).toLocaleString()}
                         </td>
-                <td style={styles.td}>{r.actor_email ?? "—"}</td>
-                        <td style={styles.td}>{r.action}</td>
-                        <td style={{ ...styles.td, whiteSpace: "normal", maxWidth: 480 }}>
-                          <code style={styles.code}>{r.statement ?? ""}</code>
-                          {r.error ? <div style={styles.errInline}>{r.error}</div> : null}
+                        <td>{r.actor_email ?? <span className="nx-dbe__null">—</span>}</td>
+                        <td>{r.action}</td>
+                        <td className="nx-dbe__audit-cell-stmt">
+                          <code className="nx-dbe__code">{r.statement ?? ""}</code>
+                          {r.error ? <div className="nx-dbe__err-inline">{r.error}</div> : null}
                         </td>
-                        <td style={styles.td}>{r.rows_affected ?? "—"}</td>
-                        <td style={styles.td}>{r.elapsed_ms ?? "—"}</td>
-                        <td style={styles.td}>{r.success ? "✓" : "✗"}</td>
+                        <td>{r.rows_affected ?? <span className="nx-dbe__null">—</span>}</td>
+                        <td>{r.elapsed_ms ?? <span className="nx-dbe__null">—</span>}</td>
+                        <td className={r.success ? "nx-dbe__ok" : "nx-dbe__bad"}>{r.success ? "✓" : "✗"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -285,53 +291,11 @@ export function AdminDbEditor(): React.ReactElement {
   );
 }
 
-function formatCell(v: unknown): string {
-  if (v == null) return "∅";
+function formatCell(v: unknown): React.ReactNode {
+  if (v == null) return <span className="nx-dbe__null">null</span>;
   if (typeof v === "object") return JSON.stringify(v);
   if (typeof v === "string") return v.length > 200 ? v.slice(0, 200) + "…" : v;
   return String(v);
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  shell: { display: "grid", gridTemplateColumns: "240px 1fr", gap: 12, minHeight: 480 },
-  side: { borderRight: "1px solid var(--border, #2a2a2a)", paddingRight: 8, overflow: "auto", maxHeight: 600 },
-  sideTitle: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted, #888)", padding: "4px 6px" },
-  sideList: { display: "flex", flexDirection: "column", gap: 2 },
-  tbl: { padding: "2px 6px" },
-  tblName: { cursor: "pointer", fontFamily: "ui-monospace, monospace", fontSize: 12 },
-  cols: { listStyle: "none", padding: "4px 0 4px 12px", margin: 0, fontSize: 11 },
-  col: { display: "flex", justifyContent: "space-between", color: "var(--muted, #888)" },
-  colName: { fontFamily: "ui-monospace, monospace" },
-  colType: { opacity: 0.6 },
-  muted: { color: "var(--muted, #888)", fontSize: 12, padding: "6px" },
-  main: { display: "flex", flexDirection: "column", gap: 8, minWidth: 0 },
-  tabs: { display: "flex", gap: 4, borderBottom: "1px solid var(--border, #2a2a2a)", marginBottom: 4 },
-  tab: { padding: "6px 14px", background: "transparent", color: "var(--muted, #888)", border: 0, borderBottom: "2px solid transparent", cursor: "pointer" },
-  tabActive: { color: "var(--fg, #ddd)", borderBottomColor: "var(--accent, #3b82f6)" },
-  toolbar: { display: "flex", alignItems: "center", gap: 12 },
-  btnPrimary: { padding: "6px 14px", background: "var(--accent, #3b82f6)", color: "#fff", border: 0, borderRadius: 6, cursor: "pointer" },
-  warn: { fontSize: 11, color: "var(--muted, #888)" },
-  editor: {
-    fontFamily: "ui-monospace, 'JetBrains Mono', monospace",
-    fontSize: 13,
-    padding: 10,
-    minHeight: 140,
-    background: "var(--bg-elevated, #111)",
-    color: "var(--fg, #ddd)",
-    border: "1px solid var(--border, #2a2a2a)",
-    borderRadius: 6,
-    resize: "vertical",
-  },
-  err: { padding: 8, background: "rgba(220,40,40,0.1)", border: "1px solid rgba(220,40,40,0.4)", borderRadius: 6, fontSize: 12 },
-  errInline: { fontSize: 11, color: "#e57373", marginTop: 4 },
-  resultWrap: { display: "flex", flexDirection: "column", gap: 6 },
-  resultMeta: { fontSize: 11, color: "var(--muted, #888)" },
-  auditWrap: { display: "flex", flexDirection: "column", gap: 6 },
-  grid: { overflow: "auto", maxHeight: 480, border: "1px solid var(--border, #2a2a2a)", borderRadius: 6 },
-  table: { borderCollapse: "collapse", width: "100%", fontSize: 12 },
-  th: { textAlign: "left", padding: "6px 10px", background: "var(--bg-elevated, #1a1a1a)", position: "sticky", top: 0, fontWeight: 600 },
-  td: { padding: "4px 10px", borderTop: "1px solid var(--border, #222)", fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" },
-  code: { fontFamily: "ui-monospace, monospace", fontSize: 11, color: "var(--fg, #ddd)" },
-};
 
 export default AdminDbEditor;
