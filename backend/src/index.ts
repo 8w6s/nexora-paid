@@ -20,6 +20,7 @@ import { admin2faRoutes } from "./routes/admin-2fa.ts";
 import { adminBlocklistRoutes } from "./routes/admin-blocklist.ts";
 import { adminDbRoutes } from "./routes/admin-db.ts";
 import { adminTablesRoutes } from "./routes/admin-tables.ts";
+import { adminUpdateRoutes } from "./routes/admin-update.ts";
 import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
 import { categoryRoutes } from "./routes/categories.ts";
 import { checkoutRoutes } from "./routes/checkout.ts";
@@ -113,7 +114,7 @@ const baseApp = new Elysia()
     else if (method === "DELETE") methodBg = "\x1b[41m\x1b[97m";
     const methodBlock = `${methodBg} ${method.padEnd(5)} \x1b[0m`;
 
-    const status = ctx.set.status || 200;
+    const status = Number(ctx.set.status ?? 200);
     let statusBg = "\x1b[42m\x1b[30m";
     if (status >= 500) statusBg = "\x1b[41m\x1b[97m";
     else if (status >= 400) statusBg = "\x1b[43m\x1b[30m";
@@ -126,29 +127,35 @@ const baseApp = new Elysia()
   })
   .onError(({ code, error, request }) => {
     const url = new URL(request.url);
+    // Elysia v1 widens `error` to a Readonly union that includes
+    // ElysiaCustomStatusResponse (no .message). Narrow defensively.
+    const message =
+      typeof (error as { message?: unknown }).message === "string"
+        ? ((error as { message: string }).message)
+        : String(error);
 
     // Classify error severity
     let severity = "HIGH";
     if (
       code === "NOT_FOUND" ||
       code === "VALIDATION" ||
-      error.message.includes("rate limit") ||
-      error.message.includes("unauthorized") ||
-      error.message.includes("forbidden")
+      message.includes("rate limit") ||
+      message.includes("unauthorized") ||
+      message.includes("forbidden")
     ) {
       severity = "LOW";
     } else if (
-      error.message.includes("third-party") ||
-      error.message.includes("email") ||
-      error.message.includes("blockchain") ||
-      error.message.includes("explorer") ||
-      error.message.includes("BlockCypher")
+      message.includes("third-party") ||
+      message.includes("email") ||
+      message.includes("blockchain") ||
+      message.includes("explorer") ||
+      message.includes("BlockCypher")
     ) {
       severity = "MEDIUM";
     }
 
     console.error(
-      `[ERROR] [SEVERITY:${severity}] \x1b[41m\x1b[97m ERR \x1b[0m \x1b[31m${request.method} ${url.pathname} - Code: ${code} | Error: ${error.message}\x1b[0m`,
+      `[ERROR] [SEVERITY:${severity}] \x1b[41m\x1b[97m ERR \x1b[0m \x1b[31m${request.method} ${url.pathname} - Code: ${code} | Error: ${message}\x1b[0m`,
     );
   })
   // CSRF defense-in-depth: reject cross-origin state-changing requests.
@@ -408,6 +415,7 @@ const app = (await loadPlugins(baseApp))
   .use(adminTicketRoutes)
   .use(adminDbRoutes)
   .use(adminTablesRoutes)
+  .use(adminUpdateRoutes)
 
   // ─── Checkout + setup ─────
   .use(checkoutRoutes)

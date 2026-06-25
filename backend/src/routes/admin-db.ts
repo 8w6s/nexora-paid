@@ -115,6 +115,7 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
   })
   .onBeforeHandle(({ __unauthorized }) => {
     if (__unauthorized) return { error: "Unauthorized", code: "UNAUTHORIZED" };
+    return undefined;
   })
 
   // GET /api/admin/db/schema — list tables + columns. Used by Native Editor

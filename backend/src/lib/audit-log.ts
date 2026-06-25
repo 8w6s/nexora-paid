@@ -100,5 +100,5 @@ export function readAudit(db: Database, q: AuditQuery = {}): unknown[] {
                ${where.length ? "WHERE " + where.join(" AND ") : ""}
                ORDER BY at DESC LIMIT ?`;
   args.push(limit);
-  return db.query(sql).all(...args);
+  return db.query(sql).all(...(args as never[]));
 }

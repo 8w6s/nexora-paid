@@ -202,13 +202,25 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     feedbacks: "reviews",
   };
 
+  const KNOWN_TABS: ReadonlySet<Tab> = new Set<Tab>([
+    "overview", "products", "categories", "groups", "addons", "quantity-deals",
+    "bundle-offers", "orders", "customers", "coupons", "abandoned", "reviews",
+    "tickets", "payments", "features", "blog", "notifications", "blacklist",
+    "import", "activity", "team", "developers", "db-editor", "native-editor",
+    "settings",
+  ]);
+
+  const resolveTab = (raw: string | undefined): Tab => {
+    if (!raw) return "overview";
+    const mapped = (urlToTab[raw] ?? raw) as Tab;
+    return KNOWN_TABS.has(mapped) ? mapped : "overview";
+  };
+
   const [tab, setTab] = useState<Tab>(() => {
-    if (activeTabPath) return (urlToTab[activeTabPath] ?? activeTabPath) as Tab;
+    if (activeTabPath) return resolveTab(activeTabPath);
     if (typeof window !== "undefined") {
       const parts = window.location.pathname.split("/").filter(Boolean);
-      if (parts[0] === "admin" && parts[1]) {
-        return (urlToTab[parts[1]] ?? parts[1]) as Tab;
-      }
+      if (parts[0] === "admin") return resolveTab(parts[1]);
     }
     return "overview";
   });
@@ -221,8 +233,8 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
   useEffect(() => {
     if (typeof window === "undefined") return;
     const parts = window.location.pathname.split("/").filter(Boolean);
-    if (parts[0] === "admin" && parts[1]) {
-      const next = (urlToTab[parts[1]] ?? parts[1]) as Tab;
+    if (parts[0] === "admin") {
+      const next = resolveTab(parts[1]);
       if (next !== tab) setTab(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,11 +244,8 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
     if (typeof window === "undefined") return;
     const handlePopState = () => {
       const parts = window.location.pathname.split("/").filter(Boolean);
-      if (parts[0] === "admin" && parts[1]) {
-        setTab((urlToTab[parts[1]] ?? parts[1]) as Tab);
-      } else {
-        setTab("overview");
-      }
+      if (parts[0] === "admin") setTab(resolveTab(parts[1]));
+      else setTab("overview");
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);

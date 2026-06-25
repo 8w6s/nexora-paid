@@ -100,6 +100,7 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
   })
   .onBeforeHandle(({ __unauthorized }) => {
     if (__unauthorized) return { error: "Unauthorized", code: "UNAUTHORIZED" };
+    return undefined;
   })
 
   // GET /api/admin/update/check — query FileServer, compare against current.
@@ -213,13 +214,12 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
         }
         const r = await fetch("http://unix/apply", {
           method: "POST",
-          // @ts-expect-error Bun-specific unix socket option
           unix: "/var/run/nexora-updater.sock",
           headers: { "content-type": "application/json", ...authHeaders },
           body: bodyStr,
           signal: AbortSignal.timeout(5_000),
-        });
-        const data = await r.json().catch(() => ({}));
+        } as RequestInit & { unix: string });
+        const data = (await r.json().catch(() => ({}))) as { jobId?: string; status?: string };
         if (!r.ok) {
           set.status = 500;
           return { error: "Updater rejected the request", code: "UPDATER_REJECTED", detail: data };
@@ -290,13 +290,12 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
     try {
       const r = await fetch("http://unix/warm-pull", {
         method: "POST",
-        // @ts-expect-error Bun-specific unix socket option
         unix: "/var/run/nexora-updater.sock",
         headers: { "content-type": "application/json", ...authHeaders },
         body: bodyStr,
         signal: AbortSignal.timeout(16 * 60_000),
-      });
-      const data = await r.json().catch(() => ({}));
+      } as RequestInit & { unix: string });
+      const data = (await r.json().catch(() => ({}))) as { digestVerified?: boolean; elapsedMs?: number };
       if (!r.ok) {
         set.status = r.status;
         return { error: "Warm-pull failed", code: "WARM_PULL_FAILED", detail: data };
@@ -328,10 +327,9 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
     try {
       const id = query?.jobId ?? "latest";
       const r = await fetch(`http://unix/status?jobId=${encodeURIComponent(id)}`, {
-        // @ts-expect-error Bun-specific unix socket option
         unix: "/var/run/nexora-updater.sock",
         signal: AbortSignal.timeout(5_000),
-      });
+      } as RequestInit & { unix: string });
       if (!r.ok) {
         set.status = r.status;
         return { error: "Updater error", code: "UPDATER_ERROR" };
