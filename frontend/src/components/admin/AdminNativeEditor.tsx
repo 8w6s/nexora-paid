@@ -44,6 +44,7 @@ export function AdminNativeEditor(): React.ReactElement {
     rowid?: number;
     values: Record<string, unknown>;
   } | null>(null);
+  const [viewCell, setViewCell] = useState<{ col: string; value: unknown } | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -275,7 +276,12 @@ export function AdminNativeEditor(): React.ReactElement {
                         </button>
                       </td>
                       {visibleCols.map((c) => (
-                        <td key={c.name} title={String(row[c.name] ?? "")}>
+                        <td
+                          key={c.name}
+                          title={String(row[c.name] ?? "")}
+                          onClick={() => setViewCell({ col: c.name, value: row[c.name] })}
+                          style={{ cursor: "pointer" }}
+                        >
                           {formatCell(row[c.name])}
                         </td>
                       ))}
@@ -395,6 +401,28 @@ export function AdminNativeEditor(): React.ReactElement {
               <button type="button" className="nx-nae__btn" onClick={submitEdit}>
                 {editing.mode === "insert" ? "Insert" : "Save changes"}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {viewCell ? (
+        <div className="nx-nae__modal-bg" onClick={() => setViewCell(null)}>
+          <div className="nx-nae__modal" onClick={(e) => e.stopPropagation()}>
+            <div className="nx-nae__modal-head">
+              <h3 className="nx-nae__modal-title">{viewCell.col}</h3>
+              <button type="button" className="nx-nae__btn-icon" onClick={() => setViewCell(null)}>
+                ×
+              </button>
+            </div>
+            <div className="nx-nae__modal-body">
+              {viewCell.value == null ? (
+                <span className="nx-nae__null">null</span>
+              ) : (
+                <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontSize: "12px", fontFamily: "ui-monospace, monospace" }}>
+                  {typeof viewCell.value === "object" ? JSON.stringify(viewCell.value, null, 2) : String(viewCell.value)}
+                </pre>
+              )}
             </div>
           </div>
         </div>

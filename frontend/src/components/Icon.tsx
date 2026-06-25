@@ -40,7 +40,9 @@ type IconName =
   | "envelope"
   | "link"
   | "database"
-  | "table";
+  | "table"
+  | "alert-triangle"
+  | "download";
 
 interface IconProps {
   name: IconName;
@@ -227,6 +229,18 @@ const paths: Record<IconName, React.ReactNode> = {
       <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
     </>
   ),
+  "alert-triangle": (
+    <>
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M7 10l5 5 5-5M12 15V3" />
+    </>
+  ),
 };
 
 // Map our icon names → Font Awesome icon names (used when a FA Pro Kit is loaded).
@@ -271,6 +285,8 @@ const faName: Record<IconName, string> = {
   link: "link",
   database: "database",
   table: "table",
+  "alert-triangle": "triangle-exclamation",
+  download: "download",
 };
 
 export const Icon: React.FC<IconProps> = ({

@@ -197,7 +197,7 @@ export const AdminUpdateCard: React.FC = () => {
                 type="button"
                 className="upd-btn upd-btn-primary"
                 onClick={() => setConfirmOpen(true)}
-                disabled={applying || (job && job.status !== "ok" && job.status !== "failed" && job.status !== "rolled-back")}
+                disabled={applying || (job ? job.status !== "ok" && job.status !== "failed" && job.status !== "rolled-back" : false)}
               >
                 Apply update
               </button>

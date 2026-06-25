@@ -99,7 +99,7 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  pading: 2px 6px;
+  padding: 2px 6px;
   border-radius: 4px;
   color: var(--muted, #666);
   gap: 8px;
@@ -314,7 +314,7 @@
 
 .nx-dbe__table th {
   text-align: left;
-  pading: 10px 14px;
+  padding: 10px 14px;
   background: var(--surface-alt, #fafafa);
   position: sticky;
   top: 0;
