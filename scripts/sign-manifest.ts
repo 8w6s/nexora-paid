@@ -55,7 +55,9 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // biome-ignore lint/suspicious/noConsole: CLI script — output is the deliverable
@@ -119,13 +121,18 @@ async function main(): Promise<number> {
   const bytes = new TextEncoder().encode(canonical);
   const sig = await ed.sign(bytes, priv);
   const out = { payload, signature: bytesToHex(sig) };
-  writeFileSync(outPath, `${JSON.stringify(out, null, 2)}
-`);
+  writeFileSync(
+    outPath,
+    `${JSON.stringify(out, null, 2)}
+`,
+  );
   log(`wrote ${outPath} (payload ${bytes.length}B, sig 64B)`);
   return 0;
 }
 
-main().then((c) => process.exit(c)).catch((e) => {
-  err(`FATAL: unhandled — ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
-  process.exit(1);
-});
+main()
+  .then((c) => process.exit(c))
+  .catch((e) => {
+    err(`FATAL: unhandled — ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+    process.exit(1);
+  });

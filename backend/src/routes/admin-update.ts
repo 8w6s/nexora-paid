@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
 import { Elysia, t } from "elysia";
+import { verifySignedManifest } from "../../../updater/manifest-verify.ts";
 import { APP_VERSION } from "../lib/app-version.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { ensureMachineId, readLicenseSecret } from "../lib/tenant.ts";
 import { signRequest } from "../lib/updater-handshake.ts";
-import { verifySignedManifest } from "../../../updater/manifest-verify.ts";
 
 const FILESERVER_URL =
   Bun.env.NEXORA_FILESERVER_URL ?? "https://raw.githubusercontent.com/8w6s/nexora-releases/main";
