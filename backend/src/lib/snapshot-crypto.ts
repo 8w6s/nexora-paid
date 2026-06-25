@@ -46,7 +46,10 @@ function deriveKey(km: KeyMaterial): Buffer {
   if (!km.machineId || km.machineId.length < 8) {
     throw new Error("machine-id missing or too short");
   }
-  const ikm = Buffer.concat([Buffer.from(km.licenseSecret, "utf8"), Buffer.from(km.machineId, "utf8")]);
+  const ikm = Buffer.concat([
+    Buffer.from(km.licenseSecret, "utf8"),
+    Buffer.from(km.machineId, "utf8"),
+  ]);
   const out = hkdfSync("sha256", ikm, SALT, INFO, KEY_LEN);
   return Buffer.from(out);
 }

@@ -12,11 +12,11 @@
  *   - statement length capped at 64 KB
  *   - audit_log itself is read-only via this route (UPDATE/DELETE on it rejected)
  */
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { Elysia, t } from "elysia";
+import { readAudit, recordAudit } from "../lib/audit-log.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
-import { recordAudit, readAudit } from "../lib/audit-log.ts";
 
 const MAX_STMT_LEN = 64 * 1024;
 const MAX_ROWS = 5000;
@@ -25,14 +25,18 @@ const FORBIDDEN_PATTERNS: Array<{ re: RegExp; reason: string }> = [
   { re: /\battach\s+database\b/i, reason: "ATTACH DATABASE is not permitted" },
   { re: /\bdetach\s+database\b/i, reason: "DETACH DATABASE is not permitted" },
   { re: /load_extension\s*\(/i, reason: "load_extension() is not permitted" },
-  { re: /\bpragma\s+(journal_mode|locking_mode|foreign_keys|key|rekey)\b/i, reason: "writable PRAGMA is not permitted" },
+  {
+    re: /\bpragma\s+(journal_mode|locking_mode|foreign_keys|key|rekey)\b/i,
+    reason: "writable PRAGMA is not permitted",
+  },
 ];
 
 function guardStatement(sql: string): void {
   if (typeof sql !== "string") throw new Error("statement must be a string");
   const trimmed = sql.trim();
   if (!trimmed) throw new Error("empty statement");
-  if (trimmed.length > MAX_STMT_LEN) throw new Error(`statement too long (max ${MAX_STMT_LEN} bytes)`);
+  if (trimmed.length > MAX_STMT_LEN)
+    throw new Error(`statement too long (max ${MAX_STMT_LEN} bytes)`);
   for (const f of FORBIDDEN_PATTERNS) {
     if (f.re.test(trimmed)) throw new Error(f.reason);
   }
@@ -76,9 +80,10 @@ function executeSql(db: Database, sql: string): ExecResult {
   const all = stmt.all() as unknown[];
   const truncated = all.length > MAX_ROWS;
   const rows = truncated ? all.slice(0, MAX_ROWS) : all;
-  const columns = rows.length && typeof rows[0] === "object" && rows[0] !== null
-    ? Object.keys(rows[0] as Record<string, unknown>)
-    : [];
+  const columns =
+    rows.length && typeof rows[0] === "object" && rows[0] !== null
+      ? Object.keys(rows[0] as Record<string, unknown>)
+      : [];
   return {
     rows,
     columns,
@@ -117,7 +122,9 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
   .get("/schema", async () => {
     const db = getRawDb();
     const tables = db
-      .query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+      .query(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
       .all() as Array<{ name: string }>;
     const out: Array<{ name: string; columns: unknown[] }> = [];
     for (const t of tables) {
@@ -153,7 +160,9 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
             success: false,
             error: msg,
           });
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         return { error: msg, code: "STATEMENT_REFUSED" };
       }
       const db = getRawDb();

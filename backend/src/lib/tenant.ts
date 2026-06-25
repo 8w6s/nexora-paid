@@ -18,8 +18,9 @@
  *     a request must pass through jailUserspace() before touching disk.
  *   - Neither root is ever joined with user input directly.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+
 import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 
 const DATA_ROOT = process.env.NEXORA_DATA_ROOT ?? "/data";
@@ -130,7 +131,12 @@ function jailWithin(root: string, userPath: string): string {
 }
 
 /** Tiny helper for tests/admin to surface what the jail is configured with. */
-export function tenantInfo(): { dataRoot: string; appRoot: string; userspaceRoot: string; machineId: string } {
+export function tenantInfo(): {
+  dataRoot: string;
+  appRoot: string;
+  userspaceRoot: string;
+  machineId: string;
+} {
   return {
     dataRoot: DATA_ROOT,
     appRoot: APP_ROOT,

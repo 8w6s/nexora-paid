@@ -9,7 +9,7 @@
  * We deliberately keep this in a separate table with no FK back to users —
  * if a user is later deleted we still want their audit history intact.
  */
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 let initialized = false;
 
@@ -49,9 +49,10 @@ const MAX_STMT = 4000;
 
 export function recordAudit(db: Database, entry: AuditEntry): void {
   ensureAuditTable(db);
-  const stmt = entry.statement && entry.statement.length > MAX_STMT
-    ? entry.statement.slice(0, MAX_STMT) + "…[truncated]"
-    : entry.statement ?? null;
+  const stmt =
+    entry.statement && entry.statement.length > MAX_STMT
+      ? entry.statement.slice(0, MAX_STMT) + "…[truncated]"
+      : (entry.statement ?? null);
   db.query(
     `INSERT INTO audit_log
        (actor_email, actor_ip, action, target, statement, rows_affected, elapsed_ms, success, error)
@@ -81,9 +82,18 @@ export function readAudit(db: Database, q: AuditQuery = {}): unknown[] {
   const limit = Math.min(Math.max(q.limit ?? 100, 1), 1000);
   const where: string[] = [];
   const args: unknown[] = [];
-  if (q.actor) { where.push("actor_email = ?"); args.push(q.actor); }
-  if (q.action) { where.push("action = ?"); args.push(q.action); }
-  if (q.since) { where.push("at >= ?"); args.push(q.since); }
+  if (q.actor) {
+    where.push("actor_email = ?");
+    args.push(q.actor);
+  }
+  if (q.action) {
+    where.push("action = ?");
+    args.push(q.action);
+  }
+  if (q.since) {
+    where.push("at >= ?");
+    args.push(q.since);
+  }
   const sql = `SELECT id, at, actor_email, actor_ip, action, target, statement,
                       rows_affected, elapsed_ms, success, error
                FROM audit_log

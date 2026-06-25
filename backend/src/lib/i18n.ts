@@ -33,8 +33,7 @@ export function t(
   key: string,
   vars?: Record<string, string | number>,
 ): string {
-  const loc: Locale =
-    locale && (locale as string) in DICTS ? (locale as Locale) : FALLBACK;
+  const loc: Locale = locale && (locale as string) in DICTS ? (locale as Locale) : FALLBACK;
   const hit = lookup(DICTS[loc], key) ?? lookup(DICTS[FALLBACK], key);
   if (hit == null) return key;
   return interpolate(hit, vars);

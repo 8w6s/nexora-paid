@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initIntegrity, isDegraded, __resetForTest } from "./integrity-state.ts";
+import { __resetForTest, initIntegrity, isDegraded } from "./integrity-state.ts";
 
 let workDir: string;
 let savedNodeEnv: string | undefined;

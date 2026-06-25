@@ -963,59 +963,59 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
     const [statusRows, totalRow, revenueRow, recentRows, seriesRows, topSpenderRows] =
       await Promise.all([
-      db.select({ status: orders.status, n: count() }).from(orders).groupBy(orders.status),
-      db.select({ n: count() }).from(orders),
-      db
-        .select({
-          totalUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
-          totalLitoshi: sql<number>`COALESCE(SUM(${orders.expectedLitoshi}), 0)`,
-        })
-        .from(orders)
-        .where(inArray(orders.status, ["paid", "completed"] as any)),
-      db
-        .select({
-          id: orders.id,
-          email: orders.email,
-          status: orders.status,
-          totalUsd: orders.totalUsd,
-          createdAt: orders.createdAt,
-        })
-        .from(orders)
-        .orderBy(desc(orders.createdAt))
-        .limit(5),
-      // Bucket by UTC day. orders.createdAt is timestamp_ms so divide by
-      // 86400000 then floor — equivalent to date() in UTC. WHERE bound on
-      // rangeStart keeps the scan to N days even if the table has years.
-      db
-        .select({
-          dayKey: sql<number>`CAST(${orders.createdAt} / ${dayMs} AS INTEGER)`,
-          revenueUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
-          n: count(),
-        })
-        .from(orders)
-        .where(
-          and(
-            inArray(orders.status, ["paid", "completed"] as any),
-            sql`${orders.createdAt} >= ${rangeStart}`,
-          ),
-        )
-        .groupBy(sql`CAST(${orders.createdAt} / ${dayMs} AS INTEGER)`),
-      // Top spenders — rank customers by lifetime paid+completed revenue.
-      // Group by email (not userId) so guest checkouts collapse correctly when
-      // the same email pays multiple times without an account. LIMIT 5 to keep
-      // the admin overview tile compact.
-      db
-        .select({
-          email: orders.email,
-          totalUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
-          orderCount: count(),
-        })
-        .from(orders)
-        .where(inArray(orders.status, ["paid", "completed"] as any))
-        .groupBy(orders.email)
-        .orderBy(sql`SUM(${orders.totalUsd}) DESC`)
-        .limit(5),
-    ]);
+        db.select({ status: orders.status, n: count() }).from(orders).groupBy(orders.status),
+        db.select({ n: count() }).from(orders),
+        db
+          .select({
+            totalUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
+            totalLitoshi: sql<number>`COALESCE(SUM(${orders.expectedLitoshi}), 0)`,
+          })
+          .from(orders)
+          .where(inArray(orders.status, ["paid", "completed"] as any)),
+        db
+          .select({
+            id: orders.id,
+            email: orders.email,
+            status: orders.status,
+            totalUsd: orders.totalUsd,
+            createdAt: orders.createdAt,
+          })
+          .from(orders)
+          .orderBy(desc(orders.createdAt))
+          .limit(5),
+        // Bucket by UTC day. orders.createdAt is timestamp_ms so divide by
+        // 86400000 then floor — equivalent to date() in UTC. WHERE bound on
+        // rangeStart keeps the scan to N days even if the table has years.
+        db
+          .select({
+            dayKey: sql<number>`CAST(${orders.createdAt} / ${dayMs} AS INTEGER)`,
+            revenueUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
+            n: count(),
+          })
+          .from(orders)
+          .where(
+            and(
+              inArray(orders.status, ["paid", "completed"] as any),
+              sql`${orders.createdAt} >= ${rangeStart}`,
+            ),
+          )
+          .groupBy(sql`CAST(${orders.createdAt} / ${dayMs} AS INTEGER)`),
+        // Top spenders — rank customers by lifetime paid+completed revenue.
+        // Group by email (not userId) so guest checkouts collapse correctly when
+        // the same email pays multiple times without an account. LIMIT 5 to keep
+        // the admin overview tile compact.
+        db
+          .select({
+            email: orders.email,
+            totalUsd: sql<number>`COALESCE(SUM(${orders.totalUsd}), 0)`,
+            orderCount: count(),
+          })
+          .from(orders)
+          .where(inArray(orders.status, ["paid", "completed"] as any))
+          .groupBy(orders.email)
+          .orderBy(sql`SUM(${orders.totalUsd}) DESC`)
+          .limit(5),
+      ]);
 
     const byStatus: Record<string, number> = {
       pending: 0,

@@ -18,19 +18,19 @@ import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watche
 import { adminRoutes } from "./routes/admin.ts";
 import { admin2faRoutes } from "./routes/admin-2fa.ts";
 import { adminBlocklistRoutes } from "./routes/admin-blocklist.ts";
+import { adminDbRoutes } from "./routes/admin-db.ts";
+import { adminTablesRoutes } from "./routes/admin-tables.ts";
 import { authRoutes, bootstrapAdmin } from "./routes/auth.ts";
 import { categoryRoutes } from "./routes/categories.ts";
 import { checkoutRoutes } from "./routes/checkout.ts";
 import { configRoutes } from "./routes/config.ts";
 import { customer2faRoutes } from "./routes/customer-2fa.ts";
 import { devRoutes } from "./routes/dev.ts";
+import { healthRoutes } from "./routes/health.ts";
 import { clearCatalogCache, productRoutes } from "./routes/products.ts";
 import { reviewRoutes } from "./routes/reviews.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { adminTicketRoutes, ticketRoutes } from "./routes/tickets.ts";
-import { adminDbRoutes } from "./routes/admin-db.ts";
-import { adminTablesRoutes } from "./routes/admin-tables.ts";
-import { healthRoutes } from "./routes/health.ts";
 
 const PUBLIC_ORIGIN = Bun.env.PUBLIC_ORIGIN ?? "http://localhost:4321";
 

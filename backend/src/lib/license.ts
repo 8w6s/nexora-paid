@@ -142,7 +142,6 @@ export async function verifyLicense(): Promise<VerifyResult> {
   }
   if (!ok) return { valid: false, reason: "signature mismatch" };
 
-  
   return { valid: true, email: signed.payload.email, payload: signed.payload };
 }
 
