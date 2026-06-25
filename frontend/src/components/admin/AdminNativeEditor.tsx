@@ -52,6 +52,17 @@ export function AdminNativeEditor(): React.ReactElement {
     return () => clearTimeout(t);
   }, [q]);
 
+  // Esc to close any open modal
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (viewCell) setViewCell(null);
+      else if (editing) setEditing(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewCell, editing]);
+
   // Load schema once
   useEffect(() => {
     api
@@ -253,9 +264,17 @@ export function AdminNativeEditor(): React.ReactElement {
                       <th
                         key={c.name}
                         onClick={() => sortBy(c.name)}
-                        title={`${c.type}${c.pk ? " (PK)" : ""}`}
+                        title={`${c.type || "any"}${c.pk ? " · PRIMARY KEY" : ""}${c.notnull ? " · NOT NULL" : ""}`}
                       >
-                        {c.name}
+                        <span className="nx-nae__col-head">
+                          <span className="nx-nae__col-head-name">
+                            {c.name}
+                            {c.pk ? <span className="nx-nae__col-head-pk">PK</span> : null}
+                          </span>
+                          {c.type ? (
+                            <span className="nx-nae__col-head-type">{c.type.toLowerCase()}</span>
+                          ) : null}
+                        </span>
                         {order === c.name ? (
                           <span className="nx-nae__sort">{dir === "asc" ? "▲" : "▼"}</span>
                         ) : null}
@@ -431,25 +450,47 @@ export function AdminNativeEditor(): React.ReactElement {
         <div className="nx-nae__modal-bg" onClick={() => setViewCell(null)}>
           <div className="nx-nae__modal" onClick={(e) => e.stopPropagation()}>
             <div className="nx-nae__modal-head">
-              <h3 className="nx-nae__modal-title">{viewCell.col}</h3>
-              <button type="button" className="nx-nae__btn-icon" onClick={() => setViewCell(null)}>
-                ×
-              </button>
+              <h3 className="nx-nae__modal-title">
+                {viewCell.col}
+                <span className="nx-nae__view-type">
+                  {viewCell.value == null
+                    ? "null"
+                    : typeof viewCell.value === "object"
+                      ? "json"
+                      : typeof viewCell.value}
+                </span>
+              </h3>
+              <div className="nx-nae__view-actions">
+                {viewCell.value != null ? (
+                  <button
+                    type="button"
+                    className="nx-nae__btn nx-nae__btn--ghost nx-nae__btn--xs"
+                    onClick={() => {
+                      const s =
+                typeof viewCell.value === "object"
+                          ? JSON.stringify(viewCell.value, null, 2)
+                          : String(viewCell.value);
+                      navigator.clipboard?.writeText(s);
+                    }}
+                  >
+                    Copy
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="nx-nae__btn-icon"
+                  onClick={() => setViewCell(null)}
+                >
+                  ×
+                </button>
+              </div>
             </div>
             <div className="nx-nae__modal-body">
               {viewCell.value == null ? (
                 <span className="nx-nae__null">null</span>
               ) : (
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
-                    fontSize: "12px",
-                    fontFamily: "ui-monospace, monospace",
-                  }}
-                >
-                  {typeof viewCell.value === "object"
+                <pre className="nx-nae__view-pre">
+                {typeof viewCell.value === "object"
                     ? JSON.stringify(viewCell.value, null, 2)
                     : String(viewCell.value)}
                 </pre>
