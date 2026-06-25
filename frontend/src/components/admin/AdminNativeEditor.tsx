@@ -170,6 +170,16 @@ export function AdminNativeEditor(): React.ReactElement {
     setEditing({ mode: "edit", rowid: Number(row._rowid), values });
   };
 
+  const startDuplicate = (row: Record<string, unknown>) => {
+    if (!data) return;
+    const values: Record<string, unknown> = {};
+    for (const c of data.columns) {
+      if (c.pk) values[c.name] = "";
+      else values[c.name] = row[c.name] ?? null;
+    }
+    setEditing({ mode: "insert", values });
+  };
+
   const deleteSelected = async () => {
     if (!selected || selectedRows.size === 0) return;
     if (!confirm(`Delete ${selectedRows.size} selected row(s)? This cannot be undone.`)) return;
@@ -442,6 +452,14 @@ export function AdminNativeEditor(): React.ReactElement {
                             title="Edit row"
                           >
                             ✎
+                          </button>
+                          <button
+                            type="button"
+                            className="nx-nae__btn-icon"
+                            onClick={() => startDuplicate(row)}
+                            title="Duplicate row (cleared PK)"
+                          >
+                            ⎘
                           </button>
                           <button
                             type="button"
