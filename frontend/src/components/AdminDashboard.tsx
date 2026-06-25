@@ -76,6 +76,7 @@ const AdminTickets = lazy(() =>
   import("./admin/AdminTickets").then((m) => ({ default: m.AdminTickets })),
 );
 const AdminDbEditor = lazy(() => import("./admin/AdminDbEditor"));
+const AdminNativeEditor = lazy(() => import("./admin/AdminNativeEditor"));
 
 type Tab =
   | "overview"
@@ -101,6 +102,7 @@ type Tab =
   | "team"
   | "developers"
   | "db-editor"
+  | "native-editor"
   | "settings";
 
 // Ghost panels — UI exists, backend endpoints do NOT yet. Default-hidden so
@@ -173,6 +175,7 @@ const NAV_GROUPS_FULL: {
     items: [
       { key: "developers", label: "Developers", icon: "zap" },
       { key: "db-editor", label: "DB Editor", icon: "database" },
+      { key: "native-editor", label: "Native Editor", icon: "table" },
       { key: "features", label: "Features", icon: "bolt" },
     ],
   },
@@ -431,6 +434,7 @@ export const AdminDashboard: React.FC<{ activeTabPath?: string }> = ({ activeTab
                 {tab === "team" && <AdminTeam />}
                 {tab === "developers" && <AdminDevelopers />}
                 {tab === "db-editor" && <AdminDbEditor />}
+                {tab === "native-editor" && <AdminNativeEditor />}
                 {tab === "settings" && <AdminSettings />}
               </>
             )}
