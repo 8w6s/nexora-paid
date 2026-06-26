@@ -16,7 +16,7 @@ try {
   /* fall through to 404 */
 }
 
-if (!product) return Astro.redirect("/404");
+if (!product) return new Response(null, { status: 404, headers: { Location: "/404" } });
 
 const site = Astro.site ?? new URL("http://localhost:4321");
 const url = new URL(`/product/${product.slug}`, site).href;
