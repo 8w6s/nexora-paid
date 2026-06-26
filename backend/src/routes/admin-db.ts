@@ -139,6 +139,17 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
   .post(
     "/query",
     async ({ body, request, set, user }) => {
+      // Raw-SQL console disabled by default. Operators must opt in explicitly
+      // via env so a stolen admin cookie or XSS cannot trivially DROP TABLE.
+      // The Native CRUD editor (admin-tables.ts) remains the supported tool.
+      if (process.env.NEXORA_ENABLE_RAW_SQL !== "true") {
+        set.status = 403;
+        return {
+          error:
+            "Raw SQL console is disabled. Set NEXORA_ENABLE_RAW_SQL=true in the backend environment to enable; the Native Editor is the default path.",
+          code: "RAW_SQL_DISABLED",
+        };
+      }
       const ip = clientIp(request);
       const rl = rateLimitCheck(`admin-db-query:${ip}`, 30, 60_000);
       if (!rl.allowed) {
