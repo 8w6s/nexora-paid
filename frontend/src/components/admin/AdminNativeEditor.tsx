@@ -308,7 +308,7 @@ export function AdminNativeEditor(): React.ReactElement {
     <div className="nx-nae">
       <aside className="nx-nae__side">
         <div className="nx-nae__side-title">
-          <Icon name="database" size={13} /> Tables ({tables.length})
+          <i className="fa-duotone fa-database" style={{fontSize: 13}} /> Tables ({tables.length})
         </div>
         {tables.map((t) => (
           <button
@@ -317,7 +317,7 @@ export function AdminNativeEditor(): React.ReactElement {
             className={`nx-nae__tbl-btn${selected === t.name ? " nx-nae__tbl-btn--active" : ""}`}
             onClick={() => setSelected(t.name)}
           >
-            <Icon name="table" size={11} /> {t.name}
+            <i className="fa-regular fa-table" style={{fontSize: 11}} /> {t.name}
           </button>
         ))}
       </aside>
@@ -457,29 +457,14 @@ export function AdminNativeEditor(): React.ReactElement {
                           />
                         </td>
                         <td className="nx-nae__cell-actions">
-                          <button
-                            type="button"
-                            className="nx-nae__btn-icon"
-                            onClick={() => startEdit(row)}
-                            title="Edit row"
-                          >
-                            ✎
+                          <button type="button" className="nx-nae__btn-icon" onClick={() => startEdit(row)} title="Edit row">
+                            <i className="fa-duotone fa-pen-to-square" />
                           </button>
-                          <button
-                            type="button"
-                            className="nx-nae__btn-icon"
-                            onClick={() => startDuplicate(row)}
-                            title="Duplicate row (cleared PK)"
-                          >
-                            ⎘
-                          </button>
-                          <button
-                            type="button"
-                            className="nx-nae__btn-icon nx-nae__btn-icon--danger"
-                            onClick={() => deleteRow(row)}
-                            title="Delete row"
-                          >
-                            ×
+                <button type="button" className="nx-nae__btn-icon" onClick={() => startDuplicate(row)} title="Duplicate row">
+                            <i className="fa-regular fa-copy" />
+                </button>
+                          <button type="button" className="nx-nae__btn-icon nx-nae__btn-icon--danger" onClick={() => deleteRow(row)} title="Delete row">
+                            <i className="fa-regular fa-trash-can" />
                           </button>
                         </td>
                         {visibleCols.map((c) => (
