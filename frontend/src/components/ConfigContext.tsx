@@ -157,7 +157,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
-    const { primaryColor, accentColor, customCss } = config.branding;
+    const { primaryColor, accentColor, customCss } = config.branding ?? {};
     if (primaryColor) root.style.setProperty("--brand", primaryColor);
     if (accentColor) root.style.setProperty("--accent", accentColor);
 

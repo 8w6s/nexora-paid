@@ -454,6 +454,9 @@ onOrderDelivered(() => {
 // request sees a fully consistent world: no half-delivered orders, no
 // "address index already used" race against a stuck pending order.
 await recoverStuckOrders();
+// Register built-in notification dispatchers (Discord/Telegram/webhook)
+import { registerNotifications } from "./lib/notifications.ts";
+registerNotifications();
 startWatcher();
 
 app.listen(Number(Bun.env.PORT ?? 3000));

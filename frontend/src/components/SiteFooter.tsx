@@ -6,7 +6,7 @@ export const SiteFooter: React.FC = () => {
   const { config } = useConfig();
   const { t } = useT();
   const year = new Date().getFullYear();
-  const social = config.social;
+  const social = config.social ?? {};
   const hasSocial =
     social?.discord || social?.telegram || social?.youtube || social?.tiktok || social?.instagram;
 

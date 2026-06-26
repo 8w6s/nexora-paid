@@ -74,6 +74,12 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
   { key: "tiktok", type: "string", maxLength: 500 },
   { key: "instagram", type: "string", maxLength: 500 },
 
+  // Notifications (order alerts)
+  { key: "notification_discord_webhook", type: "string", maxLength: 500 },
+  { key: "notification_telegram_bot_token", type: "string", maxLength: 200 },
+  { key: "notification_telegram_chat_id", type: "string", maxLength: 100 },
+  { key: "notification_webhook_url", type: "string", maxLength: 1000 },
+
   // Checkout toggles
   { key: "allow_change_theme", type: "boolean" },
   { key: "collect_billing", type: "boolean" },
