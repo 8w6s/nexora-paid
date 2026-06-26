@@ -262,6 +262,35 @@ export const checkoutRoutes = new Elysia()
 
       // Free order (100% coupon): skip payment, auto-deliver immediately.
       if (totalUsd === 0) {
+        // INVARIANT: reaching totalUsd === 0 means the server itself computed
+        // a zero total from (DB prices, qty, server-validated coupon math).
+        // We NEVER trust a `total` field from the request body — `body` schema
+        // does not even include one. If a future schema change adds such a
+        // field, this assertion will surface it as TAMPERED_TOTAL instead of
+        // silently minting free licenses against a tampered claim.
+        if ((body as Record<string, unknown>).total !== undefined) {
+          return status(400, {
+            error: "Refusing free-order request that carries a client-provided total",
+            code: "TAMPERED_TOTAL",
+          });
+        }
+        // Defense-in-depth: free-order path is the cheapest abuse target on
+        // the whole API (no payment friction). Layer a tighter per-(IP, user)
+        // bucket on top of the general checkout rate-limit applied at the
+        // route entrypoint above: 3 free orders per 10 minutes max. Real
+        // users redeeming a single coupon never hit this; an attacker
+        // looping POST against a multi-use coupon does.
+        const ip = resolveClientIp(request);
+        const freeKey = `checkout-free:${checkoutUserId ?? "anon"}:${ip}`;
+        const freeRl = rateLimitCheck(freeKey, 3, 600_000);
+        if (!freeRl.allowed) {
+          set.headers["retry-after"] = String(Math.ceil(freeRl.resetMs / 1000));
+          return status(429, {
+            error: "Too many free orders — try again later",
+            code: "RATE_LIMITED",
+            resetMs: freeRl.resetMs,
+          });
+        }
         const orderId = `GG-${randomBytes(8).toString("hex").toUpperCase()}`;
         try {
           const result = await db.transaction(async (tx) => {
