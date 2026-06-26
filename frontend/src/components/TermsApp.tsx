@@ -36,7 +36,7 @@ const TermsPage: React.FC = () => {
 
           <h2>1. Digital Goods & Instant Delivery</h2>
           <p>
-            All items sold on Nexora are digital gods (such as software license keys, premium
+            All items sold on Nexora are digital goods (such as software license keys, premium
             accounts, and digital codes). Upon confirmed payment on the Litecoin blockchain, keys
             are delivered instantly on-screen and to your designated email address.
           </p>
