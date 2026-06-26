@@ -70,6 +70,8 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
     return { enabled: u?.totpEnabled ?? false };
   })
   .get("/setup", async ({ adminUser, set }) => {
+    set.headers["Cache-Control"] = "no-store";
+    set.headers["Pragma"] = "no-cache";
     pruneExpiredCandidates();
     const u = (await db.select().from(users).where(eq(users.id, adminUser.id)))[0];
     if (!u) {
