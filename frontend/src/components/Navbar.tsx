@@ -67,7 +67,13 @@ export const Navbar: React.FC = () => {
     return <span>{name}</span>;
   };
 
+  const announcement = config.branding?.announcementBar || "";
+
   return (
+    <>
+      {announcement && (
+        <div className="announcement-bar">{announcement}</div>
+      )}
     <header className="navbar">
       <div className="container nav-inner">
         <a href="/" className="logo">
@@ -139,7 +145,9 @@ export const Navbar: React.FC = () => {
         .btn-cart:hover { border-color: var(--brand); color: var(--brand); }
         .cart-badge { position: absolute; top: -7px; right: -7px; background: var(--price); color: #fff; font-size: .68rem; font-weight: 700; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 100px; display: flex; align-items: center; justify-content: center; }
         @media (max-width: 600px) { .cart-label { display: none; } .btn-cart { width: 40px; padding: 0; justify-content: center; } .nav-links { gap: 14px; } .nav-act-dd { max-width: 110px; } }
+      .announcement-bar { background: var(--brand, #3b82f6); color: #fff; text-align: center; padding: 8px 16px; font-size: .82rem; font-weight: 500; letter-spacing: .01em; }
       `}</style>
     </header>
+    </>
   );
 };
