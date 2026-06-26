@@ -1,0 +1,11 @@
+name = "nexora-webhook"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Set these via `wrangler secret put`:
+#   wrangler secret put LEMONSQUEEZY_WEBHOOK_SECRET
+#   wrangler secret put GITHUB_PAT
+#   wrangler secret put GITHUB_REPO
+
+[vars]
+GITHUB_REPO = "8w6s/nexora-paid"
