@@ -110,7 +110,7 @@ export function isDegraded(): boolean {
  * GETs/HEADs pass through so an operator can still reach the health endpoint
  * and read the red banner that explains the degraded state.
  */
-export function degradedGate(ctx: { request: Request; set: { status?: number } }):
+export function degradedGate(ctx: { request: Request; set: { status?: number | string } }):
   | { error: string; code: string; hint: string }
   | undefined {
   const m = ctx.request.method;

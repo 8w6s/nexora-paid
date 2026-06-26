@@ -293,7 +293,12 @@ export const checkoutRoutes = new Elysia()
         }
         const orderId = `GG-${randomBytes(8).toString("hex").toUpperCase()}`;
         try {
-          const result = await db.transaction(async (tx) => {
+          await db.transaction(async (tx) => {
+            // Free orders are paid+delivered the moment the insert completes,
+            // so expiresAt is set to the same timestamp as paidAt. This
+            // satisfies the notNull schema constraint without introducing a
+            // meaningful expiry window (the order is terminal on insert).
+            const now = new Date();
             await tx.insert(orders).values({
               id: orderId,
               userId: checkoutUserId,
@@ -306,7 +311,8 @@ export const checkoutRoutes = new Elysia()
               expectedLitoshi: 0,
               addressIndex: -(Date.now() % 2_000_000_000),
               ltcAddress: "free-order",
-              paidAt: new Date(),
+              paidAt: now,
+              expiresAt: now,
             });
             for (const { product, variant, qty } of lines) {
               await tx.insert(orderItems).values({
@@ -323,8 +329,8 @@ export const checkoutRoutes = new Elysia()
               if (!okk)
                 throw new Error(`OUT_OF_STOCK:${product.name}${variant ? ` (${variant.name})` : ""}`);
             }
-            // Deliver keys immediately
-            const now = new Date();
+            // Deliver keys immediately (reuse the timestamp from above so
+            // every row in this transaction shares one paid/delivered moment).
             await tx
               .update(productKeys)
               .set({ status: "delivered", deliveredAt: now })
