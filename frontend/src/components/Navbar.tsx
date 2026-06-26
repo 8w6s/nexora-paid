@@ -77,9 +77,13 @@ export const Navbar: React.FC = () => {
     <header className="navbar">
       <div className="container nav-inner">
         <a href="/" className="logo">
-          <span className="logo-mark">
-            <Icon name="key" size={17} />
-          </span>
+          {config.branding?.logo ? (
+            <img src={config.branding.logo} alt={config.storeName} className="logo-img" />
+          ) : (
+            <span className="logo-mark">
+              <img src="/nexora-icon.svg" alt="" className="logo-svg" />
+            </span>
+          )}
           {renderLogoText()}
         </a>
 
@@ -133,7 +137,9 @@ export const Navbar: React.FC = () => {
         .nav-inner { height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .logo { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 1.2rem; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
         .logo .accent { color: var(--brand); }
-        .logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; }
+        .logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .logo-svg { width: 20px; height: 20px; filter: brightness(0) invert(1); }
+        .logo-img { width: 32px; height: 32px; object-fit: contain; border-radius: 6px; }
         .nav-links { display: flex; gap: 26px; margin-right: auto; margin-left: 14px; }
         .nav-links a { color: var(--ink-soft); font-size: .92rem; font-weight: 500; padding: 4px 0; border-bottom: 2px solid transparent; text-decoration: none; transition: color .18s var(--ease), border-color .18s var(--ease); }
         .nav-links a:hover { color: var(--ink); }
