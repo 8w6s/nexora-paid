@@ -10,6 +10,73 @@ The work in this section is staged for **v1.1.0**. Customers running v1.0.0
 do not need to act yet; the in-place update flow will pick this up once the
 release is cut.
 
+### Security — pre-sale hardening pass
+
+- **HTML sanitizer on the write path.** Product + category descriptions
+  pass through a regex-based allowlist before insert/update. Strips
+  `<script>`, `<iframe>`, `<svg>`, `<object>`, `on*` handlers, and
+  `javascript:` URLs; forces `rel="noopener noreferrer nofollow"` on
+  external `target=_blank` links. 17 unit tests cover the payload matrix.
+- **License `expiresAt` is now enforced.** `verifyLicense` returns
+  `license expired at <ISO>` when `Date.now()` is past the timestamp;
+  unlocks annual / trial / support-window pricing.
+- **`DATABASE_ENCRYPTION_KEY` requires 64 hex chars in production.** The
+  sha256-of-passphrase fallback is rejected when `NODE_ENV=production`
+  with a clear error pointing at `openssl rand -hex 32`.
+- **Raw SQL console gated behind `NEXORA_ENABLE_RAW_SQL=true`.** Default
+  is off — the Native CRUD editor (whitelisted tables, parameterized
+  writes) is the supported path. Drastically shrinks the blast radius of
+  a stolen admin cookie.
+- **Integrity-degraded gate covers every admin plugin route.** New
+  `degradedGate` helper in `lib/integrity-state.ts` is wired into
+  `admin-db`, `admin-tables`, `admin-update`, `admin-blocklist`,
+  `admin-2fa` — previously only the main `adminRoutes` mount blocked
+  mutations on a tampered build.
+- **`NEXORA_LICENSE_SECRET` required in production for snapshot key.**
+  Falling back to the in-volume `license.lic` let a volume-copy attack
+  derive the AES key for every encrypted snapshot. Production now
+  refuses to derive without an out-of-band secret (env / KMS / secret
+  manager).
+
+### Fixed — payment correctness
+
+- **Last-chance poll before expiring stale orders.** `expireStaleOrders`
+  re-polls every payable order one more time before flipping it to
+  `expired`. A customer who paid within the recheck cooldown (default
+  90 s) or seconds before the deadline no longer silently loses their
+  order — the late confirmation flows through `markPaidAndDeliver` +
+  delivery hooks normally. Re-reads PAYABLE after the poll wave so only
+  truly unpaid rows are expired.
+
+### Changed — deployment ergonomics
+
+- **Compose backend pulls production secrets from `.env`.** New
+  `env_file: .env` (required=false) plus explicit `environment:` keys
+  for `ORDER_TOKEN_SECRET`, `DATABASE_ENCRYPTION_KEY`,
+  `NEXORA_LICENSE_SECRET`, `NEXORA_UPDATER_PSK`,
+  `NEXORA_ENABLE_RAW_SQL`. Buyers drop their generated secrets in `.env`
+  once and the stack picks them up — no compose surgery.
+- **Updater overlay carries PSK + GHCR token + image pins.** The
+  `updater` service in `docker-compose.updater.yml` now receives
+  `NEXORA_UPDATER_PSK`, `GHCR_TOKEN`, `NEXORA_IMAGE*`, `NEXORA_VERSION`,
+  plus a socket-stat healthcheck so the in-place update flow has every
+  knob it needs without inline edits.
+- **Cloudflare-Tunnel mode gets its own `Caddyfile.tunnel`.** `auto_https
+  off` + bare `:80` listener avoids the redirect loop with CF
+  terminating TLS upstream. Switch via `CADDYFILE=./Caddyfile.tunnel`
+  env in `.env` — no rebuild.
+- **`.env.example` lists every required production secret** with
+  `openssl rand -hex 32` commands inline + the updater PSK + GHCR PAT +
+  the Caddyfile switch documented next to the tunnel runbook.
+- **`docs/MIGRATION_POSTGRES.md` flagged experimental / developer-only.**
+  Supported plans stay on SQLite — the Postgres path requires a fork
+  (no `DATABASE_URL` runtime switch, no compose profile, no automated
+  rollback) and is not exercised by the release smoke.
+- **Release checklist covers coupon checkout.** New smoke step asserts
+  `discountUsd > 0`, locked LTC reflects the discounted USD total, and
+  `coupons.usedCount` increments exactly once under concurrent
+  checkouts; bad codes return `BAD_COUPON` 400.
+
 ### Added — security / infrastructure
 
 - **Updater handshake (PSK + HMAC + nonce).** Every backend → updater call
