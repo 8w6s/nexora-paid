@@ -34,6 +34,7 @@ import {
   setProviderField,
 } from "../lib/payments.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
+import { sanitizeHtml } from "../lib/sanitize.ts";
 import { getAllSettings, setSetting } from "../lib/settings.ts";
 import { SETTINGS_SCHEMA } from "../lib/settings-schema.ts";
 import { uniqueSlug } from "../lib/slug.ts";
@@ -265,7 +266,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         id,
         slug,
         name: body.name,
-        description: body.description,
+        description: sanitizeHtml(body.description),
         priceUsd: body.priceUsd,
         compareAtPrice: body.compareAtPrice ?? null,
         image: body.image,
@@ -341,7 +342,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       if (body.name !== undefined) updates.name = body.name;
       if (body.priceUsd !== undefined) updates.priceUsd = body.priceUsd;
       if (body.compareAtPrice !== undefined) updates.compareAtPrice = body.compareAtPrice;
-      if (body.description !== undefined) updates.description = body.description;
+      if (body.description !== undefined) updates.description = sanitizeHtml(body.description);
       if (body.image !== undefined) updates.image = body.image;
       if (body.category !== undefined) updates.category = body.category;
       if (body.active !== undefined) updates.active = body.active;
@@ -1754,7 +1755,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         parentId: body.parentId ?? null,
         name: body.name,
         slug,
-        description: body.description ?? "",
+        description: sanitizeHtml(body.description ?? ""),
         image: body.image ?? "",
         sortOrder: body.sortOrder ?? 0,
       };
@@ -1791,7 +1792,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }
       const upd: Record<string, unknown> = {};
       if (body.name !== undefined) upd.name = body.name;
-      if (body.description !== undefined) upd.description = body.description;
+      if (body.description !== undefined) upd.description = sanitizeHtml(body.description);
       if (body.image !== undefined) upd.image = body.image;
       if (body.sortOrder !== undefined) upd.sortOrder = body.sortOrder;
       if (body.parentId !== undefined) {
