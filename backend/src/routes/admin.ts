@@ -552,7 +552,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     return db.select().from(productKeys).where(where).orderBy(desc(productKeys.createdAt));
   })
 
-  .delete("/products/:id/keys/:keyId", async ({ params: { id, keyId }, set }) => {
+  .delete("/products/:id/keys/:keyId", async ({ params: { id, keyId }, set, adminEmail }) => {
     const key = (await db.select().from(productKeys).where(eq(productKeys.id, keyId)))[0];
     if (!key || key.productId !== id) {
       set.status = 404;
@@ -562,7 +562,20 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       set.status = 400;
       return { error: "Cannot delete a delivered key", code: "KEY_DELIVERED" };
     }
+    // Resolve the product name once for the audit log — `id` alone is opaque
+    // when an operator scrolls back through admin_actions a week later.
+    const prod = (await db.select({ name: products.name }).from(products).where(eq(products.id, id)))[0];
     await db.delete(productKeys).where(eq(productKeys.id, keyId));
+    // f-audit-1 (loop iter 3, 2026-06-27): record every inventory-shrink event.
+    // Without this, a sock-puppet admin (or a compromised admin cookie) can
+    // drain valuable license keys from the catalogue and the only trace would
+    // be the stock count going down. Now `admin_actions` shows who deleted
+    // which keyId from which product in which status (available/reserved).
+    await logAdminAction(
+      adminEmail,
+      "product.key.delete",
+      `${prod?.name ?? id}: keyId=${keyId} status=${key.status}`,
+    );
     set.status = 200;
     return { ok: true };
   })
