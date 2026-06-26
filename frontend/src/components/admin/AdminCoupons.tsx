@@ -35,8 +35,8 @@ export const AdminCoupons: React.FC = () => {
       api
         .get<Coupon[]>("/api/admin/coupons")
         .then(setList)
-        .catch(() => {}),
-    [],
+        .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load coupons")),
+    [toast],
   );
   useEffect(() => {
     load();

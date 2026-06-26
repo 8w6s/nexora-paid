@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 
 interface AdminReview {
   id: string;
@@ -18,14 +19,15 @@ interface AdminReview {
 export const AdminReviews: React.FC = () => {
   const [list, setList] = useState<AdminReview[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(
     () =>
       api
         .get<AdminReview[]>("/api/admin/reviews")
         .then(setList)
-        .catch(() => {}),
-    [],
+        .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load reviews")),
+    [toast],
   );
   useEffect(() => {
     load();

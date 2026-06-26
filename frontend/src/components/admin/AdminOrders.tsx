@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 import { AdminOrderDetail } from "./AdminOrderDetail";
 
 interface AdminOrder {
@@ -32,13 +33,15 @@ export const AdminOrders: React.FC = () => {
   const [filter, setFilter] = useState("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
+  const toast = useToast();
+
   const load = useCallback((f: string) => {
     api
       .get<AdminOrder[]>(`/api/admin/orders${f !== "all" ? `?status=${f}` : ""}`)
       .then(setOrders)
-      .catch(() => {})
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load orders"))
       .finally(() => setLoaded(true));
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     setLoaded(false);

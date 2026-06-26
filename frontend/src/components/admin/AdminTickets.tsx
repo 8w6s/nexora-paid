@@ -37,8 +37,8 @@ export const AdminTickets: React.FC = () => {
     api
       .get<Ticket[]>(`/api/admin/tickets${qs}`)
       .then(setList)
-      .catch(() => {});
-  }, [filter]);
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load tickets"));
+  }, [filter, toast]);
 
   useEffect(() => {
     load();

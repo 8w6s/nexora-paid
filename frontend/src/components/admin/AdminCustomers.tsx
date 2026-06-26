@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 import { AdminCustomerDetail } from "./AdminCustomerDetail";
 import { AdminOrderDetail } from "./AdminOrderDetail";
 
@@ -22,12 +23,14 @@ export const AdminCustomers: React.FC = () => {
     { type: "customer"; id: string } | { type: "order"; id: string; fromCustomer?: string } | null
   >(null);
 
+  const toast = useToast();
+
   const load = useCallback(() => {
     api
       .get<Customer[]>("/api/admin/customers")
       .then(setList)
-      .catch(() => {});
-  }, []);
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load customers"));
+  }, [toast]);
 
   useEffect(() => {
     load();
