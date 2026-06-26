@@ -88,6 +88,16 @@ export const AnimatedBackground: React.FC = () => (
           transform: translate(-55vw, -50vh) scale(6);
         }
       }
+      /* Respect users who opted out of motion: keep the gradient backdrop
+         but freeze the circles in their starting position. */
+      @media (prefers-reduced-motion: reduce) {
+        .oobe-bg,
+        .circle1,
+        .circle2,
+        .circle3 {
+          animation: none !important;
+        }
+      }
     `}</style>
   </div>
 );
