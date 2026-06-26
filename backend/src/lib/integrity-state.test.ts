@@ -59,11 +59,34 @@ describe("isDegraded — dev vs prod policy", () => {
     expect(isDegraded()).toBe(true);
   });
 
-  test("dev skip env: NEXORA_DEV_SKIP_INTEGRITY=true short-circuits to non-degraded", async () => {
-    process.env.NODE_ENV = "production"; // even in prod, explicit dev-skip wins
+  test("dev skip env in DEV: NEXORA_DEV_SKIP_INTEGRITY=true short-circuits to non-degraded", async () => {
+    process.env.NODE_ENV = "development";
     process.env.NEXORA_DEV_SKIP_INTEGRITY = "true";
     await initIntegrity();
     expect(isDegraded()).toBe(false);
+  });
+
+  test("dev skip env in PROD is IGNORED (f-integrity-1) — falls through to real verification", async () => {
+    // Production with the dev flag accidentally set must NOT short-circuit.
+    // Without a real manifest the verifier will return ok:false and the
+    // gate must report degraded so the operator notices.
+    process.env.NODE_ENV = "production";
+    process.env.NEXORA_DEV_SKIP_INTEGRITY = "true";
+    delete process.env.NEXORA_ALLOW_PROD_INTEGRITY_SKIP;
+    await initIntegrity();
+    expect(isDegraded()).toBe(true);
+  });
+
+  test("explicit prod escape hatch (NEXORA_ALLOW_PROD_INTEGRITY_SKIP=true) restores skip in prod", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.NEXORA_DEV_SKIP_INTEGRITY = "true";
+    process.env.NEXORA_ALLOW_PROD_INTEGRITY_SKIP = "true";
+    try {
+      await initIntegrity();
+      expect(isDegraded()).toBe(false);
+    } finally {
+      delete process.env.NEXORA_ALLOW_PROD_INTEGRITY_SKIP;
+    }
   });
 
   test("dev skip env with value '1' also accepted", async () => {

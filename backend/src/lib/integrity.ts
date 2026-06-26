@@ -136,7 +136,28 @@ export async function verifyManifest(opts: VerifyOptions = {}): Promise<Integrit
     opts.devSkip ??
     (process.env.NEXORA_DEV_SKIP_INTEGRITY === "true" ||
       process.env.NEXORA_DEV_SKIP_INTEGRITY === "1");
-  if (devSkip) return { ok: true, skipped: true, reason: "dev_skip" };
+  if (devSkip) {
+    // f-integrity-1 (deep audit, 2026-06-27): the dev-skip flag was honored
+    // unconditionally. A misconfigured production deploy with the env var
+    // accidentally carried over from dev would silently disable EVERY tamper
+    // check, so an attacker who patched a shipped binary would never be
+    // caught. NODE_ENV=production now refuses the skip and forces a real
+    // verification — operators who genuinely want skip in prod (rare:
+    // air-gapped staging, signature-rotation drills) must opt in via the
+    // explicit NEXORA_ALLOW_PROD_INTEGRITY_SKIP=true escape hatch.
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.NEXORA_ALLOW_PROD_INTEGRITY_SKIP !== "true"
+    ) {
+      console.error(
+        "[integrity] NEXORA_DEV_SKIP_INTEGRITY is set in production — IGNORING. " +
+          "Set NEXORA_ALLOW_PROD_INTEGRITY_SKIP=true to override (NOT recommended).",
+      );
+      // Fall through to real verification.
+    } else {
+      return { ok: true, skipped: true, reason: "dev_skip" };
+    }
+  }
 
   // Refuse to "verify" with the placeholder key — that would always-fail
   // anyway, but the explicit reason helps an operator diagnose a build
