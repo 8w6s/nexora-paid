@@ -1,9 +1,12 @@
+
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { RichTextEditor } from "../RichTextEditor";
+import { useToast } from "../Toast";
 
 interface BlogPost {
   id: string;
@@ -40,13 +43,15 @@ export const AdminBlog: React.FC = () => {
   const [editorTab, setEditorTab] = useState<EditorTab>("general");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingPost, setDeletingPost] = useState<BlogPost | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
     api
       .get<BlogPost[]>("/api/admin/blog")
-      .catch(() => [] as BlogPost[])
       .then(setPosts)
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load posts"))
       .finally(() => setLoading(false));
   };
 
@@ -98,10 +103,17 @@ export const AdminBlog: React.FC = () => {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this blog post?")) return;
-    await api.del(`/api/admin/blog/${id}`).catch(() => {});
-    load();
+  const remove = (p: BlogPost) => setDeletingPost(p);
+  const confirmRemove = async () => {
+    if (!deletingPost) return;
+    try {
+      await api.del(`/api/admin/blog/${deletingPost.id}`);
+      toast.success("Post deleted.");
+      setDeletingPost(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
   };
 
   const autoSlug = (title: string) =>
@@ -324,7 +336,8 @@ export const AdminBlog: React.FC = () => {
                 </button>
                 <button
                   className="btn btn-ghost btn-sm btn-danger-icon"
-                  onClick={() => remove(p.id)}
+                  onClick={() => remove(p)}
+                  aria-label="Delete blog post"
                 >
                   <Icon name="close" size={14} />
                 </button>
@@ -333,6 +346,16 @@ export const AdminBlog: React.FC = () => {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deletingPost}
+        onClose={() => setDeletingPost(null)}
+        onConfirm={confirmRemove}
+        title="Delete Blog Post"
+        message={`Are you sure you want to delete "${deletingPost?.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        danger
+      />
 
       <style>{`
         .blog-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; }

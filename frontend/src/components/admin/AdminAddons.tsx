@@ -1,9 +1,11 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
+import { useToast } from "../Toast";
 
 interface Addon {
   id: string;
@@ -32,13 +34,15 @@ export const AdminAddons: React.FC = () => {
   const [form, setForm] = useState<Omit<Addon, "id">>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingAddon, setDeletingAddon] = useState<Addon | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
     api
       .get<Addon[]>("/api/admin/addons")
-      .catch(() => [] as Addon[])
       .then(setAddons)
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load addons"))
       .finally(() => setLoading(false));
   };
 
@@ -86,10 +90,19 @@ export const AdminAddons: React.FC = () => {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this addon?")) return;
-    await api.del(`/api/admin/addons/${id}`).catch(() => {});
-    load();
+  const remove = (a: Addon) => {
+    setDeletingAddon(a);
+  };
+  const confirmRemove = async () => {
+    if (!deletingAddon) return;
+    try {
+      await api.del(`/api/admin/addons/${deletingAddon.id}`);
+      toast.success("Addon deleted.");
+      setDeletingAddon(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
   };
 
   if (creating)
@@ -283,7 +296,8 @@ export const AdminAddons: React.FC = () => {
                 </button>
                 <button
                   className="btn btn-ghost btn-sm btn-danger-icon"
-                  onClick={() => remove(a.id)}
+                  onClick={() => remove(a)}
+                  aria-label="Delete addon"
                 >
                   <Icon name="close" size={14} />
                 </button>
@@ -292,6 +306,16 @@ export const AdminAddons: React.FC = () => {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deletingAddon}
+        onClose={() => setDeletingAddon(null)}
+        onConfirm={confirmRemove}
+        title="Delete Addon"
+        message={`Are you sure you want to delete "${deletingAddon?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        danger
+      />
 
       <style>{`
         .adm-info-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; background: var(--brand-soft); border-color: rgba(79,70,229,.2); }

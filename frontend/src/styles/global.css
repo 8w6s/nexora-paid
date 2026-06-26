@@ -190,6 +190,13 @@ img {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Keyboard a11y: every button (.btn, .btn-ghost, .btn-outline inherit this)
+   gets a visible focus ring when keyboard-focused. :focus-visible (not :focus)
+   so mouse clicks don't paint the ring — matches platform conventions. */
+.btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
 
 .btn-ghost {
   background: var(--surface);
@@ -219,7 +226,7 @@ img {
 .input::placeholder {
   color: var(--ink-faint);
 }
-.input:focus {
+.input:focus-visible {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px var(--brand-soft);
 }
