@@ -91,3 +91,4 @@ backend/Show
 # TUI runtime logs
 scripts/tui-*.log
 frontend/cookies.txt
+.gstack/
