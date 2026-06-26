@@ -139,7 +139,7 @@ function renderTicketReply(subject: string, body: string) {
 // Strip CR/LF from an email-header source value to prevent SMTP header
 // injection (an attacker who can put a CRLF into the subject could append
 // `Bcc: ...` and silently fan out the email). Cap length defensively too.
-const SAFE_HEADER_RE = /[\r]+/g;
+const SAFE_HEADER_RE = /[\r\n\x00-\x1f\x7f]+/g;
 const safeHeader = (s: string, max = 200) => s.replace(SAFE_HEADER_RE, " ").slice(0, max);
 
 export const EmailService = {
