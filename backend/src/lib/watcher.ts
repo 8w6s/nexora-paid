@@ -54,6 +54,43 @@ export function onOrderDelivered(hook: DeliverHook) {
   };
 }
 
+/**
+ * Synchronously fire every registered deliver-hook with the supplied payload.
+ *
+ * The watcher fires hooks from inside its own poll loop after the payment
+ * lands on-chain. Code paths that deliver an order WITHOUT going through the
+ * watcher (the free-order path on checkout — 100% coupon, total === 0) must
+ * call this helper directly, otherwise customers never get the email with
+ * their keys and a closed-tab loses the only copy of the license.
+ *
+ * Errors inside a hook are swallowed (same contract as the watcher loop):
+ * a misbehaving subscriber must not crash the call site.
+ */
+export function fireDeliverHooks(
+  orderId: string,
+  email: string,
+  delivered: { productId: string; name: string; code: string }[],
+): void {
+  // Snapshot before iterating so a hook that unsubscribes itself during
+  // dispatch (SSE clients commonly do this on the paid event) doesn't shift
+  // indexes and skip later hooks.
+  for (const h of [...deliverHooks]) {
+    try {
+      h(orderId, email, delivered);
+    } catch (e) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          source: "fireDeliverHooks",
+          orderId,
+          error: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack : undefined,
+        }),
+      );
+    }
+  }
+}
+
 const PAYABLE = sql`${orders.status} in ('pending','awaiting_payment','underpaid')`;
 
 /**

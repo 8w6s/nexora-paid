@@ -24,6 +24,7 @@ import {
 import { deriveReceiveAddress } from "../lib/hd.ts";
 import { reserveKeys } from "../lib/inventory.ts";
 import { hookBus } from "../lib/plugin/hook-bus.ts";
+import { fireDeliverHooks } from "../lib/watcher.ts";
 import { lockOrderRate } from "../lib/rate.ts";
 import { rateLimitCheck, clientIp as resolveClientIp } from "../lib/rate-limit.ts";
 import { getSetting, getSettingNumber } from "../lib/settings.ts";
@@ -292,6 +293,10 @@ export const checkoutRoutes = new Elysia()
           });
         }
         const orderId = `GG-${randomBytes(8).toString("hex").toUpperCase()}`;
+        // Captured from inside the transaction so the post-commit deliver-hook
+        // dispatch (which sends the email with license keys) sees the same
+        // codes that were just marked delivered.
+        let deliveredForHooks: { productId: string; name: string; code: string }[] = [];
         try {
           await db.transaction(async (tx) => {
             // Free orders are paid+delivered the moment the insert completes,
@@ -329,12 +334,35 @@ export const checkoutRoutes = new Elysia()
               if (!okk)
                 throw new Error(`OUT_OF_STOCK:${product.name}${variant ? ` (${variant.name})` : ""}`);
             }
-            // Deliver keys immediately (reuse the timestamp from above so
-            // every row in this transaction shares one paid/delivered moment).
+            // Flip the reserved keys to delivered NOW so the storefront poll
+            // sees an immediate paid+delivered order. Reuse `now` so every
+            // row inside the transaction shares one paid/delivered timestamp.
             await tx
               .update(productKeys)
               .set({ status: "delivered", deliveredAt: now })
               .where(eq(productKeys.orderId, orderId));
+            // Read Must run INSIDE the same
+            // transaction — the encrypted_text columns are transparently
+            // decrypted on read by the drizzle field codec.
+            const reservedRows = await tx
+              .select()
+              .from(productKeys)
+              .where(eq(productKeys.orderId, orderId));
+            for (const k of reservedRows) {
+              const p = (await tx.select().from(products).where(eq(products.id, k.productId)))[0];
+              deliveredForHooks.push({ productId: k.productId, name: p?.name ?? "Item", code: k.code });
+            }
+            // Bump products.sold the same way the watcher's markPaidAndDeliver
+            // does. Without this, the free-order path silently desyncs the
+            // sold counter on the storefront card (used for "X sold" social
+            // proof + low-stock alerting).
+            for (const k of reservedRows) {
+              await tx
+                .update(products)
+                .set({ sold: sql`${products.sold} + 1` })
+                .where(eq(products.id, k.productId));
+            }
+            await tx.update(orders).set({ deliveredAt: now }).where(eq(orders.id, orderId));
             // Consume coupon
             if (appliedCoupon) {
               const fresh = (
@@ -350,6 +378,16 @@ export const checkoutRoutes = new Elysia()
             }
           });
           hookBus.emit("order.created", { orderId, userId: checkoutUserId }).catch(() => {});
+          // CRITICAL: free-order path used to skip the deliver-hook chain that
+          // sends the order-paid email with the license keys. Customers paying
+          // via LTC always go through watcher.checkOrder which fires the
+          // hooks, but a free order (100% coupon) returned 201 with status=paid
+          // and never triggered the email. Closing the tab = losing the only
+          // copy of the license. Fire the hooks now, post-commit, with the
+          // exact rows we just marked delivered.
+          if (deliveredForHooks.length > 0) {
+            fireDeliverHooks(orderId, checkoutEmail, deliveredForHooks);
+          }
           set.status = 201;
           return {
             orderId,
