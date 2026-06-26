@@ -73,6 +73,35 @@ const PAYABLE = sql`${orders.status} in ('pending','awaiting_payment','underpaid
 async function expireStaleOrders(): Promise<void> {
   const now = new Date();
   const stale = await db
+    .select()
+    .from(orders)
+    .where(and(PAYABLE, lte(orders.expiresAt, now)));
+  if (stale.length === 0) return;
+
+  // Last-chance poll. Without this, a customer who paid within seconds of
+  // the expiry deadline (or whose payment landed during the 90s recheck
+  // cooldown) would silently get their order expired even though the funds
+  // arrived on-chain. We poll each stale order one final time; if the poll
+  // flips it to "paid", checkOrder writes the keys + emits delivery hooks
+  // and the row is no longer in PAYABLE — the subsequent expire query skips
+  // it. Errors are swallowed per-order so one explorer hiccup doesn't block
+  // the rest of the expire pass.
+  const token = (await getSetting("blockcypher_token")) ?? undefined;
+  const requiredConf = await getSettingNumber("required_confirmations", 2);
+  const tol = await getSettingNumber("rate_tolerance_litoshi", 1000);
+  for (const o of stale) {
+    try {
+      await checkOrder(o, token, requiredConf, tol);
+    } catch (e) {
+      console.error(
+        `[watcher] last-chance poll failed for ${o.id}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  // Re-read the stale set: any order checkOrder advanced to paid is gone
+  // from PAYABLE now. The remaining rows are real expirations.
+  const stillStale = await db
     .select({
       id: orders.id,
       status: orders.status,
@@ -81,8 +110,8 @@ async function expireStaleOrders(): Promise<void> {
     })
     .from(orders)
     .where(and(PAYABLE, lte(orders.expiresAt, now)));
-  if (stale.length === 0) return;
-  for (const o of stale) {
+  if (stillStale.length === 0) return;
+  for (const o of stillStale) {
     // Surface underpaid-on-expire BEFORE the transaction so the operator
     // sees the orderId + address + amount even if tx commit races with a
     // concurrent payment that won. Inventory MUST still flow (release the
