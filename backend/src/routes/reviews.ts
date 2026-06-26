@@ -5,6 +5,7 @@ import { db } from "../db/connection.ts";
 import { orderItems, orders, products, reviews } from "../db/schema.ts";
 import { SESSION_COOKIE, type SessionUser, validateSession } from "../lib/auth.ts";
 import { isEnabled } from "../lib/features.ts";
+import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 
 // The storefront route uses :idOrSlug, so reviews must resolve either to the real product id.
 async function resolveProductId(idOrSlug: string): Promise<string | null> {
@@ -95,11 +96,26 @@ export const reviewRoutes = new Elysia()
   // Customer: submit a verified-purchase review.
   .post(
     "/api/products/:idOrSlug/reviews",
-    async ({ params: { idOrSlug }, body, cookie, status, set }) => {
+    async ({ params: { idOrSlug }, body, cookie, status, set, request }) => {
       if (!(await isEnabled("reviews")))
         return status(403, { error: "Reviews are disabled", code: "DISABLED" });
       const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
       if (!user) return status(401, { error: "Sign in to review", code: "UNAUTHENTICATED" });
+      // Rate-limit BEFORE any DB work: 5 reviews per 10 minutes per
+      // (user, IP) pair — combining both keys prevents a single attacker
+      // from rotating either dimension to amplify spam. The UNIQUE
+      // (userId, productId) constraint already blocks duplicate reviews
+      // per product, but does nothing against spray-across-products spam.
+      const rlKey = `review:${user.id}:${clientIp(request)}`;
+      const rl = rateLimitCheck(rlKey, 5, 600_000);
+      if (!rl.allowed) {
+        set.headers["retry-after"] = String(Math.ceil(rl.resetMs / 1000));
+        return status(429, {
+          error: "Too many reviews — please wait before posting another",
+          code: "RATE_LIMITED",
+          resetMs: rl.resetMs,
+        });
+      }
       const id = await resolveProductId(idOrSlug);
       if (!id) return status(404, { error: "Product not found", code: "NOT_FOUND" });
       if (!(await hasPurchased(user.id, id)))
