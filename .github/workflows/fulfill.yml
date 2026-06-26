@@ -1,0 +1,117 @@
+name: fulfill-order
+
+# Triggered by LemonSqueezy/Polar webhook via repository_dispatch
+# Setup: in LemonSqueezy → Webhooks → add endpoint:
+#   https://api.github.com/repos/8w6s/nexora-paid/dispatches
+#   with Authorization: Bearer $GITHUB_PAT (repo scope)
+#   Content-Type: application/json
+#   Body template: {"event_type":"order_paid","client_payload":{"email":"{{buyer_email}}","customer_id":"{{order_id}}","tier":"standard"}}
+
+on:
+  repository_dispatch:
+    types: [order_paid]
+
+permissions:
+  contents: read
+
+jobs:
+  fulfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        run: cd backend && bun install --frozen-lockfile
+
+      - name: Resolve params
+        id: params
+        run: |
+          EMAIL="${{ github.event.client_payload.email }}"
+          CUSTOMER="${{ github.event.client_payload.customer_id }}"
+          TIER="${{ github.event.client_payload.tier || 'standard' }}"
+          SAFE_EMAIL=$(echo "$EMAIL" | tr -c 'a-z0-9' '_')
+          echo "email=$EMAIL" >> "$GITHUB_OUTPUT"
+          echo "customer=$CUSTOMER" >> "$GITHUB_OUTPUT"
+          echo "tier=$TIER" >> "$GITHUB_OUTPUT"
+          echo "safe_email=$SAFE_EMAIL" >> "$GITHUB_OUTPUT"
+
+      - name: Write signing key
+        run: |
+          mkdir -p .keys
+          echo "${{ secrets.LICENSE_SIGNER_PRIVATE }}" > .keys/license-signer.private
+
+      - name: Sign license
+        run: |
+          TTL_FLAG=""
+          if [ "${{ steps.params.outputs.tier }}" = "standard" ]; then
+            TTL_FLAG="--ttl=365"
+          fi
+          bun run scripts/sign-license.ts \
+            --email="${{ steps.params.outputs.email }}" \
+            --customer="${{ steps.params.outputs.customer }}" \
+            $TTL_FLAG \
+            --features=search-suggest,admin-bulk,admin-export,admin-customers-csv \
+            --note="${{ steps.params.outputs.tier }}, auto-fulfilled $(date +%Y-%m-%d)" \
+            --out=./release-pkg/nexora.license
+
+      - name: Assemble release package
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "latest")
+          VERSION="${VERSION#v}"
+
+          cp docker-compose.yml release-pkg/
+          cp docker-compose.updater.yml release-pkg/ 2>/dev/null || true
+          cp Caddyfile release-pkg/
+          cp Caddyfile.tunnel release-pkg/
+          cp .env.example release-pkg/
+          cp scripts/nexora-backup.sh release-pkg/ 2>/dev/null || true
+          cp scripts/nexora-restore-drill.sh release-pkg/ 2>/dev/null || true
+          cp scripts/nexora-go-live-check.sh release-pkg/ 2>/dev/null || true
+          cp docs/CUSTOMER_ONBOARDING.md release-pkg/README.md
+          cp docs/DEPLOYMENT.md release-pkg/
+          cp TERMS.md release-pkg/
+          cp releases-template/revoked.json release-pkg/ 2>/dev/null || true
+
+          cat > release-pkg/.env.version <<EOF
+          NEXORA_VERSION=$VERSION
+          NEXORA_IMAGE=ghcr.io/8w6s/nexora-backend
+          NEXORA_IMAGE_FRONTEND=ghcr.io/8w6s/nexora-frontend
+          NEXORA_UPDATER_VERSION=$VERSION
+          EOF
+
+      - name: Create ZIP
+        run: |
+          cd release-pkg
+          zip -r ../nexora-paid-${{ steps.params.outputs.safe_email }}.zip .
+
+      - name: Upload to Catbox (ephemeral, 24h link)
+        id: upload
+        run: |
+          RESPONSE=$(curl -sF "reqtype=fileupload" \
+            -F "fileToUpload=@nexora-paid-${{ steps.params.outputs.safe_email }}.zip" \
+            https://catbox.moe/user/api.php)
+          echo "url=$RESPONSE" >> "$GITHUB_OUTPUT"
+          echo "Download URL: $RESPONSE"
+
+      - name: Email customer
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          curl -s -X POST https://api.resend.com/emails \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "from": "Nexora <hello@nexora.store>",
+              "to": ["${{ steps.params.outputs.email }}"],
+              "subject": "Your Nexora Paid license is ready 🎉",
+              "html": "<h2>Welcome to Nexora!</h2><p>Your license has been signed and your release package is ready.</p><p><strong>Download:</strong> <a href="${{ steps.upload.outputs.url }}">Click here to download your ZIP</a></p><p>Inside the ZIP you will find:<ul><li><code>nexora.license</code> — your signed license file</li><li><code>docker-compose.yml</code> — point at our GHCR image</li><li><code>README.md</code> — step-by-step setup guide</li><li>Backup/restore scripts + Caddyfile configs</li></ul></p><p>Your GHCR access token for pulling private images will be sent in a separate email within 24h.</p><p>Questions? Reply to this email.</p><p>— Nexora</p>"
+            }'
+
+      - name: Cleanup signing key
+        if: always()
+        run: rm -rf .keys
