@@ -17,4 +17,4 @@ export const APP_VERSION = "1.0.0";
  * Refuse to boot if DB recorded a higher index — that means the operator
  * pulled an older image after the DB was migrated by a newer one.
  */
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
