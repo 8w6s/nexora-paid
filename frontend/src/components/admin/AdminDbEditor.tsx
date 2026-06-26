@@ -154,7 +154,7 @@ export function AdminDbEditor(): React.ReactElement {
     <div className="nx-dbe">
       <aside className="nx-dbe__side">
         <div className="nx-dbe__side-title">
-          <Icon name="database" size={13} /> Schema
+          <i className="fa-duotone fa-database" style={{fontSize: 13}} /> Schema
         </div>
         <div className="nx-dbe__side-list">
           {tables.length === 0 ? (
