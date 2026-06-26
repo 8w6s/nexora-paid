@@ -164,14 +164,16 @@
   background: transparent;
   border: 0;
   cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
+  padding: 8px;
+  border-radius: 7px;
   color: var(--muted, #6b7280);
-  font-size: 13px;
+  font-size: 15px;
   transition: all 120ms ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
 }
 
 .nx-nae__btn-icon:hover {
@@ -231,7 +233,7 @@
 .nx-nae__th-actions {
   cursor: default !important;
   text-align: center;
-  width: 100px;
+  width: 120px;
 }
 
 .nx-nae__sort {
