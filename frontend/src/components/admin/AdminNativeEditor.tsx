@@ -31,11 +31,20 @@ export function AdminNativeEditor(): React.ReactElement {
   const [tables, setTables] = useState<SchemaTable[]>([]);
   const [selected, setSelected] = useState<string | null>(() => {
     try {
-      return localStorage.getItem("nx.native-editor.table");
+      return localStorage.getItem("nx.native-editor.table") || null;
     } catch {
       return null;
     }
   });
+
+  // Auto-select a meaningful table on first open (skip internal/system tables)
+  const PREFERRED_TABLES = ["products", "orders", "users", "categories", "coupons"];
+  useEffect(() => {
+    if (selected || tables.length === 0) return;
+    const meaningful = PREFERRED_TABLES.find((t) => tables.some((tb) => tb.name === t));
+    if (meaningful) setSelected(meaningful);
+    else if (tables.length > 0) setSelected(tables[0].name);
+  }, [tables, selected]);
   const [data, setData] = useState<TableData | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -77,7 +86,10 @@ export function AdminNativeEditor(): React.ReactElement {
       .then((d) => {
         const list = (d.tables ?? []).filter(
           (t) =>
-            !t.name.startsWith("sqlite_") && t.name !== "_migrations" && t.name !== "audit_log",
+            !t.name.startsWith("sqlite_") &&
+            !t.name.startsWith("__") &&
+            t.name !== "_migrations" &&
+            t.name !== "audit_log",
         );
         setTables(list);
         // Restore last selected table if still present, otherwise pick first

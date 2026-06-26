@@ -63,7 +63,15 @@ export function AdminDbEditor(): React.ReactElement {
     api
       .get<{ tables: SchemaTable[] }>("/api/admin/db/schema")
       .then((d) => setTables(d.tables ?? []))
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+      .catch((e) => {
+        setErr(e instanceof Error ? e.message : String(e));
+      });
+    // Probe query endpoint to detect disabled state early
+    api.post("/api/admin/db/query", { statement: "SELECT 1" }).catch((e) => {
+      if (e instanceof ApiRequestError && e.message.includes("Raw SQL console is disabled")) {
+        setErr(e.message);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -125,6 +133,22 @@ export function AdminDbEditor(): React.ReactElement {
 
   const totalRows = result?.rows.length ?? 0;
   const moreCount = result?.truncated ? "+" : "";
+  const isDisabled = err?.includes("RAW_SQL_DISABLED") || err?.includes("Raw SQL console is disabled");
+
+  if (isDisabled) {
+    return (
+      <div className="nx-dbe" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center", padding: "60px 32px", maxWidth: 480 }}>
+          <Icon name="lock" size={48} />
+          <h2 style={{ marginTop: 18, marginBottom: 8, fontSize: "1.2rem" }}>SQL Console Disabled</h2>
+          <p style={{ color: "var(--muted)", fontSize: ".9rem", lineHeight: 1.6 }}>
+            The raw SQL console is gated behind the <code>NEXORA_ENABLE_RAW_SQL=true</code> environment variable for security.
+            Use the <strong>Native Editor</strong> for safe table CRUD, or enable this console in your <code>.env</code> if you need direct SQL access.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="nx-dbe">
