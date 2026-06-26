@@ -84,6 +84,12 @@ docker compose logs backend | grep -E "(integrity|license|plugin)" | head -20
 - [ ] Place an order as a guest, pay the exact LTC amount.
 - [ ] Watcher logs `paid` within 2 confirmations; key is delivered to
   the order page; email (if enabled) is sent exactly once.
+- [ ] **Coupon checkout smoke**: create a `WELCOME10` 10%-off coupon, retry
+  the checkout with the coupon applied. The `/api/checkout` response must
+  show `discountUsd` > 0 AND the locked LTC amount must reflect the
+  discounted USD total (not the pre-discount one). The `coupons.usedCount`
+  must increment by exactly 1 even under two concurrent checkouts —
+  atomic-consume guard. Bad coupon code returns `BAD_COUPON` 400.
 - [ ] Idempotency check (no admin re-mark-paid route exists in v1.1, so
   exercise the recovery path instead): `docker compose restart backend`
   immediately after the order flips to `paid` — boot logs show

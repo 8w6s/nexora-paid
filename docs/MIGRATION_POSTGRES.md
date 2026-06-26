@@ -1,6 +1,19 @@
 # SQLite → PostgreSQL Migration Guide
 
-Nexora ships with SQLite for simplicity (single file, zero config). For high-traffic deployments (>1000 concurrent users) or when you need PostgreSQL-specific features (full-text search, JSON queries, streaming replication), migrate to PostgreSQL.
+> ⚠️ **EXPERIMENTAL / DEVELOPER-ONLY.**
+> PostgreSQL is **not** a supported production target for Nexora as of v1.x.
+> The runtime ships with SQLite-only `connection.ts` and `sqliteTable` schemas;
+> the steps below require editing source files, regenerating migrations, and
+> running an offline data copy. There is **no compose profile**, no
+> runtime `DATABASE_URL` switch, and no automated rollback. Customers on a
+> supported plan should stay on SQLite — it comfortably handles single-shop
+> workloads up to ~500 concurrent customers on a 2-vCPU/4 GB VPS. Use this
+> guide only if you are forking Nexora and willing to own the maintenance
+> tax of a custom Postgres build going forward.
+
+Nexora ships with SQLite for simplicity (single file, zero config). The
+sections below describe what a PostgreSQL fork would look like; nothing in
+this document is exercised by the test suite or release smoke.
 
 ---
 

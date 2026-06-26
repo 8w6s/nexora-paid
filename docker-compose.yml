@@ -44,7 +44,12 @@ services:
       DOMAIN: "${DOMAIN:-localhost}"
       ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@localhost}"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # CADDYFILE switches the bind-mounted config without rebuilding the
+      # image. Default points at ./Caddyfile (auto-HTTPS + ACME). For
+      # Cloudflare Tunnel mode set CADDYFILE=./Caddyfile.tunnel so Caddy
+      # stays on plain :80 and skips ACME entirely — the tunnel profile
+      # README documents this.
+      - "${CADDYFILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro"
       - caddy-data:/data
       - caddy-config:/config
     # Caddy needs NET_BIND_SERVICE to bind :80/:443 as a non-root user.
@@ -74,6 +79,13 @@ services:
 
   backend:
     build: ./backend
+    # Pull every documented secret from .env (root). Variables explicitly
+    # named in `environment:` below override anything from .env, but the
+    # env_file gives buyers a single place to drop the four production
+    # secrets without editing this compose file.
+    env_file:
+      - path: .env
+        required: false
     expose:
       - "3000"
     environment:
@@ -90,6 +102,21 @@ services:
       # DB file, not the entire source tree. Mounting `nexora-db:/app` would
       # shadow the COPY'd code on first boot and freeze it across rebuilds.
       DB_PATH: /app/data/sqlite.db
+      # ── Production-required secrets ───────────────────────────────────
+      # Backend refuses to boot if these are unset under NODE_ENV=production
+      # (see backend/src/index.ts + lib/encryption.ts + lib/tenant.ts).
+      # Set them in your root .env — they are blank in local/dev mode and
+      # the boot path tolerates that on NODE_ENV != production.
+      ORDER_TOKEN_SECRET: "${ORDER_TOKEN_SECRET:-}"
+      DATABASE_ENCRYPTION_KEY: "${DATABASE_ENCRYPTION_KEY:-}"
+      NEXORA_LICENSE_SECRET: "${NEXORA_LICENSE_SECRET:-}"
+      # ── Updater handshake (only used when docker-compose.updater.yml
+      # overlay is applied; harmless when absent) ──
+      NEXORA_UPDATER_PSK: "${NEXORA_UPDATER_PSK:-}"
+      # ── Optional opt-ins ──
+      # NEXORA_ENABLE_RAW_SQL=true unlocks /api/admin/db/query (raw SQL).
+      # Native CRUD editor stays on regardless.
+      NEXORA_ENABLE_RAW_SQL: "${NEXORA_ENABLE_RAW_SQL:-false}"
       # Optional: ADMIN_PASSWORD_HASH, LTC_XPUB, EMAIL_PROVIDER, RESEND_API_KEY, SMTP_*
     volumes:
       - nexora-db:/app/data

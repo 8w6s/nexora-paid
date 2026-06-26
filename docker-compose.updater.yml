@@ -26,6 +26,19 @@ services:
       COMPOSE_PROJECT_NAME: "${COMPOSE_PROJECT_NAME:-nexora}"
       NEXORA_VOLUME: nexora-db
       BACKEND_HEALTH_URL: http://backend:3000/api/health
+      # Shared PSK for the backend ↔ updater unix-socket handshake. Same
+      # value as the backend service consumes; without this the updater
+      # rejects every signed request.
+      NEXORA_UPDATER_PSK: "${NEXORA_UPDATER_PSK:-}"
+      # GHCR PAT (read:packages) for pulling private update images. Leave
+      # blank when the release images are public; the updater handles
+      # docker-login conditionally.
+      GHCR_TOKEN: "${GHCR_TOKEN:-}"
+      # Honour caller's pinned image + version for warm-pull so the
+      # updater's manifest-vs-local digest check uses the same target.
+      NEXORA_IMAGE: "${NEXORA_IMAGE:-ghcr.io/8w6s/nexora-backend}"
+      NEXORA_IMAGE_FRONTEND: "${NEXORA_IMAGE_FRONTEND:-ghcr.io/8w6s/nexora-frontend}"
+      NEXORA_VERSION: "${NEXORA_VERSION:-latest}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/nexora:ro
@@ -35,6 +48,17 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    # Updater wakes up every few minutes to compare digests + run the
+    # apply state machine; healthy as long as the supervisor can stat its
+    # socket. Bun handles the http probe with no extra deps installed.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "test -S /var/run/nexora-updater/sock || exit 1"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     mem_limit: 128m
     pids_limit: 64
 

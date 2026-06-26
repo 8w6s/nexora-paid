@@ -1,0 +1,55 @@
+# Nexora — Caddy config for Cloudflare Tunnel mode.
+#
+# When `docker compose --profile tunnel up` is used, Cloudflare terminates
+# TLS at their edge and forwards plain HTTP to `caddy:80` inside the docker
+# network. The base Caddyfile would still try to issue Let's Encrypt certs
+# for {$DOMAIN} and redirect HTTP→HTTPS internally, which creates a redirect
+# loop (Cloudflare proxies HTTPS in, Caddy bounces to HTTPS, Cloudflare
+# already terminated TLS, the next hop is plain HTTP again).
+#
+# Mount this file in place of Caddyfile for tunnel mode:
+#   docker compose --profile tunnel \
+#     -v $(pwd)/Caddyfile.tunnel:/etc/caddy/Caddyfile:ro up -d
+#
+# Or set CADDYFILE_PATH in your shell and override the compose volume:
+#   ./Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
+#
+# `auto_https off` is the critical line — it disables every ACME path AND
+# the HTTP→HTTPS auto-redirect, so the listener stays on plain :80 to match
+# what Cloudflare sends.
+
+{
+	auto_https off
+	admin off
+}
+
+# Bind plain :80 regardless of DOMAIN. Cloudflare's tunnel ingress rule sets
+# the Host header to the customer's public hostname; we honor it implicitly
+# via the catch-all `:80` site address rather than hard-coding a domain.
+:80 {
+	header {
+		# HSTS still useful — Cloudflare passes it through to the browser.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	@api {
+		path /api/* /health /admin/api/*
+	}
+	handle @api {
+		reverse_proxy backend:3000
+	}
+
+	handle {
+		reverse_proxy frontend:4321
+	}
+
+	encode zstd gzip
+
+	log {
+		output stdout
+		format console
+	}
+}
