@@ -1,8 +1,10 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
+import { useToast } from "../Toast";
 
 interface Group {
   id: string;
@@ -41,17 +43,20 @@ export const AdminGroups: React.FC = () => {
   const [form, setForm] = useState<Omit<Group, "id">>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<Group | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      api.get<Group[]>("/api/admin/groups").catch(() => [] as Group[]),
-      api.get<Product[]>("/api/admin/products").catch(() => [] as Product[]),
+      api.get<Group[]>("/api/admin/groups"),
+      api.get<Product[]>("/api/admin/products"),
     ])
       .then(([g, p]) => {
         setGroups(g);
         setProducts(p);
       })
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load groups"))
       .finally(() => setLoading(false));
   };
 
@@ -100,10 +105,17 @@ export const AdminGroups: React.FC = () => {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this group?")) return;
-    await api.del(`/api/admin/groups/${id}`).catch(() => {});
-    load();
+  const remove = (g: Group) => setDeletingGroup(g);
+  const confirmRemove = async () => {
+    if (!deletingGroup) return;
+    try {
+      await api.del(`/api/admin/groups/${deletingGroup.id}`);
+      toast.success("Group deleted.");
+      setDeletingGroup(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
   };
 
   const toggleProduct = (id: string) => {
@@ -308,7 +320,8 @@ export const AdminGroups: React.FC = () => {
                 </button>
                 <button
                   className="btn btn-ghost btn-sm btn-danger-icon"
-                  onClick={() => remove(g.id)}
+                  onClick={() => remove(g)}
+                  aria-label="Delete group"
                 >
                   <Icon name="close" size={14} />
                 </button>
@@ -326,6 +339,16 @@ export const AdminGroups: React.FC = () => {
         .grp-row-actions { display: flex; gap: 6px; }
         .grp-badge { font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 20px; color: #fff; width: fit-content; }
       `}</style>
+
+      <ConfirmModal
+        open={!!deletingGroup}
+        onClose={() => setDeletingGroup(null)}
+        onConfirm={confirmRemove}
+        title="Delete Group"
+        message={`Are you sure you want to delete "${deletingGroup?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        danger
+      />
     </div>
   );
 };

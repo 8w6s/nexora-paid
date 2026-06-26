@@ -1,10 +1,12 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { Dropdown } from "../Dropdown";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
+import { useToast } from "../Toast";
 
 interface BundleProduct {
   productId: string;
@@ -51,17 +53,20 @@ export const AdminBundleOffers: React.FC = () => {
   const [form, setForm] = useState<Omit<BundleOffer, "id">>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingOffer, setDeletingOffer] = useState<BundleOffer | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      api.get<BundleOffer[]>("/api/admin/bundle-offers").catch(() => [] as BundleOffer[]),
-      api.get<Product[]>("/api/admin/products").catch(() => [] as Product[]),
+      api.get<BundleOffer[]>("/api/admin/bundle-offers"),
+      api.get<Product[]>("/api/admin/products"),
     ])
       .then(([o, p]) => {
         setOffers(o);
         setProducts(p);
       })
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load bundle offers"))
       .finally(() => setLoading(false));
   };
 
@@ -113,10 +118,17 @@ export const AdminBundleOffers: React.FC = () => {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this bundle offer?")) return;
-    await api.del(`/api/admin/bundle-offers/${id}`).catch(() => {});
-    load();
+  const remove = (o: BundleOffer) => setDeletingOffer(o);
+  const confirmRemove = async () => {
+    if (!deletingOffer) return;
+    try {
+      await api.del(`/api/admin/bundle-offers/${deletingOffer.id}`);
+      toast.success("Bundle offer deleted.");
+      setDeletingOffer(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
   };
 
   const addBundleProduct = (productId: string) => {
@@ -407,7 +419,8 @@ export const AdminBundleOffers: React.FC = () => {
                       </button>
                       <button
                         className="btn btn-ghost btn-sm btn-danger-icon"
-                        onClick={() => remove(o.id)}
+                        onClick={() => remove(o)}
+                        aria-label="Delete bundle offer"
                       >
                         <Icon name="close" size={13} />
                       </button>
@@ -419,6 +432,16 @@ export const AdminBundleOffers: React.FC = () => {
           </table>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deletingOffer}
+        onClose={() => setDeletingOffer(null)}
+        onConfirm={confirmRemove}
+        title="Delete Bundle Offer"
+        message={`Are you sure you want to delete "${deletingOffer?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        danger
+      />
     </div>
   );
 };
