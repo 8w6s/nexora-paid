@@ -182,7 +182,24 @@ async function checkOrder(
       for (const h of [...deliverHooks]) {
         try {
           h(o.id, o.email, delivered);
-        } catch (_e) {}
+        } catch (e) {
+          // A misbehaving deliver hook (SSE client gone, plugin throwing)
+          // must NOT abort delivery of the remaining hooks or roll back the
+          // paid order — payment already arrived on-chain, the order is
+          // already marked delivered, swallowing into a log is the safe
+          // behavior. But silent swallow during the post-pentest audit
+          // hid the watcher payment-loop empty-catch bug for weeks. Surface
+          // it now: structured JSON so log aggregators can grep on orderId.
+          console.error(
+            JSON.stringify({
+              level: "error",
+              source: "watcher.deliverHook",
+              orderId: o.id,
+              error: e instanceof Error ? e.message : String(e),
+              stack: e instanceof Error ? e.stack : undefined,
+            }),
+          );
+        }
       }
       // Emit hooks for plugins (analytics, external webhooks, etc.)
       hookBus
