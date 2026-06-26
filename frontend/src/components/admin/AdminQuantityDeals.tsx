@@ -1,10 +1,12 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { Dropdown } from "../Dropdown";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
+import { useToast } from "../Toast";
 
 interface QuantityDeal {
   id: string;
@@ -50,17 +52,20 @@ export const AdminQuantityDeals: React.FC = () => {
   const [form, setForm] = useState<Omit<QuantityDeal, "id" | "productName">>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingDeal, setDeletingDeal] = useState<QuantityDeal | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      api.get<QuantityDeal[]>("/api/admin/quantity-deals").catch(() => [] as QuantityDeal[]),
-      api.get<Product[]>("/api/admin/products").catch(() => [] as Product[]),
+      api.get<QuantityDeal[]>("/api/admin/quantity-deals"),
+      api.get<Product[]>("/api/admin/products"),
     ])
       .then(([d, p]) => {
         setDeals(d);
         setProducts(p);
       })
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load quantity deals"))
       .finally(() => setLoading(false));
   };
 
@@ -114,10 +119,17 @@ export const AdminQuantityDeals: React.FC = () => {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this quantity deal?")) return;
-    await api.del(`/api/admin/quantity-deals/${id}`).catch(() => {});
-    load();
+  const remove = (d: QuantityDeal) => setDeletingDeal(d);
+  const confirmRemove = async () => {
+    if (!deletingDeal) return;
+    try {
+      await api.del(`/api/admin/quantity-deals/${deletingDeal.id}`);
+      toast.success("Quantity deal deleted.");
+      setDeletingDeal(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
   };
 
   if (creating)
@@ -363,7 +375,8 @@ export const AdminQuantityDeals: React.FC = () => {
                       </button>
                       <button
                         className="btn btn-ghost btn-sm btn-danger-icon"
-                        onClick={() => remove(d.id)}
+                        onClick={() => remove(d)}
+                        aria-label="Delete quantity deal"
                       >
                         <Icon name="close" size={13} />
                       </button>
@@ -375,6 +388,16 @@ export const AdminQuantityDeals: React.FC = () => {
           </table>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!deletingDeal}
+        onClose={() => setDeletingDeal(null)}
+        onConfirm={confirmRemove}
+        title="Delete Quantity Deal"
+        message={`Are you sure you want to delete "${deletingDeal?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        danger
+      />
     </div>
   );
 };

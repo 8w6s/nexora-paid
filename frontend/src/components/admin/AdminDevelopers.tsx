@@ -1,8 +1,10 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
+import { useToast } from "../Toast";
 
 interface ApiKey {
   id: string;
@@ -48,17 +50,20 @@ export const AdminDevelopers: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revokingKey, setRevokingKey] = useState<ApiKey | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      api.get<ApiKey[]>("/api/admin/api-keys").catch(() => [] as ApiKey[]),
-      api.get<WebhookEvent[]>("/api/admin/webhook-logs").catch(() => [] as WebhookEvent[]),
+      api.get<ApiKey[]>("/api/admin/api-keys"),
+      api.get<WebhookEvent[]>("/api/admin/webhook-logs"),
     ])
       .then(([k, w]) => {
         setApiKeys(k);
         setWebhookLog(w);
       })
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load developer settings"))
       .finally(() => setLoading(false));
   };
 
@@ -87,10 +92,17 @@ export const AdminDevelopers: React.FC = () => {
     }
   };
 
-  const revokeKey = async (id: string) => {
-    if (!confirm("Revoke this API key? This cannot be undone.")) return;
-    await api.del(`/api/admin/api-keys/${id}`).catch(() => {});
-    load();
+  const revokeKey = (k: ApiKey) => setRevokingKey(k);
+  const confirmRevoke = async () => {
+    if (!revokingKey) return;
+    try {
+      await api.del(`/api/admin/api-keys/${revokingKey.id}`);
+      toast.success("API key revoked.");
+      setRevokingKey(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Revoke failed");
+    }
   };
 
   const toggleScope = (scope: string) => {
@@ -291,7 +303,8 @@ export const AdminDevelopers: React.FC = () => {
                         {k.active && (
                           <button
                             className="btn btn-ghost btn-sm btn-danger-icon"
-                            onClick={() => revokeKey(k.id)}
+                            onClick={() => revokeKey(k)}
+                            aria-label="Revoke API key"
                             title="Revoke key"
                           >
                             <Icon name="close" size={13} />
@@ -372,6 +385,16 @@ export const AdminDevelopers: React.FC = () => {
         .dev-scope.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
         .dev-scope-dot { width: 10px; height: 10px; border: 1.5px solid var(--line-strong); border-radius: 2px; display: block; }
       `}</style>
+
+      <ConfirmModal
+        open={!!revokingKey}
+        onClose={() => setRevokingKey(null)}
+        onConfirm={confirmRevoke}
+        title="Revoke API Key"
+        message={`Revoke "${revokingKey?.name}"? Any integrations using this key will immediately stop working. This cannot be undone.`}
+        confirmText="Revoke"
+        danger
+      />
     </div>
   );
 };
