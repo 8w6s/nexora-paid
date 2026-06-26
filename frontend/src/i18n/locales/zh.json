@@ -33,6 +33,18 @@
       "signOut": "退出",
       "shop": "商店"
     },
+    "stats": {
+      "sales": "销量",
+      "buyers": "买家",
+      "rating": "评分"
+    },
+    "sort": {
+      "newest": "最新",
+      "bestSelling": "畅销",
+      "priceLowHigh": "价格：低→高",
+      "priceHighLow": "价格：高→低",
+      "nameAZ": "名称 A–Z"
+    },
     "product": {
       "addToCart": "加入购物车",
       "outOfStock": "缺货",
@@ -249,7 +261,11 @@
       "noAccount": "还没有账户？",
       "createOne": "立即注册",
       "signupHint": "创建账户以跟踪订单并访问购买记录。",
-      "haveAccount": "已有账户？"
+      "haveAccount": "已有账户？",
+      "showPassword": "显示密码",
+      "hidePassword": "隐藏密码",
+      "show": "显示",
+      "hide": "隐藏"
     },
     "legal": {
       "termsTitle": "服务条款",

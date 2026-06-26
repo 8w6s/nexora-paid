@@ -1,7 +1,7 @@
 import type React from "react";
 import { useState } from "react";
+import { useT } from "../i18n";
 
-// Simple password field with a Show/Hide toggle, styled to match the shop's .input.
 export const PasswordInput: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -14,6 +14,7 @@ export const PasswordInput: React.FC<{
   name?: string;
 }> = ({ value, onChange, placeholder, className, autoComplete, minLength, required, id, name }) => {
   const [reveal, setReveal] = useState(false);
+  const { t } = useT();
   return (
     <div className={`pw ${className ?? ""}`}>
       <input
@@ -33,9 +34,9 @@ export const PasswordInput: React.FC<{
         className="pw-toggle"
         onClick={() => setReveal((r) => !r)}
         tabIndex={-1}
-        aria-label={reveal ? "Hide password" : "Show password"}
+        aria-label={reveal ? t("storefront.auth.hidePassword") : t("storefront.auth.showPassword")}
       >
-        {reveal ? "Hide" : "Show"}
+        {reveal ? t("storefront.auth.hide") : t("storefront.auth.show")}
       </button>
       <style>{`
         .pw { position: relative; display: block; }

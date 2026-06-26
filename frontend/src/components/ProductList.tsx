@@ -14,18 +14,21 @@ interface Category {
   count: number;
 }
 type SortKey = "newest" | "best" | "price-asc" | "price-desc" | "name";
-const SORTS: {
+interface SortOption {
   value: SortKey;
   label: string;
   icon: React.ComponentProps<typeof Icon>["name"];
   desc?: string;
-}[] = [
-  { value: "newest", label: "Newest", icon: "zap", desc: "Most recently listed first" },
-  { value: "best", label: "Best selling", icon: "star", desc: "By units sold" },
-  { value: "price-asc", label: "Price: low → high", icon: "arrow-right" },
-  { value: "price-desc", label: "Price: high → low", icon: "arrow-right" },
-  { value: "name", label: "Name A–Z", icon: "box" },
-];
+}
+function buildSorts(t: (k: string) => string): SortOption[] {
+  return [
+    { value: "newest", label: t("storefront.sort.newest"), icon: "zap" },
+    { value: "best", label: t("storefront.sort.bestSelling"), icon: "star" },
+    { value: "price-asc", label: t("storefront.sort.priceLowHigh"), icon: "arrow-right" },
+    { value: "price-desc", label: t("storefront.sort.priceHighLow"), icon: "arrow-right" },
+    { value: "name", label: t("storefront.sort.nameAZ"), icon: "box" },
+  ];
+}
 
 export const ProductList: React.FC = () => {
   const { t } = useT();
@@ -112,7 +115,7 @@ export const ProductList: React.FC = () => {
           <Dropdown<SortKey>
             value={sort as SortKey}
             onChange={(v) => setSort(v)}
-            options={SORTS}
+            options={buildSorts(t)}
             width={210}
           />
         </div>

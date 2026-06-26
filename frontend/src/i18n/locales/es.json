@@ -33,6 +33,18 @@
       "signOut": "Cerrar sesión",
       "shop": "Tienda"
     },
+    "stats": {
+      "sales": "Ventas",
+      "buyers": "Compradores",
+      "rating": "Valoración"
+    },
+    "sort": {
+      "newest": "Más reciente",
+      "bestSelling": "Más vendido",
+      "priceLowHigh": "Precio: bajo → alto",
+      "priceHighLow": "Precio: alto → bajo",
+      "nameAZ": "Nombre A–Z"
+    },
     "product": {
       "addToCart": "Añadir al carrito",
       "outOfStock": "Agotado",
@@ -249,7 +261,11 @@
       "noAccount": "¿No tienes cuenta?",
       "createOne": "Crear una",
       "signupHint": "Crea una cuenta para seguir pedidos y acceder a tus compras.",
-      "haveAccount": "¿Ya tienes cuenta?"
+      "haveAccount": "¿Ya tienes cuenta?",
+      "showPassword": "Mostrar contraseña",
+      "hidePassword": "Ocultar contraseña",
+      "show": "Mostrar",
+      "hide": "Ocultar"
     },
     "legal": {
       "termsTitle": "Términos del servicio",

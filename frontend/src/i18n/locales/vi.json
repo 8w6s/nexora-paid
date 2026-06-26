@@ -33,6 +33,18 @@
       "signOut": "Đăng xuất",
       "shop": "Cửa hàng"
     },
+    "stats": {
+      "sales": "Đã bán",
+      "buyers": "Người mua",
+      "rating": "Đánh giá"
+    },
+    "sort": {
+      "newest": "Mới nhất",
+      "bestSelling": "Bán chạy",
+      "priceLowHigh": "Giá: thấp → cao",
+      "priceHighLow": "Giá: cao → thấp",
+      "nameAZ": "Tên A–Z"
+    },
     "product": {
       "addToCart": "Thêm vào giỏ",
       "outOfStock": "Hết hàng",
@@ -249,7 +261,11 @@
       "noAccount": "Chưa có tài khoản?",
       "createOne": "Tạo tài khoản",
       "signupHint": "Tạo tài khoản để theo dõi đơn hàng và truy cập các giao dịch của bạn.",
-      "haveAccount": "Đã có tài khoản?"
+      "haveAccount": "Đã có tài khoản?",
+      "showPassword": "Hiện mật khẩu",
+      "hidePassword": "Ẩn mật khẩu",
+      "show": "Hiện",
+      "hide": "Ẩn"
     },
     "legal": {
       "termsTitle": "Điều khoản dịch vụ",

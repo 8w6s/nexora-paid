@@ -33,6 +33,18 @@
       "signOut": "Sign out",
       "shop": "Shop"
     },
+    "stats": {
+      "sales": "Sales",
+      "buyers": "Buyers",
+      "rating": "Rating"
+    },
+    "sort": {
+      "newest": "Newest",
+      "bestSelling": "Best selling",
+      "priceLowHigh": "Price: low → high",
+      "priceHighLow": "Price: high → low",
+      "nameAZ": "Name A–Z"
+    },
     "product": {
       "addToCart": "Add to cart",
       "outOfStock": "Out of stock",
@@ -249,7 +261,11 @@
       "noAccount": "Don't have an account?",
       "createOne": "Create one",
       "signupHint": "Create an account to track orders and access your purchases.",
-      "haveAccount": "Already have an account?"
+      "haveAccount": "Already have an account?",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "show": "Show",
+      "hide": "Hide"
     },
     "legal": {
       "termsTitle": "Terms of Service",
