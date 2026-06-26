@@ -256,8 +256,88 @@ export const checkoutRoutes = new Elysia()
         } else {
           discount = Math.max(0, Math.min(totalUsd, c?.value ?? 0));
         }
-        totalUsd = Math.max(0.01, Math.round((totalUsd - discount) * 100) / 100);
+        totalUsd = Math.max(0, Math.round((totalUsd - discount) * 100) / 100);
         appliedCoupon = c!;
+      }
+
+      // Free order (100% coupon): skip payment, auto-deliver immediately.
+      if (totalUsd === 0) {
+        const orderId = `GG-${randomBytes(8).toString("hex").toUpperCase()}`;
+        try {
+          const result = await db.transaction(async (tx) => {
+            await tx.insert(orders).values({
+              id: orderId,
+              userId: checkoutUserId,
+              email: checkoutEmail,
+              status: "paid",
+              totalUsd: 0,
+              ltcRate: 0,
+              rateSource: "free",
+              ltcAmount: "0",
+              expectedLitoshi: 0,
+              addressIndex: -(Date.now() % 2_000_000_000),
+              ltcAddress: "free-order",
+              paidAt: new Date(),
+            });
+            for (const { product, variant, qty } of lines) {
+              await tx.insert(orderItems).values({
+                id: randomUUID(),
+                orderId,
+                productId: product.id,
+                name: product.name + (variant ? ` (${variant.name})` : ""),
+                priceUsd: variant ? variant.priceUsd : product.priceUsd,
+                quantity: qty,
+              });
+            }
+            for (const { product, variant, qty } of lines) {
+              const okk = await reserveKeys(tx as any, product.id, orderId, qty, variant?.id);
+              if (!okk)
+                throw new Error(`OUT_OF_STOCK:${product.name}${variant ? ` (${variant.name})` : ""}`);
+            }
+            // Deliver keys immediately
+            const now = new Date();
+            await tx
+              .update(productKeys)
+              .set({ status: "delivered", deliveredAt: now })
+              .where(eq(productKeys.orderId, orderId));
+            // Consume coupon
+            if (appliedCoupon) {
+              const fresh = (
+                await tx.select().from(coupons).where(eq(coupons.id, appliedCoupon.id))
+              )[0];
+              const stillValid =
+                fresh?.active && (fresh.maxUses == null || fresh.usedCount < fresh.maxUses);
+              if (!stillValid) throw new Error("COUPON_EXHAUSTED");
+              await tx
+                .update(coupons)
+                .set({ usedCount: fresh.usedCount + 1 })
+                .where(eq(coupons.id, fresh.id));
+            }
+          });
+          hookBus.emit("order.created", { orderId, userId: checkoutUserId }).catch(() => {});
+          set.status = 201;
+          return {
+            orderId,
+            status: "paid",
+            totalUsd: 0,
+            free: true,
+            orderToken: generateOrderToken(orderId),
+          };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (msg.startsWith("OUT_OF_STOCK"))
+            return status(400, {
+              error: `${msg.split(":")[1] ?? "Item"} is out of stock`,
+              code: "OUT_OF_STOCK",
+            });
+          if (msg === "COUPON_EXHAUSTED")
+            return status(400, {
+              error: "Coupon just ran out — try again without it",
+              code: "COUPON_EXHAUSTED",
+            });
+          console.error("[checkout] free order failed:", e);
+          return status(500, { error: "Checkout failed", code: "CHECKOUT_FAILED" });
+        }
       }
 
       const windowMin = await getSettingNumber("payment_window_minutes", 15);
