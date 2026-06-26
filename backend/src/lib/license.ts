@@ -142,6 +142,16 @@ export async function verifyLicense(): Promise<VerifyResult> {
   }
   if (!ok) return { valid: false, reason: "signature mismatch" };
 
+  if (signed.payload.expiresAt) {
+    const exp = Date.parse(signed.payload.expiresAt);
+    if (Number.isNaN(exp)) {
+      return { valid: false, reason: `bad expiresAt: ${signed.payload.expiresAt}` };
+    }
+    if (Date.now() > exp) {
+      return { valid: false, reason: `license expired at ${signed.payload.expiresAt}` };
+    }
+  }
+
   return { valid: true, email: signed.payload.email, payload: signed.payload };
 }
 

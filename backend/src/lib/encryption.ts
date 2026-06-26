@@ -12,9 +12,9 @@ let encryptionKey: Buffer | null = null;
  * Resolves the AES-256-GCM master key for encrypted DB columns.
  *
  * Resolution order:
- *   1. `DATABASE_ENCRYPTION_KEY` env — 64-char hex (32 raw bytes) preferred,
- *      otherwise sha256(env) as a fallback so a weak/short env still produces
- *      a 32-byte key.
+ *   1. `DATABASE_ENCRYPTION_KEY` env. Production REQUIRES 64-char hex (32 raw
+ *      bytes). Dev allows a sha256 fallback so a passphrase still produces a
+ *      32-byte key during local iteration.
  *   2. `.keys/db_encryption.key` on disk — auto-generated on first boot in dev.
  *
  * In production (`NODE_ENV=production`) we refuse to silently generate an
@@ -25,11 +25,20 @@ let encryptionKey: Buffer | null = null;
 function getEncryptionKey(): Buffer {
   if (encryptionKey) return encryptionKey;
 
+  const isProd = process.env.NODE_ENV === "production";
   const envKey = process.env.DATABASE_ENCRYPTION_KEY;
+
   if (envKey) {
     if (/^[0-9a-fA-F]{64}$/.test(envKey)) {
       encryptionKey = Buffer.from(envKey, "hex");
       return encryptionKey;
+    }
+    if (isProd) {
+      throw new Error(
+        "DATABASE_ENCRYPTION_KEY must be 64 hex chars (32 raw bytes) in production. " +
+          "Generate one with `openssl rand -hex 32`. Refusing to derive an AES key " +
+          "from a passphrase via sha256 fallback.",
+      );
     }
     encryptionKey = createHash("sha256").update(envKey).digest();
     return encryptionKey;
@@ -38,7 +47,6 @@ function getEncryptionKey(): Buffer {
   const currentDir = dirname(fileURLToPath(import.meta.url));
   const keysDir = join(currentDir, "..", "..", "..", ".keys");
   const keyPath = join(keysDir, "db_encryption.key");
-  const isProd = process.env.NODE_ENV === "production";
 
   try {
     if (existsSync(keyPath)) {
@@ -54,10 +62,6 @@ function getEncryptionKey(): Buffer {
     }
 
     if (isProd) {
-      // Refuse to auto-generate: an ephemeral random key would re-encrypt new
-      // rows under a key that dies with the process, leaving every existing
-      // encrypted column undecryptable on the next restart. Operator must
-      // provision a persistent key explicitly.
       throw new Error(
         "DATABASE_ENCRYPTION_KEY not set and no .keys/db_encryption.key found in production. " +
           "Generate one with `openssl rand -hex 32` and set DATABASE_ENCRYPTION_KEY, " +
@@ -75,8 +79,6 @@ function getEncryptionKey(): Buffer {
     return encryptionKey;
   } catch (error) {
     if (isProd) throw error;
-    // Dev-only: surface the error but keep the app booting with an ephemeral
-    // key so a missing/locked .keys directory doesn't block local iteration.
     console.error("[encryption] dev fallback to ephemeral key:", error);
     encryptionKey = randomBytes(32);
     return encryptionKey;
@@ -111,7 +113,6 @@ export function decrypt(cipherText: string): string {
   if (!cipherText) return cipherText;
 
   const parts = cipherText.split(":");
-  // Legacy plaintext or unrelated value: shape doesn't match. Pass through.
   if (parts.length !== 3 || parts[0].length !== 24 || parts[1].length !== 32) {
     return cipherText;
   }
