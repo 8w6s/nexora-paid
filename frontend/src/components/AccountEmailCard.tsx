@@ -73,7 +73,7 @@ export const AccountEmailCard: React.FC = () => {
         <h2>{t("storefront.account.changeEmail")}</h2>
         <p className="sub">{t("storefront.account.changeEmailHint")}</p>
       </div>
-      <form onSubmit={submit}>
+      <form method="post" onSubmit={submit}>
         <label>
           <span>{t("storefront.account.currentEmail")}</span>
           <input className="input" type="email" value={user?.email ?? ""} disabled readOnly />

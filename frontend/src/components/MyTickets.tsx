@@ -210,7 +210,7 @@ export const MyTickets: React.FC = () => {
         ))}
 
       {view === "new" && (
-        <form className="tk-form card" onSubmit={createTicket}>
+        <form method="post" className="tk-form card" onSubmit={createTicket}>
           <label>
             <span>{t("storefront.tickets.subject")}</span>
             <input
@@ -267,7 +267,7 @@ export const MyTickets: React.FC = () => {
             ))}
           </div>
           {active.status === "open" ? (
-            <form className="tk-reply card" onSubmit={sendReply}>
+            <form method="post" className="tk-reply card" onSubmit={sendReply}>
               <textarea
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}

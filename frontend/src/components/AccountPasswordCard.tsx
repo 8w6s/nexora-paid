@@ -70,7 +70,7 @@ export const AccountPasswordCard: React.FC = () => {
         <h2>{t("storefront.account.changePassword")}</h2>
         <p className="sub">{t("storefront.account.changePasswordHint")}</p>
       </div>
-      <form onSubmit={submit}>
+      <form method="post" onSubmit={submit}>
         <label>
           <span>{t("storefront.account.currentPassword")}</span>
           <PasswordInput

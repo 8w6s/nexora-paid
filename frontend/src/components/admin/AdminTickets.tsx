@@ -184,7 +184,7 @@ export const AdminTickets: React.FC = () => {
                 ))}
               </div>
               {active.status === "open" && (
-                <form className="atk-reply" onSubmit={sendReply}>
+                <form method="post" className="atk-reply" onSubmit={sendReply}>
                   <textarea
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}

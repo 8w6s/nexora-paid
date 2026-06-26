@@ -75,7 +75,7 @@ export const ResetPasswordForm: React.FC = () => {
         ) : (
           <>
             <p className="sub">{t("storefront.auth.resetPickHint")}</p>
-            <form onSubmit={submit}>
+            <form method="post" onSubmit={submit}>
               <label>
                 <span>{t("storefront.auth.newPassword")}</span>
                 <PasswordInput

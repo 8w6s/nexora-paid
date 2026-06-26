@@ -62,7 +62,7 @@ export const AccountDangerCard: React.FC = () => {
           </button>
         </div>
       ) : (
-        <form onSubmit={submit} className="danger-form">
+        <form method="post" onSubmit={submit} className="danger-form">
           <div className="danger-warn">
             <Icon name="shield" size={18} />
             <div>

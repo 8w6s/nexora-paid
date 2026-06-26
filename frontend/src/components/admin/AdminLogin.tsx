@@ -26,7 +26,7 @@ export const AdminLogin: React.FC = () => {
 
   return (
     <div className="admin-login">
-      <form className="card" onSubmit={submit}>
+      <form method="post" className="card" onSubmit={submit}>
         <h1>Admin sign in</h1>
         <p className="sub">Restricted area — staff only.</p>
         <label>

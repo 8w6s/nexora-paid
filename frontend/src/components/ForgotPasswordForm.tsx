@@ -45,7 +45,7 @@ export const ForgotPasswordForm: React.FC = () => {
         ) : (
           <>
             <p className="sub">{t("storefront.auth.resetHint")}</p>
-            <form onSubmit={submit}>
+            <form method="post" onSubmit={submit}>
               <label>
                 <span>{t("storefront.auth.email")}</span>
                 <input

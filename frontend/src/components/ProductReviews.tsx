@@ -97,7 +97,7 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
       </div>
 
       {can?.canReview && (
-        <form className="rv-form" onSubmit={submit}>
+        <form method="post" className="rv-form" onSubmit={submit}>
           <div className="rv-form-row">
             <span>Your rating</span>
             <Stars value={rating} size={22} onPick={setRating} />

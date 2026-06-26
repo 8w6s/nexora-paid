@@ -167,7 +167,7 @@ export const Account2FACard: React.FC = () => {
       )}
 
       {!enabled && setup && (
-        <form onSubmit={submitEnable} className="setup-form">
+        <form method="post" onSubmit={submitEnable} className="setup-form">
           <div className="setup-step">
             <div className="step-num">1</div>
             <div className="step-body">
@@ -263,7 +263,7 @@ export const Account2FACard: React.FC = () => {
       )}
 
       {enabled && disablePrompt && (
-        <form onSubmit={submitDisable} className="disable-form">
+        <form method="post" onSubmit={submitDisable} className="disable-form">
           <label>
             <span>{t("storefront.twofa.enterToDisable")}</span>
             <input

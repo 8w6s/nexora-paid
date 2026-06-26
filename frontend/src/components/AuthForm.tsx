@@ -53,7 +53,10 @@ export const AuthForm: React.FC<{ mode: "login" | "register" }> = ({ mode }) => 
         <p className="sub">
           {isLogin ? t("storefront.auth.welcomeBack") : t("storefront.auth.signupHint")}
         </p>
-        <form onSubmit={submit}>
+        {/* method="post" is critical: if React hydration fails (Vite dep
+            issue, network blip, etc.) the browser must NOT fall back to a
+            GET that puts the password into the URL query string. */}
+        <form method="post" onSubmit={submit}>
           {!needs2fa && (
             <>
               <label>
