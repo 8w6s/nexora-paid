@@ -67,8 +67,19 @@ export function ensureMachineId(): string {
 }
 
 export function readLicenseSecret(): string {
-  // Prefer env override (used by tests and by license-rotation tooling).
+  // Prefer env override (used by tests, by license-rotation tooling, and the
+  // required path in production).
   if (process.env.NEXORA_LICENSE_SECRET) return process.env.NEXORA_LICENSE_SECRET;
+  // Production refuses the in-volume fallback: license.lic lives next to the
+  // encrypted snapshots in /data/app, so an attacker who copies the entire
+  // data volume to another host would have both the ciphertext AND the key
+  // material to derive its decryption key. Require operators to provision the
+  // secret through an out-of-band channel (KMS, host env, secret manager).
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "NEXORA_LICENSE_SECRET is required in production. Provision it via the host environment or a secret manager — falling back to license.lic inside the data volume would let a volume-copy attack decrypt snapshots.",
+    );
+  }
   const path = resolve(APP_ROOT, "license.lic");
   if (!existsSync(path)) {
     throw new Error(`license.lic missing at ${path} — cannot derive snapshot key`);
