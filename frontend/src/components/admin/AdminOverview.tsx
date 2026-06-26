@@ -5,6 +5,7 @@ import { Chart } from "../Chart";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 import { AdminLicenseCard } from "./AdminLicenseCard";
 import { AdminUpdateCard } from "./AdminUpdateCard";
 
@@ -38,13 +39,14 @@ export const AdminOverview: React.FC = () => {
   const [s, setS] = useState<Stats | null>(null);
   const [days, setDays] = useState(14);
   const [metric, setMetric] = useState<"revenue" | "orders">("revenue");
+  const toast = useToast();
 
   useEffect(() => {
     const load = () =>
       api
         .get<Stats>(`/api/admin/stats?days=${days}`)
         .then(setS)
-        .catch(() => {});
+        .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load stats"));
     load();
     // Poll every 30s while the tab is visible; pause when backgrounded so an
     // open admin tab doesn't burn API calls all day. Reload on focus return.
@@ -59,7 +61,7 @@ export const AdminOverview: React.FC = () => {
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [days]);
+  }, [days, toast]);
 
   if (!s)
     return (

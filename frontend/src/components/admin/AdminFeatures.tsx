@@ -2,6 +2,7 @@ import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { Sk, SkeletonStyles } from "../Skeleton";
+import { useToast } from "../Toast";
 import { ToggleSwitch } from "../ToggleSwitch";
 
 interface Feature {
@@ -13,14 +14,15 @@ interface Feature {
 export const AdminFeatures: React.FC = () => {
   const [list, setList] = useState<Feature[] | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(
     () =>
       api
         .get<Feature[]>("/api/admin/features")
         .then(setList)
-        .catch(() => {}),
-    [],
+        .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load features")),
+    [toast],
   );
   useEffect(() => {
     load();

@@ -5,6 +5,7 @@ import { Dropdown } from "../Dropdown";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
 import { RichTextEditor } from "../RichTextEditor";
+import { useToast } from "../Toast";
 
 /**
  * SellAuth-style full-page product editor with a tab bar.
@@ -145,6 +146,7 @@ export const AdminProductEditor: React.FC<{
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [availableAddons, setAvailableAddons] = useState<ProductAddon[]>([]);
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const toast = useToast();
 
   useEffect(() => {
     let alive = true;
@@ -377,12 +379,12 @@ export const AdminProductEditor: React.FC<{
                       }
                       const u = new URL(trimmed);
                       if (u.protocol !== "https:" && u.protocol !== "http:") {
-                        alert("Image URL must use http(s) or be an absolute /path");
+                        toast.error("Image URL must use http(s) or be an absolute /path");
                         return;
                       }
                       set("image", trimmed);
                     } catch {
-                      alert("Invalid image URL");
+                      toast.error("Invalid image URL");
                     }
                   }}
                 >

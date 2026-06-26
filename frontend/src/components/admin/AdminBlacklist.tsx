@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
+import { useToast } from "../Toast";
 
 type BlockType = "email" | "ip" | "country" | "vpn";
 type ListMode = "blacklist" | "whitelist";
@@ -221,6 +222,7 @@ export const AdminBlacklist: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
@@ -251,8 +253,13 @@ export const AdminBlacklist: React.FC = () => {
   };
 
   const remove = async (id: string) => {
-    await api.del(`/api/admin/${mode}/${id}`).catch(() => {});
-    load();
+    try {
+      await api.del(`/api/admin/${mode}/${id}`);
+      toast.success("Entry removed.");
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Remove failed");
+    }
   };
 
   const filtered = entries.filter(
