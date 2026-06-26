@@ -1,0 +1,38 @@
+# Files that must NEVER reach the image — they either conflict with the
+# in-image `bun install` (node_modules), expose secrets (.env, .keys), or
+# bloat the build context (logs, caches, test artefacts).
+
+# Local dependency tree — image runs its own `bun install` and COPY would
+# otherwise try to overwrite that directory with stale host files.
+node_modules
+
+# Local SQLite + WAL/SHM sidecars. Customers ship clean DB, not the dev one.
+sqlite.db
+sqlite.db-*
+*.sqlite
+*.sqlite-*
+
+# Local secrets / keys / license artefacts.
+.env
+.env.*
+!.env.example
+.keys
+*.license
+*.lic
+
+# Build / test outputs.
+dist
+build
+coverage
+*.log
+.tsbuildinfo
+
+# Editor / OS noise.
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Git itself
+.git
+.gitignore

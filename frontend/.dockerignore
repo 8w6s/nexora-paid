@@ -1,0 +1,22 @@
+# Same hygiene rules as backend/.dockerignore — keep host artefacts out of
+# the image build context.
+
+node_modules
+dist
+.astro
+.cache
+
+.env
+.env.*
+!.env.example
+
+*.log
+.tsbuildinfo
+
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+.git
+.gitignore

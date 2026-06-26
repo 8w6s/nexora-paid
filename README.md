@@ -22,22 +22,46 @@ First boot seeds 10 demo products (USD) + 210 demo keys. Admin: **admin@nexora.l
 The stack ships with a Caddy reverse proxy in front of backend + frontend, so
 you only expose **one port** and HTTPS is handled automatically.
 
+### Step 1 — generate production secrets (first run only)
+
+The backend refuses to boot in production without these three secrets. Generate
+them once on a trusted host, put them in `.env`, never commit `.env` to git.
+
 ```bash
-# Local / dev — http://localhost
-docker compose up --build
+cp .env.example .env
 
-# Production with auto-HTTPS (Let's Encrypt)
-DOMAIN=shop.example.com ADMIN_EMAIL=you@example.com \
-ADMIN_PASSWORD=strong-pass \
-docker compose up -d --build
-
-# Cloudflare Tunnel (no open ports, behind NAT/CGNAT)
-CLOUDFLARE_TUNNEL_TOKEN=eyJh... \
-docker compose --profile tunnel up -d --build
+# These three are required when NODE_ENV=production. Each is 32 raw bytes / 64 hex chars.
+openssl rand -hex 32   # → ORDER_TOKEN_SECRET
+openssl rand -hex 32   # → DATABASE_ENCRYPTION_KEY
+openssl rand -hex 32   # → NEXORA_LICENSE_SECRET
 ```
 
-Copy `.env.example` → `.env` for full config. SQLite persists in `nexora-db`
-volume; certs in `caddy-data`. See **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the three modes in detail.
+Windows without `openssl`? Use Git Bash, WSL, or PowerShell:
+`-join ((1..64) | %{'{0:x}' -f (Get-Random -Max 16)})`
+
+Edit `.env` and uncomment + paste each value. Also set `DOMAIN`, `ADMIN_EMAIL`,
+and either `ADMIN_PASSWORD` or `ADMIN_PASWORD_HASH`. The bundled
+`.env.example` documents every knob with inline comments.
+
+### Step 2 — bring the stack up
+
+```bash
+# Local / dev — http://localhost (no production-secret check)
+docker compose up --build
+
+# Production with auto-HTTPS (Let's Encrypt). `.env` (step 1) supplies the secrets.
+docker compose up -d --build
+
+# Cloudflare Tunnel (no open ports, behind NAT/CGNAT). The default Caddyfile
+# tries Let's Encrypt + auto-HTTPS, which loops with CF terminating TLS upstream
+# — switch to the tunnel-mode config:
+CADDYFILE=./Caddyfile.tunnel docker compose --profile tunnel up -d --build
+```
+
+SQLite persists in `nexora-db` volume; certs in `caddy-data` (do NOT delete —
+re-issuing certs repeatedly hits Let's Encrypt rate limits). See
+**[DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the three modes in detail and
+**[PRODUCTION.md](docs/PRODUCTION.md)** for the full pre-launch checklist.
 
 ## Before selling for real
 

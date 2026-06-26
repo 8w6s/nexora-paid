@@ -1,10 +1,17 @@
 // Server-side i18n for emails + API messages. Mirrors frontend/src/i18n/index.ts
 // but lives on the backend so email templates can pick the recipient's locale.
-import de from "../../../frontend/src/i18n/locales/de.json";
-import en from "../../../frontend/src/i18n/locales/en.json";
-import es from "../../../frontend/src/i18n/locales/es.json";
-import vi from "../../../frontend/src/i18n/locales/vi.json";
-import zh from "../../../frontend/src/i18n/locales/zh.json";
+// Locale dictionaries are shipped INSIDE the backend image (./locales/*.json)
+// so the import path stays inside `/app/`. They are kept in sync with the
+// frontend copies via `scripts/sync-i18n-to-backend.sh` (run before each
+// release); the duplication is deliberate — backend and frontend are
+// separately deployed Docker images and the prior cross-tree relative
+// import (../../../frontend/...) broke every build that didn't ship the
+// frontend folder alongside the backend.
+import de from "./locales/de.json";
+import en from "./locales/en.json";
+import es from "./locales/es.json";
+import vi from "./locales/vi.json";
+import zh from "./locales/zh.json";
 
 export type Locale = "en" | "vi" | "zh" | "es" | "de";
 type Dict = Record<string, unknown>;

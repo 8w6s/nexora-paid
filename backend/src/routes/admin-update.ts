@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { Elysia, t } from "elysia";
-import { verifySignedManifest } from "../../../updater/manifest-verify.ts";
+import { verifySignedManifest } from "../lib/manifest-verify.ts";
 import { APP_VERSION } from "../lib/app-version.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { degradedGate } from "../lib/integrity-state.ts";

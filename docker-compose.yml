@@ -90,9 +90,12 @@ services:
       - "3000"
     environment:
       PORT: "3000"
-      NODE_ENV: production
-      # When behind Caddy on a real domain, PUBLIC_ORIGIN should match.
-      PUBLIC_ORIGIN: "${PUBLIC_ORIGIN:-http://localhost}"
+      # NODE_ENV defaults to "development" so a bare `docker compose up` works
+      # locally without secrets. Production deploys must explicitly set
+      # NODE_ENV=production in .env so the bot-time secret guards (encryption
+      # key length, ORDER_TOKEN_SECRET, etc.) kick in.
+      NODE_ENV: "${NODE_ENV:-development}"
+      PUBLIC_ORIGIN: "${PUBLIC_ORIGIN:-https://localhost}"
       ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@nexora.local}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me}"
       # Caddy sets X-Forwarded-* — backend must trust it to read real client IP
@@ -120,6 +123,11 @@ services:
       # Optional: ADMIN_PASSWORD_HASH, LTC_XPUB, EMAIL_PROVIDER, RESEND_API_KEY, SMTP_*
     volumes:
       - nexora-db:/app/data
+      # Persist the .keys directory so the auto-generated dev encryption key
+      # survives `docker compose down -v` is the buyer's explicit "wipe" path.
+      # Without this, every container restart rotates the AES key and every
+      # encrypted settings column becomes garbage.
+      - nexora-keys:/app/.keys
     restart: unless-stopped
     # Backend binds :3000 (exposed only inside the docker network) so it
     # never needs NET_BIND_SERVICE. SQLite WAL/SHM writes go to the
@@ -193,5 +201,6 @@ services:
 
 volumes:
   nexora-db:
+  nexora-keys:
   caddy-data:
   caddy-config:
