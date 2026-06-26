@@ -56,9 +56,16 @@ async function fetchManifest(): Promise<VersionManifest> {
   const url = isRaw
     ? `${FILESERVER_URL}/versions/${encodeURIComponent(UPDATE_CHANNEL)}${ext}`
     : `${FILESERVER_URL}/v1/version?channel=${encodeURIComponent(UPDATE_CHANNEL)}${REQUIRE_SIGNED ? "&signed=1" : ""}`;
+  // GitHub raw requires auth for private repos. Use GHCR_TOKEN or
+  // NEXORA_GHCR_TOKEN (same PAT the customer uses for docker pull).
+  const ghToken = Bun.env.GHCR_TOKEN || Bun.env.NEXORA_GHCR_TOKEN || "";
+  const headers: Record<string, string> = { "user-agent": `nexora/${APP_VERSION}` };
+  if (ghToken && isRaw) {
+    headers["authorization"] = `token ${ghToken}`;
+  }
   const r = await fetch(url, {
     signal: AbortSignal.timeout(10_000),
-    headers: { "user-agent": `nexora/${APP_VERSION}` },
+    headers,
   });
   if (!r.ok) throw new Error(`fileserver ${r.status}`);
   const raw = await r.json();

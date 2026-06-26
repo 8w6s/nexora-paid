@@ -120,6 +120,8 @@ services:
       # NEXORA_ENABLE_RAW_SQL=true unlocks /api/admin/db/query (raw SQL).
       # Native CRUD editor stays on regardless.
       NEXORA_ENABLE_RAW_SQL: "${NEXORA_ENABLE_RAW_SQL:-false}"
+      # ── Update server auth (private GitHub raw content) ──
+      GHCR_TOKEN: "${GHCR_TOKEN:-}"
       # Optional: ADMIN_PASSWORD_HASH, LTC_XPUB, EMAIL_PROVIDER, RESEND_API_KEY, SMTP_*
     volumes:
       - nexora-db:/app/data
