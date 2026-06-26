@@ -17,6 +17,7 @@ import { Elysia, t } from "elysia";
 import { sqlite } from "../db/connection.ts";
 import { readAudit, recordAudit } from "../lib/audit-log.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { degradedGate } from "../lib/integrity-state.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 
 const MAX_STMT_LEN = 64 * 1024;
@@ -117,6 +118,7 @@ export const adminDbRoutes = new Elysia({ prefix: "/api/admin/db" })
     if (__unauthorized) return { error: "Unauthorized", code: "UNAUTHORIZED" };
     return undefined;
   })
+  .onBeforeHandle(degradedGate)
 
   // GET /api/admin/db/schema — list tables + columns. Used by Native Editor
   // and DB Editor sidebar both.

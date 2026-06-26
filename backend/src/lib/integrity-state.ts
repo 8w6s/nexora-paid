@@ -100,6 +100,31 @@ export function isDegraded(): boolean {
 }
 
 /**
+ * Mutation-blocking onBeforeHandle handler for Elysia plugin routes.
+ *
+ * The legacy `adminRoutes` instance in admin.ts has its own inline gate; this
+ * helper exists so every OTHER admin plugin mount (admin-db, admin-tables,
+ * admin-update, admin-blocklist, admin-2fa) can hang the SAME degraded-mode
+ * check off its own `onBeforeHandle` chain without duplicating the logic.
+ *
+ * GETs/HEADs pass through so an operator can still reach the health endpoint
+ * and read the red banner that explains the degraded state.
+ */
+export function degradedGate(ctx: { request: Request; set: { status?: number } }):
+  | { error: string; code: string; hint: string }
+  | undefined {
+  const m = ctx.request.method;
+  if (m === "GET" || m === "HEAD") return;
+  if (!isDegraded()) return;
+  ctx.set.status = 503;
+  return {
+    error: "Integrity verification failed — admin mutations disabled until resolved",
+    code: "INTEGRITY_DEGRADED",
+    hint: "GET /api/admin/system/health",
+  };
+}
+
+/**
  * Human-friendly one-liner for bot banner / health endpoint. Wraps
  * `summarizeResult()` from the integrity module and adds the degraded
  * verdict so an operator can see "OK but degraded" semantics.

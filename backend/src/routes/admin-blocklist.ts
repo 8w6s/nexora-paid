@@ -5,6 +5,7 @@ import { db } from "../db/connection.ts";
 import { blocklist } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { degradedGate } from "../lib/integrity-state.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 
 /**
@@ -42,6 +43,7 @@ export const adminBlocklistRoutes = new Elysia({ prefix: "/api/admin" })
     if (user.role !== "admin") return status(403, { error: "Admin only", code: "FORBIDDEN" });
     return;
   })
+  .onBeforeHandle(degradedGate)
   .derive(async ({ cookie }: any) => {
     const user = await validateSession(cookie[SESSION_COOKIE]?.value as string | undefined);
     return { adminEmail: user?.email ?? "unknown" };

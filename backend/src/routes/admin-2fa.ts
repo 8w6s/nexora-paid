@@ -4,6 +4,7 @@ import { db } from "../db/connection.ts";
 import { users } from "../db/schema.ts";
 import { logAdminAction } from "../lib/audit.ts";
 import { revokeOtherSessions, SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { degradedGate } from "../lib/integrity-state.ts";
 import { rateLimitCheck } from "../lib/rate-limit.ts";
 import {
   generateBackupCodes,
@@ -58,6 +59,7 @@ export const admin2faRoutes = new Elysia({ prefix: "/api/admin/2fa" })
     if (user.role !== "admin") return status(403, { error: "Admin only", code: "FORBIDDEN" });
     return;
   })
+  .onBeforeHandle(degradedGate)
   .derive(async ({ cookie }) => {
     const token = cookie[SESSION_COOKIE]?.value as string | undefined;
     const user = await validateSession(token);

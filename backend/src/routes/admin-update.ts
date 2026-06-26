@@ -3,6 +3,7 @@ import { Elysia, t } from "elysia";
 import { verifySignedManifest } from "../../../updater/manifest-verify.ts";
 import { APP_VERSION } from "../lib/app-version.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { degradedGate } from "../lib/integrity-state.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { ensureMachineId, readLicenseSecret } from "../lib/tenant.ts";
 import { signRequest } from "../lib/updater-handshake.ts";
@@ -102,6 +103,7 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
     if (__unauthorized) return { error: "Unauthorized", code: "UNAUTHORIZED" };
     return undefined;
   })
+  .onBeforeHandle(degradedGate)
 
   // GET /api/admin/update/check — query FileServer, compare against current.
   .get("/check", async ({ request, set }) => {

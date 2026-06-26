@@ -18,6 +18,7 @@ import type { Database } from "bun:sqlite";
 import { Elysia, t } from "elysia";
 import { recordAudit } from "../lib/audit-log.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
+import { degradedGate } from "../lib/integrity-state.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 
 const PAGE_MAX = 200;
@@ -95,6 +96,7 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
     if (__unauthorized) return { error: "Unauthorized", code: "UNAUTHORIZED" };
     return undefined;
   })
+  .onBeforeHandle(degradedGate)
 
   // GET /api/admin/tables/:name/rows?limit=50&offset=0
   .get("/:name/rows", async ({ params, query, set }) => {
