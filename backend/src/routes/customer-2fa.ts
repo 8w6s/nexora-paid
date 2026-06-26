@@ -80,6 +80,8 @@ export const customer2faRoutes = new Elysia({ prefix: "/api/auth/2fa" })
   })
 
   .get("/setup", async ({ customerUser, set }) => {
+    set.headers["Cache-Control"] = "no-store";
+    set.headers["Pragma"] = "no-cache";
     pruneExpiredCandidates();
     const u = (await db.select().from(users).where(eq(users.id, customerUser.id)))[0];
     if (!u) {
