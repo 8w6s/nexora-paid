@@ -208,7 +208,9 @@
       "revokedCount": "Se cerraron {count} otras sesiones.",
       "noOthers": "No hay otras sesiones para cerrar.",
       "revokeFailed": "No se pudo cerrar la sesión.",
-      "deviceSignedOut": "Dispositivo desconectado."
+      "deviceSignedOut": "Dispositivo desconectado.",
+      "confirmRevokeOthersMsg": "Todos los demas dispositivos seran desconectados inmediatamente.",
+      "confirmRevokeOneMsg": "Este dispositivo sera desconectado inmediatamente."
     },
     "auth": {
       "welcome": "Bienvenido de nuevo",

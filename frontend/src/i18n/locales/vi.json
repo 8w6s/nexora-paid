@@ -208,7 +208,9 @@
       "revokedCount": "Đã đăng xuất {count} phiên khác.",
       "noOthers": "Không có phiên khác để đăng xuất.",
       "revokeFailed": "Không thể đăng xuất phiên.",
-      "deviceSignedOut": "Thiết bị đã đăng xuất."
+      "deviceSignedOut": "Thiết bị đã đăng xuất.",
+      "confirmRevokeOthersMsg": "Tat ca thiet bi khac se bi dang xuat ngay lap tuc.",
+      "confirmRevokeOneMsg": "Thiet bi nay se bi dang xuat ngay lap tuc."
     },
     "auth": {
       "welcome": "Chào mừng trở lại",

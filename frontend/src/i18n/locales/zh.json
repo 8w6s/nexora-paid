@@ -208,7 +208,9 @@
       "revokedCount": "已退出 {count} 个其他会话。",
       "noOthers": "没有其他会话可退出。",
       "revokeFailed": "无法退出会话。",
-      "deviceSignedOut": "设备已退出。"
+      "deviceSignedOut": "设备已退出。",
+      "confirmRevokeOthersMsg": "All other devices will be signed out immediately.",
+      "confirmRevokeOneMsg": "This device will be signed out immediately."
     },
     "auth": {
       "welcome": "欢迎回来",

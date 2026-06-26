@@ -1,7 +1,8 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
+import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./Icon";
 import { useToast } from "./Toast";
 
@@ -63,8 +64,8 @@ export const AccountSessionsCard: React.FC = () => {
     load();
   }, []);
 
-  const revokeOthers = async () => {
-    if (!window.confirm(t("storefront.sessions.confirmRevokeOthers"))) return;
+  const doRevokeOthers = async () => {
+    setConfirmAction(null);
     setBusy(true);
     try {
       const res = await api.post<{ ok: boolean; revokedSessions: number }>(
@@ -86,8 +87,8 @@ export const AccountSessionsCard: React.FC = () => {
     }
   };
 
-  const revokeOne = async (id: string) => {
-    if (!window.confirm(t("storefront.sessions.confirmRevokeOne"))) return;
+  const doRevokeOne = async (id: string) => {
+    setConfirmAction(null);
     try {
       await api.post(`/api/auth/sessions/${id}/revoke`, {});
       toast.success(t("storefront.sessions.deviceSignedOut"));
@@ -97,6 +98,15 @@ export const AccountSessionsCard: React.FC = () => {
       else toast.error(t("storefront.sessions.revokeFailed"));
     }
   };
+
+
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "others" | "one";
+    id?: string;
+  } | null>(null);
+
+  const revokeOthers = () => setConfirmAction({ type: "others" });
+  const revokeOne = (id: string) => setConfirmAction({ type: "one", id });
 
   const others = list.filter((s) => !s.current).length;
 
@@ -196,6 +206,26 @@ export const AccountSessionsCard: React.FC = () => {
         .sessions-roam { font-size: .75rem; color: var(--ink-faint); margin-top: 2px; }
         .sessions-roam code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: .72rem; }
       `}</style>
+
+      <ConfirmModal
+        open={confirmAction !== null}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={() => {
+          if (confirmAction?.type === "others") doRevokeOthers();
+          else if (confirmAction?.type === "one" && confirmAction.id) doRevokeOne(confirmAction.id);
+        }}
+        title={
+          confirmAction?.type === "others"
+            ? t("storefront.sessions.confirmRevokeOthers")
+            : t("storefront.sessions.confirmRevokeOne")
+        }
+        message={
+          confirmAction?.type === "others"
+            ? t("storefront.sessions.confirmRevokeOthersMsg")
+            : t("storefront.sessions.confirmRevokeOneMsg")
+        }
+        danger
+      />
     </section>
   );
 };

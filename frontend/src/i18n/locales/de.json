@@ -208,7 +208,9 @@
       "revokedCount": "{count} andere Sitzung(en) abgemeldet.",
       "noOthers": "Keine anderen Sitzungen zum Abmelden.",
       "revokeFailed": "Sitzung konnte nicht abgemeldet werden.",
-      "deviceSignedOut": "Gerät abgemeldet."
+      "deviceSignedOut": "Gerät abgemeldet.",
+      "confirmRevokeOthersMsg": "Alle anderen Geraete werden sofort abgemeldet.",
+      "confirmRevokeOneMsg": "Dieses Geraet wird sofort abgemeldet."
     },
     "auth": {
       "welcome": "Willkommen zurück",

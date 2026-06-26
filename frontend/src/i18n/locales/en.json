@@ -208,7 +208,9 @@
       "revokedCount": "Signed out {count} other session(s).",
       "noOthers": "No other sessions to sign out.",
       "revokeFailed": "Could not sign out session.",
-      "deviceSignedOut": "Device signed out."
+      "deviceSignedOut": "Device signed out.",
+      "confirmRevokeOthersMsg": "All other devices will be signed out immediately.",
+      "confirmRevokeOneMsg": "This device will be signed out immediately."
     },
     "auth": {
       "welcome": "Welcome back",
