@@ -37,6 +37,21 @@ function getRawDb(): Database {
   return mod.db.$client;
 }
 
+/**
+ * Tables that hold security-sensitive columns (passwordHash, role, totpSecret,
+ * session tokens, provider configs, audit). Generic table CRUD must never
+ * write these — semantic routes in admin-2fa.ts / admin.ts own them.
+ */
+const SENSITIVE_TABLES = new Set([
+  "users",
+  "sessions",
+  "password_resets",
+  "payment_providers",
+  "admin_actions",
+  "audit_log",
+  "settings",
+]);
+
 /** Whitelist a table name against sqlite_master. Throws on miss. */
 function assertTable(db: Database, name: string): void {
   const r = db
@@ -46,6 +61,13 @@ function assertTable(db: Database, name: string): void {
   if (name === "audit_log") {
     // audit_log is owned by the audit machinery; native CRUD must not edit it.
     throw new Error("audit_log is read-only");
+  }
+}
+
+/** Refuse writes to security-sensitive tables. Read (GET) is still allowed. */
+function assertWritable(name: string): void {
+  if (SENSITIVE_TABLES.has(name)) {
+    throw new Error(`table ${name} is not writable via generic CRUD`);
   }
 }
 
@@ -99,13 +121,29 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
   .onBeforeHandle(degradedGate)
 
   // GET /api/admin/tables/:name/rows?limit=50&offset=0
-  .get("/:name/rows", async ({ params, query, set }) => {
+  .get("/:name/rows", async ({ params, query, request, set, user }) => {
     const db = getRawDb();
     try {
       assertTable(db, params.name);
     } catch (e) {
       set.status = 404;
       return { error: e instanceof Error ? e.message : String(e), code: "UNKNOWN_TABLE" };
+    }
+    if (SENSITIVE_TABLES.has(params.name)) {
+      set.status = 403;
+      recordAudit(db, {
+        actorEmail: user?.email,
+        actorIp: clientIp(request),
+        action: "table.select.blocked",
+        target: params.name,
+        success: false,
+        error: "sensitive table",
+      });
+      return {
+        error:
+          "This table is not readable via the generic editor; use the dedicated admin screen.",
+        code: "SENSITIVE_TABLE",
+      };
     }
     const cols = tableColumns(db, params.name);
     const limit = Math.min(Math.max(Number(query?.limit ?? 50), 1), PAGE_MAX);
@@ -135,6 +173,12 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
       } catch (e) {
         set.status = 404;
         return { error: e instanceof Error ? e.message : String(e), code: "UNKNOWN_TABLE" };
+      }
+      try {
+        assertWritable(params.name);
+      } catch (e) {
+        set.status = 403;
+        return { error: e instanceof Error ? e.message : String(e), code: "TABLE_FORBIDDEN" };
       }
       const cols = tableColumns(db, params.name);
       let payload: Record<string, unknown>;
@@ -204,6 +248,12 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
         set.status = 404;
         return { error: e instanceof Error ? e.message : String(e), code: "UNKNOWN_TABLE" };
       }
+      try {
+        assertWritable(params.name);
+      } catch (e) {
+        set.status = 403;
+        return { error: e instanceof Error ? e.message : String(e), code: "TABLE_FORBIDDEN" };
+      }
       const cols = tableColumns(db, params.name);
       const pk = pkColumn(cols);
       let payload: Record<string, unknown>;
@@ -267,6 +317,12 @@ export const adminTablesRoutes = new Elysia({ prefix: "/api/admin/tables" })
     } catch (e) {
       set.status = 404;
       return { error: e instanceof Error ? e.message : String(e), code: "UNKNOWN_TABLE" };
+    }
+    try {
+      assertWritable(params.name);
+    } catch (e) {
+      set.status = 403;
+      return { error: e instanceof Error ? e.message : String(e), code: "TABLE_FORBIDDEN" };
     }
     const cols = tableColumns(db, params.name);
     const pk = pkColumn(cols);

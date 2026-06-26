@@ -44,7 +44,7 @@ function cmpSemver(a: string, b: string): number {
 // signature does not verify (see updater/manifest-verify.ts).
 // Default off so v1.0 customers whose FileServer still publishes plain
 // .json don't break before the signed-publish pipeline lands.
-const REQUIRE_SIGNED = Bun.env.NEXORA_REQUIRE_SIGNED === "1";
+const REQUIRE_SIGNED = (Bun.env.NEXORA_REQUIRE_SIGNED === "0" && Bun.env.NODE_ENV !== "production") ? false : true;
 
 async function fetchManifest(): Promise<VersionManifest> {
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.payload;
