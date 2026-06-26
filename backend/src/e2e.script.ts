@@ -1,6 +1,6 @@
 /**
  * End-to-end backend test against a running server on :3000.
- * Run:  bun src/e2e.test.ts   (server must be up; uses a real test xpub already in settings)
+ * Run:  bun src/e2e.script.ts   (server must be up; uses a real test xpub already in settings)
  * Cleans up its own test rows at the end.
  */
 import { Database } from "bun:sqlite";

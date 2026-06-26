@@ -16,7 +16,7 @@
     "check": "biome check --write .",
     "test:integrity": "bun run scripts/test-integrity.ts",
     "test:backend": "cd backend && bun test src/lib/hd.test.ts src/lib/encryption.test.ts src/lib/integrity.test.ts src/lib/integrity-state.test.ts src/lib/explorer.test.ts src/lib/plugin/compat.test.ts src/lib/plugin/hook-bus.test.ts src/lib/plugin/migrations.test.ts",
-    "test:e2e": "cd backend && bun test src/e2e.test.ts",
+    "test:e2e": "cd backend && bun run src/e2e.script.ts",
     "test": "bun run test:backend && bun run test:integrity",
     "build:frontend": "bun --cwd frontend run build"
   },
