@@ -44,8 +44,13 @@ function getEncryptionKey(): Buffer {
     return encryptionKey;
   }
 
+  // Resolve .keys relative to the app root (/app in Docker, or repo root locally).
+  // In Docker the working directory is /app; locally it varies, so we derive
+  // from the source file path: src/lib/encryption.ts → ../../ = backend/ → ../ = repo root.
+  // However in Docker the backend IS the root, so we go up to /app.
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  const keysDir = join(currentDir, "..", "..", "..", ".keys");
+  const appRoot = join(currentDir, "..", ".."); // /app/src/lib → /app
+  const keysDir = join(appRoot, ".keys");
   const keyPath = join(keysDir, "db_encryption.key");
 
   try {
