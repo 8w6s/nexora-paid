@@ -48,7 +48,19 @@
       "allCategories": "Tất cả",
       "instantDelivery": "Giao tức thì",
       "details": "Xem chi tiết",
-      "noResults": "Không có sản phẩm nào khớp bộ lọc."
+      "noResults": "Không có sản phẩm nào khớp bộ lọc.",
+      "sold": "Đã bán {count}",
+      "choosePackage": "Chọn gói",
+      "outOfStockShort": "Hết hàng",
+      "instantDeliveryTitle": "Giao hàng tức thì",
+      "instantDeliverySub": "Key được gửi tự động sau khi thanh toán",
+      "securePaymentTitle": "Thanh toán an toàn",
+      "securePaymentSub": "Thanh toán bằng Litecoin, xử lý on-chain",
+      "alwaysAvailableTitle": "Luôn sẵn sàng",
+      "alwaysAvailableSub": "Xem lại key bất cứ lúc nào trong Đơn của tôi",
+      "reviewsTitle": "Đánh giá",
+      "verifiedOnly": "Chỉ người mua đã xác thực mới có thể để lại đánh giá.",
+      "noReviews": "Chưa có đánh giá. Hãy là người đầu tiên chia sẻ cảm nhận."
     },
     "cart": {
       "title": "Giỏ hàng của bạn",

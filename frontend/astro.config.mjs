@@ -7,15 +7,24 @@ import { defineConfig } from "astro/config";
 
 const SITE = process.env.PUBLIC_SITE_URL || "http://localhost:4321";
 
+// Dev-only proxy target for /api/* — keeps browser fetch('/api/...')
+// same-origin when running `bun run dev` so the CSRF Origin gate matches.
+// Production routes /api/* via Caddy and ignores this entirely.
+const DEV_API_TARGET = process.env.PUBLIC_API_ORIGIN_DEV || "http://localhost:3000";
+
+const EXCLUDE_FROM_SITEMAP = new RegExp(
+  "/(admin|checkout|orders|login|register|api)\\b",
+);
+
 // https://astro.build/config
 export default defineConfig({
   site: SITE,
-  output: "server", // SSR (product/catalog dynamic; no rebuild on new products)
+  output: "server",
   adapter: node({ mode: "standalone" }),
   integrations: [
     react(),
     sitemap({
-      filter: (page) => !/\/(admin|checkout|orders|login|register|api)\b/.test(page),
+      filter: (page) => !EXCLUDE_FROM_SITEMAP.test(page),
     }),
   ],
   vite: {
@@ -24,6 +33,14 @@ export default defineConfig({
     },
     resolve: {
       dedupe: ["react", "react-dom"],
+    },
+    server: {
+      proxy: {
+        "/api": {
+          target: DEV_API_TARGET,
+          changeOrigin: false,
+        },
+      },
     },
   },
 });

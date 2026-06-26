@@ -48,7 +48,19 @@
       "allCategories": "Todos",
       "instantDelivery": "Entrega inmediata",
       "details": "Ver detalles",
-      "noResults": "Ningún producto coincide con los filtros."
+      "noResults": "Ningún producto coincide con los filtros.",
+      "sold": "{count} vendidos",
+      "choosePackage": "Elegir paquete",
+      "outOfStockShort": "Agotado",
+      "instantDeliveryTitle": "Entrega instantánea",
+      "instantDeliverySub": "Las claves se envían automáticamente tras el pago",
+      "securePaymentTitle": "Pago seguro",
+      "securePaymentSub": "Paga en Litecoin, liquidado on-chain",
+      "alwaysAvailableTitle": "Siempre disponible",
+      "alwaysAvailableSub": "Consulta tus claves en cualquier momento en Mis pedidos",
+      "reviewsTitle": "Reseñas",
+      "verifiedOnly": "Solo los compradores verificados pueden dejar una reseña.",
+      "noReviews": "Aún no hay reseñas. Sé el primero en compartir tu opinión."
     },
     "cart": {
       "title": "Tu carrito",

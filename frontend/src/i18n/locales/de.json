@@ -48,7 +48,19 @@
       "allCategories": "Alle",
       "instantDelivery": "Sofortlieferung",
       "details": "Details ansehen",
-      "noResults": "Keine Produkte entsprechen deinen Filtern."
+      "noResults": "Keine Produkte entsprechen deinen Filtern.",
+      "sold": "{count} verkauft",
+      "choosePackage": "Paket wählen",
+      "outOfStockShort": "Ausverkauft",
+      "instantDeliveryTitle": "Sofortlieferung",
+      "instantDeliverySub": "Schlüssel werden nach Zahlung automatisch gesendet",
+      "securePaymentTitle": "Sichere Zahlung",
+      "securePaymentSub": "Bezahle mit Litecoin, abgerechnet on-chain",
+      "alwaysAvailableTitle": "Immer verfügbar",
+      "alwaysAvailableSub": "Sieh deine Schlüssel jederzeit in „Meine Bestellungen“ ein",
+      "reviewsTitle": "Bewertungen",
+      "verifiedOnly": "Nur verifizierte Käufer können eine Bewertung hinterlassen.",
+      "noReviews": "Noch keine Bewertungen. Sei der Erste, der seine Meinung teilt."
     },
     "cart": {
       "title": "Dein Warenkorb",

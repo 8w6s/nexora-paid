@@ -42,7 +42,7 @@ export interface ProviderDef {
 export const PROVIDERS: ProviderDef[] = [
   {
     id: "crypto_ltc",
-    label: "Litecoin (self-hosted)",
+    label: "Litecoin",
     kind: "crypto-native",
     countries: "*",
     defaultOn: true,
@@ -58,7 +58,7 @@ export const PROVIDERS: ProviderDef[] = [
   },
   {
     id: "crypto_btc",
-    label: "Bitcoin (self-hosted)",
+    label: "Bitcoin",
     kind: "crypto-native",
     countries: "*",
     defaultOn: false,
@@ -73,7 +73,7 @@ export const PROVIDERS: ProviderDef[] = [
   },
   {
     id: "crypto_eth",
-    label: "Ethereum (self-hosted)",
+    label: "Ethereum",
     kind: "crypto-native",
     countries: "*",
     defaultOn: false,
@@ -84,7 +84,7 @@ export const PROVIDERS: ProviderDef[] = [
   },
   {
     id: "crypto_sol",
-    label: "Solana (self-hosted)",
+    label: "Solana",
     kind: "crypto-native",
     countries: "*",
     defaultOn: false,

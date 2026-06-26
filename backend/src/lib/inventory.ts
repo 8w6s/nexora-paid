@@ -89,13 +89,6 @@ export async function reserveKeys(
   return true;
 }
 
-/** Release an order's reserved keys back to available (cancel / expire). */
-export async function releaseKeys(orderId: string): Promise<void> {
-  await db
-    .update(productKeys)
-    .set({ status: "available", orderId: null, reservedAt: null })
-    .where(and(eq(productKeys.orderId, orderId), eq(productKeys.status, "reserved")));
-}
 
 /**
  * Idempotent "mark paid + deliver". Flips the order pending/underpaid → paid ONLY if it is

@@ -48,7 +48,19 @@
       "allCategories": "All",
       "instantDelivery": "Instant delivery",
       "details": "View details",
-      "noResults": "No products match your filters."
+      "noResults": "No products match your filters.",
+      "sold": "{count} sold",
+      "choosePackage": "Choose Package",
+      "outOfStockShort": "Out of Stock",
+      "instantDeliveryTitle": "Instant delivery",
+      "instantDeliverySub": "Keys sent automatically after payment",
+      "securePaymentTitle": "Secure payment",
+      "securePaymentSub": "Pay in Litecoin, settled on-chain",
+      "alwaysAvailableTitle": "Always available",
+      "alwaysAvailableSub": "Re-view your keys anytime in My Orders",
+      "reviewsTitle": "Reviews",
+      "verifiedOnly": "Only verified buyers can leave a review.",
+      "noReviews": "No reviews yet. Be the first to share your thoughts."
     },
     "cart": {
       "title": "Your cart",

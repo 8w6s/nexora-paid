@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { Icon } from "./Icon";
 
@@ -43,6 +44,7 @@ const Stars: React.FC<{ value: number; size?: number; onPick?: (n: number) => vo
 );
 
 export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
+  const { t } = useT();
   const [data, setData] = useState<ReviewsResp | null>(null);
   const [can, setCan] = useState<CanReview | null>(null);
   const [rating, setRating] = useState(5);
@@ -82,7 +84,7 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
   return (
     <section className="reviews">
       <div className="rv-head">
-        <h2>Reviews</h2>
+        <h2>{t("storefront.product.reviewsTitle")}</h2>
         {data.count > 0 && (
           <div className="rv-agg">
             <Stars value={Math.round(data.average)} size={18} />
@@ -121,7 +123,7 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
       )}
       {can && !can.canReview && can.reason === "not-purchased" && (
         <p className="rv-note">
-          <Icon name="box" size={14} /> Only verified buyers can leave a review.
+          <Icon name="box" size={14} /> {t("storefront.product.verifiedOnly")}
         </p>
       )}
       {can && !can.canReview && can.reason === "already-reviewed" && (
@@ -131,7 +133,7 @@ export const ProductReviews: React.FC<{ slug: string }> = ({ slug }) => {
       )}
 
       {data.count === 0 ? (
-        <p className="rv-empty">No reviews yet. Be the first to share your thoughts.</p>
+        <p className="rv-empty">{t("storefront.product.noReviews")}</p>
       ) : (
         <ul className="rv-list">
           {data.reviews.map((r) => (

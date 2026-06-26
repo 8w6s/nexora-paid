@@ -122,12 +122,14 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
           <div className="pd-meta">
             <span className={activeOut ? "muted" : "stock-ok"}>
               <Icon name="box" size={13} />{" "}
-              {!activeOut ? `${activeStock} in stock` : "Out of stock"}
+              {!activeOut
+                ? t("storefront.product.inStock", { count: String(activeStock) })
+                : t("storefront.product.outOfStock")}
             </span>
             {product.sold > 0 && (
               <>
                 <span className="dot">·</span>
-                <span className="muted">{product.sold} sold</span>
+                <span className="muted">{t("storefront.product.sold", { count: String(product.sold) })}</span>
               </>
             )}
           </div>
@@ -177,7 +179,7 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
                   marginBottom: "8px",
                 }}
               >
-                Choose Package
+                {t("storefront.product.choosePackage")}
               </span>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {product.variants.map((v) => {
@@ -209,7 +211,7 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
                       }}
                       type="button"
                     >
-                      {v.name} - {fmtUsd(v.priceUsd)} {vOut && "(Out of Stock)"}
+                      {v.name} - {fmtUsd(v.priceUsd)} {vOut && `(${t("storefront.product.outOfStockShort")})`}
                     </button>
                   );
                 })}
@@ -239,7 +241,7 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
             )}
             <button ref={addBtnRef} className="btn pd-add" onClick={handleAdd} disabled={activeOut}>
               {!activeOut && <Icon name="cart" size={17} />}
-              <span>{activeOut ? "Sold out" : "Add to cart"}</span>
+              <span>{activeOut ? t("storefront.product.outOfStockShort") : t("storefront.product.addToCart")}</span>
             </button>
           </div>
 
@@ -247,22 +249,22 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
             <div>
               <Icon name="zap" size={16} variant="badge" />
               <div>
-                <strong>Instant delivery</strong>
-                <span>Keys sent automatically after payment</span>
+                <strong>{t("storefront.product.instantDeliveryTitle")}</strong>
+                <span>{t("storefront.product.instantDeliverySub")}</span>
               </div>
             </div>
             <div>
               <Icon name="shield" size={16} variant="badge" />
               <div>
-                <strong>Secure payment</strong>
-                <span>Pay in Litecoin, settled on-chain</span>
+                <strong>{t("storefront.product.securePaymentTitle")}</strong>
+                <span>{t("storefront.product.securePaymentSub")}</span>
               </div>
             </div>
             <div>
               <Icon name="key" size={16} variant="badge" />
               <div>
-                <strong>Always available</strong>
-                <span>Re-view your keys anytime in My Orders</span>
+                <strong>{t("storefront.product.alwaysAvailableTitle")}</strong>
+                <span>{t("storefront.product.alwaysAvailableSub")}</span>
               </div>
             </div>
           </div>
@@ -271,7 +273,7 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
 
       {related.length > 0 && (
         <section className="pd-related">
-          <h2>Related products</h2>
+          <h2>{t("storefront.product.relatedProducts")}</h2>
           <div className="rel-grid" ref={relRef}>
             {related.map((p) => (
               <ProductCard key={p.id} product={p} />
