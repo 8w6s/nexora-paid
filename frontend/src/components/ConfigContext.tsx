@@ -3,11 +3,38 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { api } from "../lib/api";
 import { runThemeCurtain } from "../lib/themeTransition";
 
+export interface StoreBranding {
+  description: string;
+  logo: string;
+  primaryColor: string;
+  accentColor: string;
+  customCss: string;
+  footerHtml: string;
+  announcementBar: string;
+  hideOutOfStock: boolean;
+}
+
+export interface StoreSocial {
+  discord: string;
+  telegram: string;
+  youtube: string;
+  tiktok: string;
+  instagram: string;
+}
+
+export interface StoreSeo {
+  metaTitle: string;
+  metaDescription: string;
+}
+
 export interface StoreConfig {
   storeName: string;
   needsSetup: boolean;
   faKitUrl: string | null;
   features: Record<string, boolean>;
+  branding: StoreBranding;
+  social: StoreSocial;
+  seo: StoreSeo;
 }
 
 const DEFAULT: StoreConfig = {
@@ -15,6 +42,18 @@ const DEFAULT: StoreConfig = {
   needsSetup: false,
   faKitUrl: null,
   features: {},
+  branding: {
+    description: "",
+    logo: "",
+    primaryColor: "",
+    accentColor: "",
+    customCss: "",
+    footerHtml: "",
+    announcementBar: "",
+    hideOutOfStock: false,
+  },
+  social: { discord: "", telegram: "", youtube: "", tiktok: "", instagram: "" },
+  seo: { metaTitle: "", metaDescription: "" },
 };
 
 export type Theme = "light" | "dark";
@@ -113,6 +152,28 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     s.setAttribute("data-fa-kit", "1");
     document.head.appendChild(s);
   }, [config.faKitUrl]);
+
+  // Inject branding CSS vars + custom CSS when config loads
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const { primaryColor, accentColor, customCss } = config.branding;
+    if (primaryColor) root.style.setProperty("--brand", primaryColor);
+    if (accentColor) root.style.setProperty("--accent", accentColor);
+
+    // Custom CSS injection (admin-authored, sanitized server-side)
+    let styleEl = document.getElementById("nx-custom-css") as HTMLStyleElement | null;
+    if (customCss) {
+      if (!styleEl) {
+        styleEl = document.createElement("style");
+        styleEl.id = "nx-custom-css";
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent = customCss;
+    } else if (styleEl) {
+      styleEl.textContent = "";
+    }
+  }, [config.branding]);
 
   const isOn = (feature: string) => config.features[feature] !== false; // default-on if unknown
 

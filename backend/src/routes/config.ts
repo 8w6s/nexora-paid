@@ -20,9 +20,30 @@ export const configRoutes = new Elysia()
     ).length;
     return {
       storeName: (await getSetting("store_name")) ?? "Nexora",
-      needsSetup: adminCount === 0, // drives the /setup wizard
+      needsSetup: adminCount === 0,
       faKitUrl: (await getSetting("fa_kit_url")) ?? Bun.env.FA_KIT_URL ?? null,
       features: flags,
+      branding: {
+        description: (await getSetting("description")) ?? "",
+        logo: (await getSetting("store_logo")) ?? "",
+        primaryColor: (await getSetting("primary_color")) ?? "",
+        accentColor: (await getSetting("accent_color")) ?? "",
+        customCss: (await getSetting("custom_css")) ?? "",
+        footerHtml: (await getSetting("footer_html")) ?? "",
+        announcementBar: (await getSetting("announcement_bar")) ?? "",
+        hideOutOfStock: (await getSetting("hide_out_of_stock")) === "true",
+      },
+      social: {
+        discord: (await getSetting("discord")) ?? "",
+        telegram: (await getSetting("telegram")) ?? "",
+        youtube: (await getSetting("youtube")) ?? "",
+        tiktok: (await getSetting("tiktok")) ?? "",
+        instagram: (await getSetting("instagram")) ?? "",
+      },
+      seo: {
+        metaTitle: (await getSetting("meta_title")) ?? "",
+        metaDescription: (await getSetting("meta_description")) ?? "",
+      },
     };
   })
 

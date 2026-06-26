@@ -59,9 +59,13 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
 
   // Store branding
   { key: "store_name", type: "string", maxLength: 200 },
-  { key: "subdomain", type: "string", maxLength: 100 },
-  { key: "currency", type: "string", maxLength: 10 },
+  { key: "store_logo", type: "string", maxLength: 1000 },
   { key: "description", type: "string", maxLength: 2000 },
+  { key: "primary_color", type: "string", maxLength: 20 },
+  { key: "accent_color", type: "string", maxLength: 20 },
+  { key: "custom_css", type: "string", maxLength: 10000 },
+  { key: "footer_html", type: "string", maxLength: 5000 },
+  { key: "announcement_bar", type: "string", maxLength: 500 },
 
   // Social links
   { key: "discord", type: "string", maxLength: 500 },
