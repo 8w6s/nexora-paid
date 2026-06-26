@@ -1,24 +1,25 @@
-/* AdminDbEditor — polished to match site design tokens */
+/* AdminDbEditor — modern SQL console (Supabase/Drizzle Studio inspired) */
 
 .nx-dbe {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 16px;
-  min-height: 520px;
+  grid-template-columns: 220px 1fr;
+  gap: 20px;
+  min-height: 560px;
   font-family: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
   color: var(--ink, #1a1a1a);
 }
 
+/* ─── Schema sidebar ─── */
 .nx-dbe__side {
   background: var(--surface, #fff);
-  border: 1px solid var(--line, #e5e5e5);
-  border-radius: var(--radius-md, 10px);
-  padding: 10px;
-  overflow: auto;
-  max-height: 640px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
+  padding: 12px 8px;
+  overflow-y: auto;
+  max-height: 680px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .nx-dbe__side-title {
@@ -26,13 +27,13 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-weight: 600;
-  color: var(--muted, #888);
-  padding: 4px 6px 8px;
-  border-bottom: 1px solid var(--line, #e5e5e5);
-  margin-bottom: 4px;
+  font-weight: 700;
+  color: var(--muted, #6b7280);
+  padding: 8px 12px 12px;
+  border-bottom: 1px solid var(--line, #e5e7eb);
+  margin-bottom: 6px;
 }
 
 .nx-dbe__side-list {
@@ -42,40 +43,36 @@
 }
 
 .nx-dbe__tbl {
-  border-radius: var(--radius-sm, 6px);
+  border-radius: 8px;
   transition: background-color 120ms ease;
 }
 
 .nx-dbe__tbl:hover {
-  background: var(--surface-alt, rgba(0, 0, 0, 0.03));
+  background: var(--surface-alt, #f9fafb);
 }
 
 .nx-dbe__tbl-name {
   cursor: pointer;
   font-family: ui-monospace, "JetBrains Mono", "SF Mono", monospace;
-  font-size: 12.5px;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm, 6px);
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
   list-style: none;
   user-select: none;
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--ink, #1a1a1a);
+  gap: 8px;
+  color: var(--ink-soft, #374151);
   transition: color 120ms ease;
 }
 
-.nx-dbe__tbl-name::-webkit-details-marker {
-  display: none;
-}
-.nx-dbe__tbl-name::marker {
-  content: "";
-}
+.nx-dbe__tbl-name::-webkit-details-marker { display: none; }
+.nx-dbe__tbl-name::marker { content: ""; }
 
 .nx-dbe__tbl-name::before {
   content: "▸";
-  font-size: 10px;
-  color: var(--muted, #888);
+  font-size: 9px;
+  color: var(--muted, #9ca3af);
   transition: transform 150ms ease;
   display: inline-block;
   width: 10px;
@@ -86,96 +83,99 @@
 }
 
 .nx-dbe__tbl-name:hover {
-  color: var(--brand, #1f6feb);
+  color: var(--brand, #3b82f6);
 }
 
 .nx-dbe__cols {
   list-style: none;
-  padding: 2px 0 6px 24px;
+  padding: 4px 0 8px 28px;
   margin: 0;
-  font-size: 11.5px;
+  font-size: 11px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .nx-dbe__col {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--muted, #666);
+  padding: 3px 8px;
+  border-radius: 5px;
+  color: var(--muted, #6b7280);
   gap: 8px;
 }
 
 .nx-dbe__col:hover {
-  background: var(--surface-alt, rgba(0, 0, 0, 0.04));
+  background: var(--surface-alt, #f3f4f6);
 }
 
 .nx-dbe__col-name {
   font-family: ui-monospace, "JetBrains Mono", monospace;
-  color: var(--ink, #1a1a1a);
+  color: var(--ink, #1f2937);
+  font-size: 11.5px;
 }
 
 .nx-dbe__col-type {
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-family: ui-monospace, monospace;
-  color: var(--muted, #888);
+  color: var(--muted, #9ca3af);
   text-transform: lowercase;
 }
 
 .nx-dbe__col-pk {
-  color: var(--warn, #d97706);
+  color: #f59e0b;
   margin-left: 4px;
   font-weight: 700;
+  font-size: 8px;
 }
 
 .nx-dbe__muted {
-  color: var(--muted, #888);
+  color: var(--muted, #9ca3af);
   font-size: 12px;
-  padding: 8px;
+  padding: 12px;
   text-align: center;
 }
 
+/* ─── Main area ─── */
 .nx-dbe__main {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
 }
 
 .nx-dbe__tabs {
   display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--line, #e5e5e5);
+  gap: 0;
+  border-bottom: 1px solid var(--line, #e5e7eb);
 }
 
 .nx-dbe__tab {
-  padding: 8px 16px;
+  padding: 10px 20px;
   background: transparent;
-  color: var(--muted, #888);
+  color: var(--muted, #6b7280);
   border: 0;
   border-bottom: 2px solid transparent;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
-  transition:
-    color 150ms ease,
-    border-color 150ms ease;
+  transition: all 150ms ease;
   margin-bottom: -1px;
 }
 
 .nx-dbe__tab:hover {
-  color: var(--ink, #1a1a1a);
+  color: var(--ink, #111827);
 }
 
 .nx-dbe__tab--active {
-  color: var(--ink, #1a1a1a);
-  border-bottom-color: var(--brand, #1f6feb);
+  color: var(--ink, #111827);
+  border-bottom-color: var(--brand, #3b82f6);
+  font-weight: 600;
 }
 
+/* ─── Toolbar ─── */
 .nx-dbe__toolbar {
   display: flex;
   align-items: center;
@@ -184,50 +184,48 @@
 }
 
 .nx-dbe__btn {
-  padding: 8px 16px;
-  background: var(--brand, #1f6feb);
+  padding: 9px 18px;
+  background: var(--brand, #3b82f6);
   color: #fff;
   border: 0;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
-  transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 80ms ease;
+  transition: all 150ms ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
 .nx-dbe__btn:hover:not(:disabled) {
-  background: var(--brand-hover, #1858c4);
-  box-shadow: var(--shadow-hover, 0 2px 8px rgba(31, 111, 235, 0.25));
+  background: var(--brand-hover, #2563eb);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  transform: translateY(-1px);
 }
 
 .nx-dbe__btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(0);
 }
 
 .nx-dbe__btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .nx-dbe__kbd {
   font-family: ui-monospace, monospace;
-  font-size: 10.5px;
-  background: rgba(255, 255, 255, 0.18);
-  padding: 1px 5px;
-  border-radius: 3px;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
   margin-left: 4px;
 }
 
 .nx-dbe__hint {
-  font-size: 11.5px;
-  color: var(--muted, #888);
+  font-size: 12px;
+  color: var(--muted, #6b7280);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -235,41 +233,41 @@
 
 .nx-dbe__hint::before {
   content: "•";
-  color: var(--brand, #1f6feb);
+  color: var(--brand, #3b82f6);
 }
 
+/* ─── SQL Editor ─── */
 .nx-dbe__editor {
   font-family: ui-monospace, "JetBrains Mono", "SF Mono", monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  padding: 12px 14px;
-  min-height: 160px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  padding: 16px 18px;
+  min-height: 180px;
   background: var(--surface, #fff);
-  color: var(--ink, #1a1a1a);
-  border: 1px solid var(--line, #e5e5e5);
-  border-radius: var(--radius-md, 10px);
+  color: var(--ink, #1f2937);
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
   resize: vertical;
   outline: none;
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+  transition: all 150ms ease;
   width: 100%;
   box-sizing: border-box;
   tab-size: 2;
 }
 
 .nx-dbe__editor:focus {
-  border-color: var(--brand, #1f6feb);
-  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.12);
+  border-color: var(--brand, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* ─── Error display ─── */
 .nx-dbe__err {
-  padding: 10px 12px;
-  background: rgba(220, 40, 40, 0.08);
-  border: 1px solid rgba(220, 40, 40, 0.35);
-  border-radius: var(--radius-sm, 6px);
-  font-size: 12.5px;
-  color: #b91c1c;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  font-size: 13px;
+  color: #dc2626;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -277,34 +275,35 @@
 
 .nx-dbe__err-inline {
   font-size: 11px;
-  color: #b91c1c;
+  color: #dc2626;
   margin-top: 4px;
   font-family: ui-monospace, monospace;
 }
 
+/* ─── Results ─── */
 .nx-dbe__result {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .nx-dbe__result-meta {
-  font-size: 11.5px;
-  color: var(--muted, #888);
+  font-size: 12px;
+  color: var(--muted, #6b7280);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 2px;
+  padding: 0 4px;
 }
 
 .nx-dbe__result-meta strong {
-  color: var(--ink, #1a1a1a);
+  color: var(--ink, #111827);
   font-weight: 600;
 }
 
 .nx-dbe__result-meta--ok::before {
   content: "✓";
-  color: #16a34a;
+  color: #22c55e;
   font-weight: 700;
   margin-right: 2px;
 }
@@ -312,9 +311,10 @@
 .nx-dbe__grid {
   overflow: auto;
   max-height: 480px;
-  border: 1px solid var(--line, #e5e5e5);
-  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
   background: var(--surface, #fff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0.04);
 }
 
 .nx-dbe__table {
@@ -325,45 +325,51 @@
 
 .nx-dbe__table th {
   text-align: left;
-  padding: 10px 14px;
-  background: var(--surface-alt, #fafafa);
+  padding: 12px 16px;
+  background: var(--surface-alt, #f9fafb);
   position: sticky;
   top: 0;
   font-weight: 600;
-  font-size: 11.5px;
-  color: var(--muted, #555);
+  font-size: 11px;
+  color: var(--muted, #6b7280);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--line, #e5e5e5);
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--line, #e5e7eb);
   z-index: 1;
 }
 
 .nx-dbe__table td {
-  padding: 8px 14px;
-  border-top: 1px solid var(--line, #f0f0f0);
+  padding: 10px 16px;
+  border-top: 1px solid var(--line-light, #f3f4f6);
   font-family: ui-monospace, "JetBrains Mono", monospace;
   white-space: nowrap;
-  color: var(--ink, #1a1a1a);
+  color: var(--ink, #1f2937);
   vertical-align: top;
+  font-size: 12.5px;
 }
 
 .nx-dbe__table tbody tr {
-  transition: background-color 100ms ease;
+  transition: background-color 80ms ease;
 }
 
 .nx-dbe__table tbody tr:hover {
-  background: rgba(31, 111, 235, 0.04);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.nx-dbe__table tbody tr:nth-child(even) {
+  background: rgba(249, 250, 251, 0.5);
 }
 
 .nx-dbe__null {
-  color: var(--muted, #aaa);
+  color: var(--muted, #9ca3af);
   font-style: italic;
+  font-size: 11px;
 }
 
 .nx-dbe__code {
   font-family: ui-monospace, "JetBrains Mono", monospace;
   font-size: 11.5px;
-  color: var(--ink, #1a1a1a);
+  color: var(--ink, #1f2937);
   display: block;
   white-space: pre-wrap;
   word-break: break-all;
@@ -372,14 +378,15 @@
 
 .nx-dbe__audit-cell-stmt {
   white-space: normal !important;
-  max-width: 520px;
+  max-width: 480px;
 }
 
 .nx-dbe__ok {
-  color: #16a34a;
+  color: #22c55e;
   font-weight: 600;
 }
+
 .nx-dbe__bad {
-  color: #b91c1c;
+  color: #ef4444;
   font-weight: 600;
 }
