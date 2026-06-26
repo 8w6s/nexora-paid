@@ -1,18 +1,44 @@
 name: fulfill-order
 
-# Triggered by LemonSqueezy/Polar webhook via repository_dispatch
-# Setup: in LemonSqueezy → Webhooks → add endpoint:
-#   https://api.github.com/repos/8w6s/nexora-paid/dispatches
-#   with Authorization: Bearer $GITHUB_PAT (repo scope)
-#   Content-Type: application/json
-#   Body template: {"event_type":"order_paid","client_payload":{"email":"{{buyer_email}}","customer_id":"{{order_id}}","tier":"standard"}}
+# ════════════════════════════════════
+# Auto-fulfill a Nexora Paid order.
+#
+# Trigger: repository_dispatch from LemonSqueezy/Polar webhook proxy.
+# The webhook proxy (Cloudflare Worker or simple Vercel function)
+# verifies the platform signature and forwards as:
+#   POST https://api.github.com/repos/8w6s/nexora-paid/dispatches
+#   { "event_type": "order_paid",
+#     "client_payload": {
+#       "email": "buyer@example.com",
+#       "customer_id": "ord_abc123",
+#       "tier": "standard",        // standard | lifetime
+#       "idempotency_key": "ord_abc123"
+#     }}
+#
+# Idempotency: the workflow checks if a release asset named
+# <idempotency_key>.zip already exists in the "fulfillments" release.
+# If yes → skip (duplicate webhook fire / retry). This prevents
+# double-signing on webhook replay.
+#
+# Storage: the signed ZIP is uploaded as a GitHub Release asset on a
+# permanent private "fulfillments" tag. The download URL is auth-gated
+# (requires the GHCR token we issue the customer) — NOT ephemeral.
+#
+# Secrets required:
+#   LICENSE_SIGNER_PRIVATE — hex private key for ed25519 license signing
+#   RESEND_API_KEY — Resend.com API key for transactional email
+#   FULFILL_PAT — GitHub PAT (contents:write) for uploading release assets
+# ═══════════════════════════════════════════════════════════════════
 
 on:
   repository_dispatch:
     types: [order_paid]
 
 permissions:
-  contents: read
+  contents: write
+
+env:
+  FULFILL_TAG: fulfillments
 
 jobs:
   fulfill:
@@ -20,46 +46,90 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
-      - name: Install deps
-        run: cd backend && bun install --frozen-lockfile
-
-      - name: Resolve params
+      - name: Validate payload
         id: params
         run: |
           EMAIL="${{ github.event.client_payload.email }}"
           CUSTOMER="${{ github.event.client_payload.customer_id }}"
-          TIER="${{ github.event.client_payload.tier || 'standard' }}"
-          SAFE_EMAIL=$(echo "$EMAIL" | tr -c 'a-z0-9' '_')
+          TIER="${{ github.event.client_payload.tier }}"
+          IDEM="${{ github.event.client_payload.idempotency_key }}"
+
+          # Validation
+          if [ -z "$EMAIL" ] || [ -z "$CUSTOMER" ]; then
+            echo "::error::Missing email or customer_id in payload"
+            exit 1
+          fi
+          TIER="${TIER:-standard}"
+          IDEM="${IDEM:-$CUSTOMER}"
+          SAFE_EMAIL=$(echo "$EMAIL" | tr -cs 'a-z0-9@._-' '_' | tr '[:upper:]' '[:lower:]')
+
           echo "email=$EMAIL" >> "$GITHUB_OUTPUT"
           echo "customer=$CUSTOMER" >> "$GITHUB_OUTPUT"
           echo "tier=$TIER" >> "$GITHUB_OUTPUT"
+          echo "idem=$IDEM" >> "$GITHUB_OUTPUT"
           echo "safe_email=$SAFE_EMAIL" >> "$GITHUB_OUTPUT"
+          echo "asset_name=${IDEM}.zip" >> "$GITHUB_OUTPUT"
 
-      - name: Write signing key
+      - name: Idempotency check
+        id: idem
+        env:
+          GH_TOKEN: ${{ secrets.FULFILL_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p .keys
-          echo "${{ secrets.LICENSE_SIGNER_PRIVATE }}" > .keys/license-signer.private
+          # Check if this order was already fulfilled
+          EXISTS=$(gh release view "$FULFILL_TAG" --json assets \
+            --jq ".assets[]? | select(.name == "${{ steps.params.outputs.asset_name }}") | .name" \
+            2>/dev/null || echo "")
+          if [ -n "$EXISTS" ]; then
+            echo "::warning::Order ${{ steps.params.outputs.idem }} already fulfilled — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure fulfillments release exists
+        if: steps.idem.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.FULFILL_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$FULFILL_TAG" &>/dev/null 2>&1 || \
+            gh release create "$FULFILL_TAG" --title "Customer Fulfillments" \
+              --notes "Auto-generated release holding per-customer ZIP assets. Do not delete." \
+              --prelease
+
+      - name: Setup Bun
+        if: steps.idem.outputs.skip == 'false'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install backend deps
+        if: steps.idem.outputs.skip == 'false'
+        run: cd backend && bun install --frozen-lockfile
 
       - name: Sign license
+        if: steps.idem.outputs.skip == 'false'
         run: |
+          mkdir -p .keys release-pkg
+          echo "${{ secrets.LICENSE_SIGNER_PRIVATE }}" > .keys/license-signer.private
+
           TTL_FLAG=""
           if [ "${{ steps.params.outputs.tier }}" = "standard" ]; then
             TTL_FLAG="--ttl=365"
           fi
+
           bun run scripts/sign-license.ts \
             --email="${{ steps.params.outputs.email }}" \
             --customer="${{ steps.params.outputs.customer }}" \
             $TTL_FLAG \
             --features=search-suggest,admin-bulk,admin-export,admin-customers-csv \
-            --note="${{ steps.params.outputs.tier }}, auto-fulfilled $(date +%Y-%m-%d)" \
+            --note="${{ steps.params.outputs.tier }}, auto $(date +%Y-%m-%d)" \
             --out=./release-pkg/nexora.license
 
+          # Immediately remove private key from disk
+          rm -f .keys/license-signer.private
+
       - name: Assemble release package
+        if: steps.idem.outputs.skip == 'false'
         run: |
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "latest")
           VERSION="${VERSION#v}"
@@ -69,14 +139,19 @@ jobs:
           cp Caddyfile release-pkg/
           cp Caddyfile.tunnel release-pkg/
           cp .env.example release-pkg/
-          cp scripts/nexora-backup.sh release-pkg/ 2>/dev/null || true
-          cp scripts/nexora-restore-drill.sh release-pkg/ 2>/dev/null || true
-          cp scripts/nexora-go-live-check.sh release-pkg/ 2>/dev/null || true
+
+          # Scripts
+          for s in nexora-backup.sh nexora-restore-drill.sh nexora-go-live-check.sh; do
+            cp "scripts/$s" release-pkg/ 2>/dev/null || true
+          done
+
+          # Docs
           cp docs/CUSTOMER_ONBOARDING.md release-pkg/README.md
           cp docs/DEPLOYMENT.md release-pkg/
           cp TERMS.md release-pkg/
           cp releases-template/revoked.json release-pkg/ 2>/dev/null || true
 
+          # Version pin
           cat > release-pkg/.env.version <<EOF
           NEXORA_VERSION=$VERSION
           NEXORA_IMAGE=ghcr.io/8w6s/nexora-backend
@@ -84,34 +159,91 @@ jobs:
           NEXORA_UPDATER_VERSION=$VERSION
           EOF
 
+          # Quick-start script for the customer
+          cat > release-pkg/start.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          echo "=== Nexora Quick Start ==="
+          if [ ! -f .env ]; then
+            cp .env.example .env
+            echo "[!] Created .env from template — edit it before proceeding."
+            echo "    Required: ORDER_TOKEN_SECRET, DATABASE_ENCRYPTION_KEY"
+            echo "    Run: openssl rand -hex 32  (twice, one per secret)"
+            exit 1
+          fi
+          source .env.version 2>/dev/null || true
+          echo "Pulling Nexora $NEXORA_VERSION..."
+          docker compose pull
+          echo "Starting stack..."
+          docker compose up -d
+          echo ""
+          echo "Waiting for backend health..."
+          for i in $(seq 1 30); do
+            if docker compose exec backend bun -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+              echo "✓ Backend healthy!"
+              echo ""
+              echo "Open https://$(grep PUBLIC_ORIGIN .env | cut -d= -f2 | sed 's|https://||')/admin"
+              echo "Default admin: admin@nexora.local / change-me (CHANGE THIS)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "[!] Backend did not become healthy within 60s. Check: docker compose logs backend"
+          exit 1
+          SCRIPT
+          chmod +x release-pkg/start.sh
+
       - name: Create ZIP
+        if: steps.idem.outputs.skip == 'false'
         run: |
           cd release-pkg
-          zip -r ../nexora-paid-${{ steps.params.outputs.safe_email }}.zip .
+          zip -r "../${{ steps.params.outputs.asset_name }}" .
 
-      - name: Upload to Catbox (ephemeral, 24h link)
-        id: upload
+      - name: Upload to fulfillments release
+        if: steps.idem.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.FULFILL_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          RESPONSE=$(curl -sF "reqtype=fileupload" \
-            -F "fileToUpload=@nexora-paid-${{ steps.params.outputs.safe_email }}.zip" \
-            https://catbox.moe/user/api.php)
-          echo "url=$RESPONSE" >> "$GITHUB_OUTPUT"
-          echo "Download URL: $RESPONSE"
+          gh release upload "$FULFILL_TAG" \
+            "${{ steps.params.outputs.asset_name }}" \
+            --clobber
 
-      - name: Email customer
+          # Get the download URL (requires auth to download from private repo)
+          ASSET_URL="https://github.com/8w6s/nexora-paid/releases/download/$FULFILL_TAG/${{ steps.params.outputs.asset_name }}"
+          echo "asset_url=$ASSET_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Send welcome email
+        if: steps.idem.outputs.skip == 'false'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
-          curl -s -X POST https://api.resend.com/emails \
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
+          VERSION="${VERSION#v}"
+          TIER="${{ steps.params.outputs.tier }}"
+          EMAIL="${{ steps.params.outputs.email }}"
+
+          # Build proper HTML email
+          cat > /tmp/email.json <<EMAILJSON
+          {
+            "from": "Nexora <hello@nexora.store>",
+            "to": ["$EMAIL"],
+            "subject": "Your Nexora license is ready",
+            "html": "<!DOCTYPE html><html><body style='font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#1a1a1a'><h1 style='font-size:24px;margin-bottom:8px'>Welcome to Nexora</h1><p style='color:#666;margin-bottom:24px'>Your <strong>$TIER</strong> license has been signed and your release package (v$VERSION) is ready.</p><div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:24px'><h3 style='margin:0 0 12px;font-size:15px'>Setup instructions</h3><ol style='margin:0;padding-left:20px;line-height:1.8'><li>We will send your <strong>GHCR access token</strong> and <strong>download link</strong> in a follow-up email within a few hours.</li><li>Download and unzip the release package.</li><li>Run <code>bash start.sh</code> — it guides you through secrets + first boot.</li><li>Open your admin panel and paste your Litecoin xpub.</li><li>Your shop is live.</li></ol></div><div style='background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin-bottom:24px'><strong>What's included:</strong><ul style='margin:8px 0 0;padding-left:20px;line-height:1.8'><li><code>nexora.license</code> — your signed license (valid $([ "$TIER" = "lifetime" ] && echo 'forever' || echo '12 months'))</li><li><code>docker-compose.yml</code> — pulls from our private GHCR registry</li><li><code>start.sh</code> — one-command quickstart</li><li>Backup/restore scripts + Caddyfile (HTTPS + tunnel mode)</li><li><code>README.md</code> — full onboarding guide</li></ul></div><p style='color:#666;font-size:14px'>Need help? Reply to this email — we respond within 48 business hours.</p><hr style='border:none;border-top:1px solid #e2e8f0;margin:24px 0'><p style='color:#999;font-size:12px'>Nexora — Digital goods infrastructure, self-hosted.<br>You received this because you purchased a Nexora license.</p></body></html>"
+          }
+          EMAILJSON
+
+          curl -sf -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer $RESEND_API_KEY" \
             -H "Content-Type: application/json" \
-            -d '{
-              "from": "Nexora <hello@nexora.store>",
-              "to": ["${{ steps.params.outputs.email }}"],
-              "subject": "Your Nexora Paid license is ready 🎉",
-              "html": "<h2>Welcome to Nexora!</h2><p>Your license has been signed and your release package is ready.</p><p><strong>Download:</strong> <a href="${{ steps.upload.outputs.url }}">Click here to download your ZIP</a></p><p>Inside the ZIP you will find:<ul><li><code>nexora.license</code> — your signed license file</li><li><code>docker-compose.yml</code> — point at our GHCR image</li><li><code>README.md</code> — step-by-step setup guide</li><li>Backup/restore scripts + Caddyfile configs</li></ul></p><p>Your GHCR access token for pulling private images will be sent in a separate email within 24h.</p><p>Questions? Reply to this email.</p><p>— Nexora</p>"
-            }'
+            -d @/tmp/email.json
 
-      - name: Cleanup signing key
+          echo "::notice::Welcome email sent to $EMAIL"
+
+      - name: Notify maintainer
+        if: steps.idem.outputs.skip == 'false'
+        run: |
+          echo "::notice::✅ Fulfilled ${{ steps.params.outputs.tier }} order for ${{ steps.params.outputs.email }} (customer=${{ steps.params.outputs.customer }})"
+
+      - name: Cleanup
         if: always()
-        run: rm -rf .keys
+        run: rm -rf .keys release-pkg /tmp/email.json
