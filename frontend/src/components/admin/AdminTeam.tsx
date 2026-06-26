@@ -1,8 +1,10 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
+import { useToast } from "../Toast";
 
 type TeamRole = "admin" | "manager" | "support" | "viewer";
 
@@ -434,12 +436,17 @@ export const AdminTeam: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
+  const toast = useToast();
 
   const load = () => {
     setLoading(true);
     api
       .get<TeamMember[]>("/api/admin/team")
-      .catch(() => [] as TeamMember[])
+      .catch((e) => {
+        toast.error(e instanceof Error ? e.message : "Failed to load team");
+        return [] as TeamMember[];
+      })
       .then(setMembers)
       .finally(() => setLoading(false));
   };
@@ -466,15 +473,27 @@ export const AdminTeam: React.FC = () => {
     }
   };
 
-  const remove = async (id: string, memberEmail: string) => {
-    if (!confirm(`Remove ${memberEmail} from your team?`)) return;
-    await api.del(`/api/admin/team/${id}`).catch(() => {});
-    load();
+  const remove = (m: TeamMember) => setRemovingMember(m);
+  const confirmRemove = async () => {
+    if (!removingMember) return;
+    try {
+      await api.del(`/api/admin/team/${removingMember.id}`);
+      toast.success(`Removed ${removingMember.email}.`);
+      setRemovingMember(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Remove failed");
+    }
   };
 
   const updateRole = async (id: string, newRole: TeamRole) => {
-    await api.patch(`/api/admin/team/${id}`, { role: newRole }).catch(() => {});
-    load();
+    try {
+      await api.patch(`/api/admin/team/${id}`, { role: newRole });
+      toast.success(`Role updated to ${newRole}.`);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Role update failed");
+    }
   };
 
   return (
@@ -619,7 +638,8 @@ export const AdminTeam: React.FC = () => {
                   <td>
                     <button
                       className="btn btn-ghost btn-sm btn-danger-icon"
-                      onClick={() => remove(m.id, m.email)}
+                      onClick={() => remove(m)}
+                      aria-label={`Remove ${m.email}`}
                     >
                       <Icon name="close" size={13} />
                     </button>
@@ -643,6 +663,16 @@ export const AdminTeam: React.FC = () => {
         .team-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
         @media (max-width: 640px) { .team-roles { grid-template-columns: 1fr; } }
       `}</style>
+
+      <ConfirmModal
+        open={!!removingMember}
+        onClose={() => setRemovingMember(null)}
+        onConfirm={confirmRemove}
+        title="Remove Team Member"
+        message={`Remove ${removingMember?.email} from your team? They will lose admin access immediately.`}
+        confirmText="Remove"
+        danger
+      />
     </div>
   );
 };
