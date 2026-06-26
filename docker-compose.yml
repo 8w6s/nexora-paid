@@ -201,8 +201,34 @@ services:
     mem_limit: ${NEXORA_CF_MEM:-64m}
     pids_limit: 32
 
+# Optional: Auto-backup sidecar — enable with `--profile backup`.
+  # Takes atomic SQLite snapshots every BACKUP_INTERVAL_HOURS (default 6h),
+  # prunes snapshots older than RETENTION_DAYS (default 7). Logs to stdout.
+  # Requires sqlite3 binary — uses the same oven/bun:1 base image.
+  backup:
+    image: oven/bun:1
+    profiles: ["backup"]
+    restart: unless-stopped
+    entrypoint: ["sh", "/scripts/backup-cron.sh"]
+    environment:
+      DB_PATH: /app/data/sqlite.db
+      BACKUP_DIR: /var/backups/nexora
+      BACKUP_INTERVAL_HOURS: "${BACKUP_INTERVAL_HOURS:-6}"
+      RETENTION_DAYS: "${BACKUP_RETENTION_DAYS:-7}"
+    volumes:
+      - nexora-db:/app/data:ro
+      - nexora-backups:/var/backups/nexora
+      - ./scripts/backup-cron.sh:/scripts/backup-cron.sh:ro
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    pids_limit: 16
+
 volumes:
   nexora-db:
   nexora-keys:
+  nexora-backups:
   caddy-data:
   caddy-config:
