@@ -69,6 +69,31 @@ if (Bun.env.NODE_ENV === "production") {
 const TRUST_PROXY = (Bun.env.TRUST_PROXY ?? "").toLowerCase() === "true";
 (globalThis as any).__nexora_trust_proxy = TRUST_PROXY;
 
+// f-6 (deep audit, 2026-06-27): refuse to start in production without TRUST_PROXY.
+// Without a trusted proxy, clientIp() collapses every request into the constant
+// "untrusted-shared-bucket" — every per-IP rate-limit bucket becomes global and
+// one attacker can DoS /api/auth/login (10 POSTs/min) or /reset (8/15min) for
+// the entire deployment. The only safe production posture is to run behind a
+// TLS terminator (caddy/nginx/fly proxy) AND set TRUST_PROXY=true so the
+// first X-Forwarded-For hop is honored. Dev still boots fine — the shared
+// bucket is acceptable on localhost where you are your own attacker.
+if (Bun.env.NODE_ENV === "production" && !TRUST_PROXY) {
+  console.error(
+    "[boot] REFUSING TO START: NODE_ENV=production but TRUST_PROXY!=true.\n" +
+      "       Without a trusted reverse proxy, every per-IP rate-limit bucket\n" +
+      "       collapses into one global bucket and one client can DoS auth for\n" +
+      "       the whole deployment. Run behind caddy/nginx/fly proxy and set\n" +
+      "       TRUST_PROXY=true. To override (NOT recommended), set\n" +
+      "       NEXORA_ALLOW_GLOBAL_RATELIMIT_BUCKET=true.",
+  );
+  if (Bun.env.NEXORA_ALLOW_GLOBAL_RATELIMIT_BUCKET !== "true") {
+    process.exit(1);
+  }
+  console.warn(
+    "[boot] NEXORA_ALLOW_GLOBAL_RATELIMIT_BUCKET=true — booting anyway with a global rate-limit bucket. Auth DoS surface is wide open.",
+  );
+}
+
 // Active SSE streams per concurrency key (userId for authed, IP for guests).
 // Capped per-key in the /api/orders/:id/events handler so one client cannot
 // open hundreds of streams (each holding a deliverHook subscription + a 30s
