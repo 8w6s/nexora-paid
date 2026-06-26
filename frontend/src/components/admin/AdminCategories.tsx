@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { Dropdown } from "../Dropdown";
 import { Icon } from "../Icon";
 import { Modal } from "../Modal";
@@ -56,14 +57,19 @@ export const AdminCategories: React.FC = () => {
   const [editing, setEditing] = useState<FormState | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [deletingCat, setDeletingCat] = useState<Cat | null>(null);
   const toast = useToast();
 
   const load = useCallback(() => {
     api
       .get<Cat[]>("/api/admin/categories")
       .then(setList)
-      .catch(() => setList([]));
-  }, []);
+      .catch((e) => {
+        setList([]);
+        toast.error(e instanceof Error ? e.message : "Failed to load categories");
+      });
+  }, [toast]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -113,15 +119,12 @@ export const AdminCategories: React.FC = () => {
     }
   };
 
-  const remove = async (c: Cat) => {
-    if (
-      !confirm(
-        `Delete category "${c.name}"? This only works if it has no subcategories or products.`,
-      )
-    )
-      return;
+  const remove = (c: Cat) => setDeletingCat(c);
+  const confirmRemove = async () => {
+    if (!deletingCat) return;
     try {
-      await api.del(`/api/admin/categories/${c.id}`);
+      await api.del(`/api/admin/categories/${deletingCat.id}`);
+      setDeletingCat(null);
       load();
       toast.success("Category deleted.");
     } catch (e) {
@@ -340,6 +343,16 @@ export const AdminCategories: React.FC = () => {
         .err { background: var(--price-soft); color: var(--price); padding: 9px 12px; border-radius: var(--radius-sm); font-size: .84rem; }
         .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
       `}</style>
+
+      <ConfirmModal
+        open={!!deletingCat}
+        onClose={() => setDeletingCat(null)}
+        onConfirm={confirmRemove}
+        title="Delete Category"
+        message={`Delete category "${deletingCat?.name}"? This only works if it has no subcategories or products.`}
+        confirmText="Delete"
+        danger
+      />
     </div>
   );
 };
