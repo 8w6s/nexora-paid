@@ -66,7 +66,7 @@ jobs:
             NEXORA_RELEASES_REPO=${{ vars.NEXORA_RELEASES_REPO || '8w6s/nexora-releases' }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/nexora:${{ github.event.inputs.version }}-${{ steps.ids.outputs.invoice_id }}
-            ${{ github.event.inputs.tag_latest == 'true' && format('ghcr.io/{0}/nexora:{1}', github.repository_owner, steps.ids.outputs.invoice_id) || '' }}
+            ${{ github.event.inputs.tag_latest == 'true' && format('ghcr.io/{0}/nexora:latest-{1}', github.repository_owner, steps.ids.outputs.invoice_id) || '' }}
           provenance: true
           sbom: true
 
