@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -33,13 +38,17 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build & push backend
+      # Backend "base" image — no invoice baked. Used as the parent layer for
+      # per-customer builds (customer-build.yml) and as a fallback for v1
+      # customers still on the .license file path.
+      - name: Build & push backend (base)
         id: backend
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
           tags: |
+            ghcr.io/${{ github.repository_owner }}/nexora-backend:${{ steps.ver.outputs.version }}-base
             ghcr.io/${{ github.repository_owner }}/nexora-backend:${{ steps.ver.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/nexora-backend:latest
           provenance: true
@@ -75,31 +84,62 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/nexora-fileserver:${{ steps.ver.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/nexora-fileserver:latest
 
-      - name: Update releases repo (versions/stable.json + changelog)
+      - name: Install repo deps (for sign-manifest)
+        run: bun install --frozen-lockfile
+
+      # Drop the signing key into .keys/ from the secret. Without this the
+      # sign-manifest script bails. NEVER print or upload the key. The job
+      # runner is ephemeral; the file is wiped when the runner is torn down.
+      - name: Restore signing key
+        env:
+          NEXORA_SIGNING_KEY: ${{ secrets.NEXORA_SIGNING_KEY }}
+        run: |
+          [ -z "$NEXORA_SIGNING_KEY" ] && { echo "FATAL: NEXORA_SIGNING_KEY secret not set"; exit 1; }
+          mkdir -p .keys
+          printf '%s' "$NEXORA_SIGNING_KEY" > .keys/license-signer.private
+          chmod 600 .keys/license-signer.private
+
+      - name: Write + sign stable manifest, publish to releases repo
         env:
           GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
           RELEASES_REPO: ${{ vars.NEXORA_RELEASES_REPO }}
           BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          MIN_VERSION: ${{ vars.NEXORA_MIN_VERSION || '1.0.0' }}
         run: |
-          [ -z "$RELEASES_REPO" ] && { echo "NEXORA_RELEASES_REPO var not set, skipping"; exit 0; }
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${RELEASES_REPO}.git" rel
-          cd rel
-          mkdir -p versions changelog
-          cat > versions/stable.json <<JSON
+          [ -z "$RELEASES_REPO" ] && { echo "FATAL: NEXORA_RELEASES_REPO var not set"; exit 1; }
+          # Write the canonical plaintext manifest. imageTag uses the
+          # ${INVOICE_ID} placeholder so customer backends substitute their
+          # baked invoice id at /api/admin/update/check time. Base build
+          # backends (no invoice) resolve the placeholder to "-base".
+          mkdir -p out/versions out/changelog
+          cat > out/versions/stable.json <<JSON
           {
-            "latest": "${{ steps.ver.outputs.version }}",
-            "min": "1.0.0",
             "channel": "stable",
+            "latest": "${{ steps.ver.outputs.version }}",
+            "min": "${MIN_VERSION}",
             "imageRepo": "ghcr.io/${{ github.repository_owner }}/nexora-backend",
-            "imageTag": "${{ steps.ver.outputs.version }}",
+            "imageTag": "${{ steps.ver.outputs.version }}-\${INVOICE_ID}",
             "sha256": "${BACKEND_DIGEST}",
             "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "changelogUrl": "https://github.com/${{ github.repository }}/releases/tag/${{ steps.ver.outputs.tag }}"
           }
           JSON
-          # Pull release body for the markdown changelog file.
+          # Sign → produces stable.signed.json that the backend's
+          # NEXORA_REQUIRE_SIGNED=1 default actually accepts.
+          bun run scripts/sign-manifest.ts \
+            --in=out/versions/stable.json \
+            --out=out/versions/stable.signed.json \
+            --force
+          # Pull release body for the markdown changelog file (best-effort).
           gh api "repos/${{ github.repository }}/releases/tags/${{ steps.ver.outputs.tag }}" \
-            --jq .body > "changelog/${{ steps.ver.outputs.version }}.md" || true
+            --jq .body > "out/changelog/${{ steps.ver.outputs.version }}.md" || true
+          # Commit to the private releases repo.
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${RELEASES_REPO}.git" rel
+          cd rel
+          mkdir -p versions changelog
+          cp ../out/versions/stable.json versions/stable.json
+          cp ../out/versions/stable.signed.json versions/stable.signed.json
+          cp "../out/changelog/${{ steps.ver.outputs.version }}.md" "changelog/${{ steps.ver.outputs.version }}.md" 2>/dev/null || true
           git config user.email "release-bot@nexora"
           git config user.name "nexora release bot"
           git add .

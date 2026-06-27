@@ -1,5 +1,6 @@
 import type { Elysia } from "elysia";
 import { db } from "../../db/connection.ts";
+import { getBakedInvoiceId, getInvoiceVerdict } from "../invoice.ts";
 import { isDegraded, summarizeIntegrity } from "../integrity-state.ts";
 import { verifyLicense } from "../license.ts";
 import { getAllSettings } from "../settings.ts";
@@ -84,21 +85,56 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
     return app;
   }
 
-  // 1b. License gate (build-wide; per-plugin signing comes in Phase 2).
-  const lic = await verifyLicense();
-  (globalThis as any).__nexora_license = lic;
-  if (!lic.valid) {
-    for (const p of plugins)
-      records.push({
-        id: p.manifest.id,
-        version: p.manifest.version,
-        description: p.manifest.description,
-        loaded: false,
-        reason: `license: ${lic.reason}`,
-      });
-    (globalThis as any).__nexora_plugins = records;
-    return app;
+  // 1b. Invoice gate — preferred path. Image is baked with NEXORA_INVOICE_ID
+  // at build time; runtime fetched the matching invoices/<id>.json from the
+  // private releases repo (lib/invoice.ts → initInvoiceGate()). When the
+  // invoice is active + unexpired + signature OK, paid plugins load. Any
+  // other state (revoked, suspended, expired, network+nocache, signature
+  // mismatch) refuses all paid plugins.
+  //
+  // Backward compat: if NO invoice id was baked (e.g. v1 customer using the
+  // old `.license` file model), fall through to the legacy verifyLicense()
+  // path. Once every customer is migrated to per-invoice images, the
+  // verifyLicense fallback can be removed.
+  const bakedInvoiceId = getBakedInvoiceId();
+  let licFeatures: string[] | undefined;
+  let licIdentity: string;
+  if (bakedInvoiceId) {
+    const inv = getInvoiceVerdict();
+    (globalThis as any).__nexora_invoice = inv;
+    if (!inv.valid) {
+      for (const p of plugins)
+        records.push({
+          id: p.manifest.id,
+          version: p.manifest.version,
+          description: p.manifest.description,
+          loaded: false,
+          reason: `invoice: ${inv.reason}`,
+        });
+      (globalThis as any).__nexora_plugins = records;
+      return app;
+    }
+    licFeatures = inv.payload.features;
+    licIdentity = `${inv.payload.email} (invoice ${inv.payload.invoiceId})`;
+  } else {
+    const lic = await verifyLicense();
+    (globalThis as any).__nexora_license = lic;
+    if (!lic.valid) {
+      for (const p of plugins)
+        records.push({
+          id: p.manifest.id,
+          version: p.manifest.version,
+          description: p.manifest.description,
+          loaded: false,
+          reason: `license: ${lic.reason}`,
+        });
+      (globalThis as any).__nexora_plugins = records;
+      return app;
+    }
+    licFeatures = (lic as { payload?: { features?: string[] } }).payload?.features;
+    licIdentity = lic.email;
   }
+  void licIdentity;
 
   const settings = await getAllSettings();
   let current: any = app;
@@ -120,15 +156,16 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
       continue;
     }
 
-    // 3b. License feature allowlist. Absent (v1 licenses) = grant-all so old
-    // licenses keep working. Present = only listed plugin ids load — lets a
-    // single signing key gate features by tier without re-issuing licences.
-    const allowed = (lic as any).payload?.features as string[] | undefined;
-    if (Array.isArray(allowed) && !allowed.includes(id)) {
-      records.push({ id, version, description, loaded: false, reason: "not in license features" });
+    // 3b. Feature allowlist from invoice (or legacy license). Absent =
+    // grant-all so v1 customers without a tier keep working. Present =
+    // only listed plugin ids load — lets a single signing key gate
+    // features per-tier without re-issuing the bundle.
+    if (Array.isArray(licFeatures) && !licFeatures.includes(id)) {
+      records.push({ id, version, description, loaded: false, reason: "not in invoice features" });
       continue;
     }
 
+    
     // 4. Migrations (if any)
     if (p.migrations) {
       const r = await runPluginMigrations(db, id, p.migrations());

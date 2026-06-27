@@ -12,6 +12,7 @@ import {
 import { printBootBanner } from "./lib/banner.ts";
 import { EmailService } from "./lib/email.ts";
 import { initIntegrity, toBannerInfo } from "./lib/integrity-state.ts";
+import { getBakedInvoiceId, initInvoiceGate } from "./lib/invoice.ts";
 import { loadPlugins } from "./lib/plugin/loader.ts";
 import { clientIp, rateLimitCheck } from "./lib/rate-limit.ts";
 import { onOrderDelivered, recoverStuckOrders, startWatcher } from "./lib/watcher.ts";
@@ -418,6 +419,23 @@ const baseApp = new Elysia()
 // stays frictionless. In prod, missing/invalid manifest → degraded mode,
 // paid plugins skipped, banner red, admin mutations gated.
 const integrityResult = await initIntegrity();
+
+// Per-invoice gate. When NEXORA_INVOICE_ID is baked into the image
+// (customer-build workflow), fetch invoices/<id>.json from the private
+// releases repo and cache the verdict for 24h. The loader uses
+// getInvoiceVerdict() to decide whether paid plugins load. Boot never
+// blocks on a network error — initInvoiceGate falls back to the on-disk
+// cache (7-day grace) when the fetch fails.
+if (getBakedInvoiceId()) {
+  const inv = await initInvoiceGate();
+  if (!inv.valid) {
+    console.warn(`[invoice] paid features disabled: ${inv.reason}`);
+  } else {
+    console.log(
+      `[invoice] active — ${inv.payload.email} (${inv.payload.invoiceId}) source=${inv.source}`,
+    );
+  }
+}
 
 // Paid modules register BEFORE productRoutes so static paths like
 // /api/products/suggest are not shadowed by the dynamic /api/products/:idOrSlug

@@ -1,9 +1,11 @@
+
 import { existsSync } from "node:fs";
 import { Elysia, t } from "elysia";
-import { verifySignedManifest } from "../lib/manifest-verify.ts";
 import { APP_VERSION } from "../lib/app-version.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { degradedGate } from "../lib/integrity-state.ts";
+import { getBakedInvoiceId } from "../lib/invoice.ts";
+import { verifySignedManifest } from "../lib/manifest-verify.ts";
 import { clientIp, rateLimitCheck } from "../lib/rate-limit.ts";
 import { ensureMachineId, readLicenseSecret } from "../lib/tenant.ts";
 import { signRequest } from "../lib/updater-handshake.ts";
@@ -11,6 +13,19 @@ import { signRequest } from "../lib/updater-handshake.ts";
 const FILESERVER_URL =
   Bun.env.NEXORA_FILESERVER_URL ?? "https://raw.githubusercontent.com/8w6s/nexora-releases/main";
 const UPDATE_CHANNEL = Bun.env.NEXORA_UPDATE_CHANNEL ?? "stable";
+
+// Per-invoice image tag. When the manifest's `imageTag` contains the
+// placeholder `${INVOICE_ID}`, we substitute the baked invoice id so the
+// updater pulls the per-customer image instead of the public base tag.
+// Workflow `customer-build.yml` pushes `nexora-backend:<version>-<id>`;
+// the manifest publishes `imageTag: "1.2.3-${INVOICE_ID}"`, the running
+// backend turns that into `1.2.3-inv_2026_001` at /check time.
+function resolveImageTag(tag: string): string {
+  const invoiceId = getBakedInvoiceId();
+  if (!tag.includes("${INVOICE_ID}")) return tag;
+  if (!invoiceId) return tag.replace(/\$\{INVOICE_ID\}/g, "base");
+  return tag.replace(/\$\{INVOICE_ID\}/g, invoiceId);
+}
 
 // In-process cache: avoid hammering FileServer on every admin tab refresh.
 let cached: { at: number; payload: any } | null = null;
@@ -83,7 +98,7 @@ async function fetchManifest(): Promise<VersionManifest> {
       min: v.payload.min ?? v.payload.latest,
       channel: v.payload.channel ?? UPDATE_CHANNEL,
       imageRepo: v.payload.imageRepo,
-      imageTag: v.payload.imageTag,
+      imageTag: resolveImageTag(v.payload.imageTag),
       sha256: v.payload.sha256,
       changelogUrl: v.payload.changelogUrl,
       publishedAt: v.payload.publishedAt,
@@ -92,6 +107,7 @@ async function fetchManifest(): Promise<VersionManifest> {
   } else {
     payload = raw as VersionManifest;
     if (!payload.latest || !payload.imageRepo) throw new Error("invalid manifest");
+    payload.imageTag = resolveImageTag(payload.imageTag);
   }
   cached = { at: Date.now(), payload };
   return payload;

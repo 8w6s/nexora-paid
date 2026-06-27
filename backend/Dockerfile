@@ -9,6 +9,26 @@ RUN bun install
 # App source
 COPY . .
 
+# Per-customer build args. Baked into the image as ENV so the running
+# backend can read them but the customer-admin cannot rewrite them at
+# runtime (they live in image layers signed by GHCR).
+#
+#   NEXORA_INVOICE_ID     stable id you mint when issuing the customer's
+#                         invoice. The backend uses it to fetch
+#                         invoices/<id>.json from the private releases
+#                         repo at boot + every 24h. Empty → image runs in
+#                         "dev/unlicensed" mode (paid plugins off).
+#   NEXORA_INVOICE_EMAIL  watermark only; appears in boot banner so a
+#                         leaked image is traceable. Optional.
+#   NEXORA_RELEASES_REPO  defaults to 8w6s/nexora-releases; override if
+#                         you fork.
+ARG NEXORA_INVOICE_ID=""
+ARG NEXORA_INVOICE_EMAIL=""
+ARG NEXORA_RELEASES_REPO="8w6s/nexora-releases"
+ENV NEXORA_INVOICE_ID=${NEXORA_INVOICE_ID} \
+    NEXORA_INVOICE_EMAIL=${NEXORA_INVOICE_EMAIL} \
+    NEXORA_RELEASES_REPO=${NEXORA_RELEASES_REPO}
+
 # SQLite lives at $DB_PATH (default /app/data/sqlite.db in compose). Mount a
 # volume at /app/data — NOT /app — so the persisted state stays separate from
 # the source tree and rebuilds keep working.
