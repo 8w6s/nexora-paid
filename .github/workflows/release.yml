@@ -38,31 +38,19 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Backend "base" image — no invoice baked. Used as the parent layer for
-      # per-customer builds (customer-build.yml) and as a fallback for v1
-      # customers still on the .license file path.
-      - name: Build & push backend (base)
-        id: backend
+      # Combined image — backend + frontend in one. No invoice baked at this
+      # stage; per-customer images are forked from here by customer-build.yml.
+      - name: Build & push combined image (base)
+        id: combined
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: .
+          file: ./backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/nexora-backend:${{ steps.ver.outputs.version }}-base
-            ghcr.io/${{ github.repository_owner }}/nexora-backend:${{ steps.ver.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/nexora-backend:latest
-          provenance: true
-          sbom: true
-
-      - name: Build & push frontend
-        id: frontend
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/nexora-frontend:${{ steps.ver.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/nexora-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/nexora:${{ steps.ver.outputs.version }}-base
+            ghcr.io/${{ github.repository_owner }}/nexora:${{ steps.ver.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/nexora:latest
           provenance: true
           sbom: true
 
@@ -103,7 +91,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
           RELEASES_REPO: ${{ vars.NEXORA_RELEASES_REPO }}
-          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          BACKEND_DIGEST: ${{ steps.combined.outputs.digest }}
           MIN_VERSION: ${{ vars.NEXORA_MIN_VERSION || '1.0.0' }}
         run: |
           [ -z "$RELEASES_REPO" ] && { echo "FATAL: NEXORA_RELEASES_REPO var not set"; exit 1; }
@@ -117,7 +105,7 @@ jobs:
             "channel": "stable",
             "latest": "${{ steps.ver.outputs.version }}",
             "min": "${MIN_VERSION}",
-            "imageRepo": "ghcr.io/${{ github.repository_owner }}/nexora-backend",
+            "imageRepo": "ghcr.io/${{ github.repository_owner }}/nexora",
             "imageTag": "${{ steps.ver.outputs.version }}-\${INVOICE_ID}",
             "sha256": "${BACKEND_DIGEST}",
             "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",

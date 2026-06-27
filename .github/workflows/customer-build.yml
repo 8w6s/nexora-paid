@@ -1,30 +1,17 @@
 name: customer-build
 
-# Build a per-invoice backend image with the customer's invoice id baked
-# into the layer. Dispatch manually after you've issued the invoice in
-# Stripe/your billing tool and recorded it in nexora-releases/invoices.
-#
-# Steps the maintainer runs locally BEFORE clicking dispatch:
-#   1. bun run scripts/sign-invoice.ts --id=inv_2026_001 --email=...
-#      (and any --features/--expires you want)
-#   2. Commit issued/inv_2026_001.json into nexora-releases as
-#      invoices/inv_2026_001.json
-#   3. Dispatch this workflow with invoice_id=inv_2026_001 + version=v1.0.0
-# Output:
-#   ghcr.io/<owner>/nexora-backend:<version>-<invoice_id>   (immutable)
-#   ghcr.io/<owner>/nexora-backend:<invoice_id>             (rolling)
-# The backend reads NEXORA_INVOICE_ID from its env (baked at build time) and
-# fetches the matching invoices/<id>.json from the private releases repo to
-# decide whether paid plugins load.
+# Build a per-invoice image (backend + frontend in one) with the
+# customer's invoice id baked into the runtime stage. Dispatched by the
+# auto-build workflow on nexora-releases, or manually.
 
 on:
   workflow_dispatch:
     inputs:
       invoice_id:
-        description: "Stable invoice id (matches invoices/<id>.json in nexora-releases). e.g. inv_2026_001"
+        description: "Stable invoice id (matches invoices/<id>.json). e.g. inv_2026_001"
         required: true
       email:
-        description: "Customer email (watermark only — surfaces in boot banner)"
+        description: "Customer email (watermark only — appears in boot banner)"
         required: true
       version:
         description: "Base version to fork the image from, e.g. 1.0.0 (must already be published by release.yml)"
@@ -56,7 +43,6 @@ jobs:
         env:
           RAW_INVOICE: ${{ github.event.inputs.invoice_id }}
         run: |
-          # docker tag charset is a subset of [A-Za-z0-9._-]; reject anything else.
           if ! printf '%s' "$RAW_INVOICE" | grep -Eq '^[A-Za-z0-9._-]{4,64}$'; then
             echo "FATAL: invoice_id must match [A-Za-z0-9._-]{4,64} (got: $RAW_INVOICE)"
             exit 1
@@ -66,18 +52,21 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build & push per-invoice backend
+      - name: Build & push combined per-invoice image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          # Build context = repo root so the Dockerfile can COPY both
+          # backend/ and frontend/ in one go.
+          context: .
+          file: ./backend/Dockerfile
           push: true
           build-args: |
             NEXORA_INVOICE_ID=${{ steps.ids.outputs.invoice_id }}
             NEXORA_INVOICE_EMAIL=${{ github.event.inputs.email }}
             NEXORA_RELEASES_REPO=${{ vars.NEXORA_RELEASES_REPO || '8w6s/nexora-releases' }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/nexora-backend:${{ github.event.inputs.version }}-${{ steps.ids.outputs.invoice_id }}
-            ${{ github.event.inputs.tag_latest == 'true' && format('ghcr.io/{0}/nexora-backend:{1}', github.repository_owner, steps.ids.outputs.invoice_id) || '' }}
+            ghcr.io/${{ github.repository_owner }}/nexora:${{ github.event.inputs.version }}-${{ steps.ids.outputs.invoice_id }}
+            ${{ github.event.inputs.tag_latest == 'true' && format('ghcr.io/{0}/nexora:{1}', github.repository_owner, steps.ids.outputs.invoice_id) || '' }}
           provenance: true
           sbom: true
 
@@ -88,18 +77,24 @@ jobs:
           INV: ${{ steps.ids.outputs.invoice_id }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          ### Per-invoice image published
+          ### Per-invoice image published (backend + frontend in one)
 
           \`\`\`
-          ghcr.io/${OWNER}/nexora-backend:${VER}-${INV}
-          ghcr.io/${OWNER}/nexora-backend:${INV}
+          ghcr.io/${OWNER}/nexora:${VER}-${INV}
+          ghcr.io/${OWNER}/nexora:${INV}
           \`\`\`
 
-          Hand the customer:
+          Customer runs:
 
-          - The two image refs above (pin to the version-suffixed one).
-          - A PAT with \`read:packages\` scope (their \`NEXORA_GHCR_TOKEN\`).
-          - Confirmation the matching invoice file exists at
-            \`nexora-releases/invoices/${INV}.json\`. Without it their backend
-            boots with paid features disabled.
+          \`\`\`bash
+          docker run -d --name nexora \\
+            -e NEXORA_GHCR_TOKEN=<their PAT> \\
+            -e ORDER_TOKEN_SECRET=<openssl rand -hex 32> \\
+            -e DATABASE_ENCRYPTION_KEY=<openssl rand -hex 32> \\
+            -e NEXORA_LICENSE_SECRET=<openssl rand -hex 32> \\
+            -e ADMIN_PASSWORD=<a real password> \\
+            -p 3000:3000 -p 4321:4321 \\
+            -v nexora-db:/app/data \\
+            ghcr.io/${OWNER}/nexora:${VER}-${INV}
+          \`\`\`
           EOF

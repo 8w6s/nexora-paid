@@ -1,50 +1,53 @@
-# Backend — Elysia + Bun + SQLite, shipped as a compiled single-file binary.
+# syntax=docker/dockerfile:1.7
+# Combined backend + frontend image.
 #
-# Two stages:
-#   - build:   has bun + the full TS tree; compiles src/index.ts into a
-#              self-contained `nexora` binary via bun build --compile.
-#   - runtime: oven/bun:slim. Only the compiled binary, the asset files
-#              the runtime reads at startup (migrations/, locales/), the
-#              minimal package.json + drizzle config + schema.ts needed
-#              for the bootstrap `drizzle-kit push` on a fresh DB, plus
-#              node_modules. NO src/*.ts beyond schema.ts; NO scripts/;
-#              NO test files; NO dev DB backup.
+# The customer pulls ONE image; running it starts:
+#   - backend  on :3000  (bundled, minified /app/backend/nexora.js)
+#   - frontend on :4321  (Astro SSR /app/frontend/dist/server/entry.mjs)
 #
-# Per-customer build args (baked as ENV) — see customer-build.yml.
+# A shell supervisor wires both processes together; if either exits, the
+# container exits too so Docker's restart policy can kick.
+#
+# Per-customer build args — baked as ENV in the runtime stage.
 #   NEXORA_INVOICE_ID
 #   NEXORA_INVOICE_EMAIL
 #   NEXORA_RELEASES_REPO
+#   PUBLIC_API_ORIGIN    (frontend build-time only)
+#   PUBLIC_SITE_URL      (frontend build-time only)
+#
+# Build context expects backend/ at the root (this Dockerfile lives in
+# backend/) AND ../frontend/ to exist. The compose/workflow build args
+# below assume `docker build -f backend/Dockerfile .` from the repo root,
+# but the legacy customer-build invocation `context: ./backend` still
+# works because we COPY ../frontend explicitly with a relative path
+# anchored at the build context (the docker build context is set at the
+# workflow level — see customer-build.yml).
 
-# ───────────────────────────── 1. BUILD ─────────────────────────────
-FROM oven/bun:1 AS build
+# ───────────────────────────── 1. BUILD BACKEND ─────────────────────────────
+FROM oven/bun:1 AS build-backend
 WORKDIR /build
-
-# Install deps once on top of the cacheable layer.
-COPY package.json bun.lock* ./
+COPY backend/ ./
 RUN bun install --frozen-lockfile || bun install
-
-# Pull in the rest of the source tree (after .dockerignore filtering).
-COPY . .
-
-# Compile the app entrypoint into a static binary. --bytecode hides the
-# JavaScript source from a `strings` dump; --minify shortens identifiers
-# even inside bytecode metadata; --sourcemap=none drops file paths that
-# would otherwise leak module names.
-# Bundle the whole TS tree into a single minified .js. `--compile` would
-# also work but Bun refuses top-level `await` in the entry file, which
-# index.ts uses heavily; bundling to a .js file lets Bun's runtime evaluate
-# TLA normally. Source maps + identifier names are stripped so the customer
-# image leaks neither the original file layout nor most identifiers.
 RUN bun build src/index.ts \
       --minify \
       --sourcemap=none \
       --target=bun \
       --outfile /build/nexora.js
-
-# Sanity check: the bundle must exist and be non-empty.
 RUN test -s /build/nexora.js
 
-# ───────────────────────────── 2. RUNTIME ─────────────────────────────
+# ───────────────────────────── 2. BUILD FRONTEND ────────────────────────────
+FROM oven/bun:1 AS build-frontend
+WORKDIR /fe
+ARG PUBLIC_API_ORIGIN=http://localhost:3000
+ARG PUBLIC_SITE_URL=http://localhost:4321
+ENV PUBLIC_API_ORIGIN=$PUBLIC_API_ORIGIN \
+    PUBLIC_SITE_URL=$PUBLIC_SITE_URL
+COPY frontend/ ./
+RUN bun install --frozen-lockfile || bun install
+RUN bun run build
+RUN test -d /fe/dist/server
+
+# ───────────────────────────── 3. RUNTIME ───────────────────────────────────
 FROM oven/bun:1-slim AS runtime
 WORKDIR /app
 
@@ -54,33 +57,67 @@ ARG NEXORA_RELEASES_REPO="8w6s/nexora-releases"
 ENV NEXORA_INVOICE_ID=${NEXORA_INVOICE_ID} \
     NEXORA_INVOICE_EMAIL=${NEXORA_INVOICE_EMAIL} \
     NEXORA_RELEASES_REPO=${NEXORA_RELEASES_REPO} \
-    NEXORA_APP_ROOT=/app \
-    NEXORA_MIGRATIONS_DIR=/app/src/db/migrations \
+    NEXORA_APP_ROOT=/app/backend \
+    NEXORA_MIGRATIONS_DIR=/app/backend/src/db/migrations \
     PORT=3000 \
-    DB_PATH=/app/data/sqlite.db
+    FE_PORT=4321 \
+    DB_PATH=/app/data/sqlite.db \
+    HOST=0.0.0.0
 
-# 1. Bundled, minified JS — the only application code shipped to customers.
-COPY --from=build /build/nexora.js /app/nexora.js
+# Backend bundle + runtime assets (locales + SQL migrations).
+COPY --from=build-backend /build/nexora.js              /app/backend/nexora.js
+COPY --from=build-backend /build/src/db/migrations      /app/backend/src/db/migrations
+COPY --from=build-backend /build/src/lib/locales        /app/backend/src/lib/locales
+COPY --from=build-backend /build/package.json           /app/backend/package.json
+COPY --from=build-backend /build/node_modules           /app/backend/node_modules
 
-# 2. Runtime-loaded assets the binary opens by path at startup.
-#    These live in named subdirs so we don't sneak in any other .ts files.
-COPY --from=build /build/src/db/migrations /app/src/db/migrations
-COPY --from=build /build/src/lib/locales   /app/src/lib/locales
+# Frontend SSR bundle. Astro already outputs node-ready ESM under dist/.
+COPY --from=build-frontend /fe/dist                     /app/frontend/dist
+COPY --from=build-frontend /fe/package.json             /app/frontend/package.json
+COPY --from=build-frontend /fe/node_modules             /app/frontend/node_modules
 
-# 3. Bun runtime needs the node_modules tree to require()
-#    bun:sqlite + the small set of native deps the bundle leaves
-#    external. drizzle-kit is intentionally NOT copied: 0000_init.sql in
-#    migrations/ already carries the full HEAD schema, so a fresh DB is
-#    bootstrapped purely by the in-bundle migrator.
-COPY --from=build /build/package.json /app/package.json
-COPY --from=build /build/node_modules /app/node_modules
+EXPOSE 3000 4321
 
-EXPOSE 3000
+# Supervisor: start both processes in background, exit the container
+# the moment EITHER one exits (so Docker can restart the whole thing).
+# We give backend a few seconds to migrate + bind its port before the
+# frontend SSR starts hitting fetch('/api/...') during render.
+COPY --chmod=0755 <<'SH' /app/start.sh
+#!/bin/sh
+set -e
+mkdir -p $(dirname "$DB_PATH")
 
-# Boot sequence:
-#   1. Ensure the SQLite directory exists in the mounted volume.
-#   2. If the DB file is empty/missing → bootstrap fresh:
-#        a. drizzle-kit push (creates every table from schema.ts).
-#        b. let the compiled binary handle migrations + seed on first start.
-#   3. exec the binary — it now runs the connection.ts migrator, then app.
-CMD ["sh", "-c", "mkdir -p $(dirname $DB_PATH); exec bun run /app/nexora.js"]
+echo "[nexora] starting backend on :$PORT"
+( cd /app/backend && bun run nexora.js ) &
+BACKEND_PID=$!
+
+echo "[nexora] starting frontend on :$FE_PORT"
+( cd /app/frontend && PORT="$FE_PORT" bun run dist/server/entry.mjs ) &
+FRONTEND_PID=$!
+
+shutdown() {
+  echo "[nexora] caught signal, killing both processes"
+  kill -TERM "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
+  wait
+  exit 0
+}
+trap shutdown INT TERM
+
+# dash doesn't support `wait -n`. Poll both PIDs; exit as soon as either
+# is gone so docker can restart the container as a unit.
+while :; do
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    echo "[nexora] backend exited"; break
+  fi
+  if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+    echo "[nexora] frontend exited"; break
+  fi
+  sleep 2
+done
+
+kill -TERM "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
+wait
+exit 1
+SH
+
+CMD ["/app/start.sh"]

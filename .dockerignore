@@ -1,0 +1,80 @@
+# Root .dockerignore — applied to the build context when the workflow
+# does `docker build -f backend/Dockerfile .` (combined backend +
+# frontend image). The backend-only .dockerignore inside backend/ is
+# ignored in that mode; everything must be listed here.
+
+# Per-package node_modules (Bun reinstalls inside each stage).
+**/node_modules
+
+# Per-package build outputs / caches.
+**/dist
+**/build
+**/.astro
+**/.vite
+**/.turbo
+**/.next
+**/.tsbuildinfo
+**/coverage
+
+# Local SQLite + WAL/SHM sidecars (and any backup copies).
+**/sqlite.db
+**/sqlite.db-*
+**/sqlite.db.bak*
+**/*.sqlite-*
+
+# Local secrets / keys / license artefacts.
+**/.env
+**/.env.*
+!**/.env.example
+**/.keys
+**/*.license
+**/*.lic
+**/*.pem
+**/*.key
+
+# Test files inside our own packages (still allowed inside node_modules).
+backend/**/*.test.ts
+backend/**/*.spec.ts
+frontend/**/*.test.ts
+frontend/**/*.spec.ts
+
+# Dev-session noise.
+_*.txt
+**/_*.txt
+**/*-listing*.txt
+**/.dgc-tmp*
+**/.security-fix-probe*
+.dev-logs/
+.dual-graph/
+.gstack/
+.loop/
+.mimocode/
+gstack/
+pixel-agents/
+mimocode-src/
+**/*.png
+
+# Editor / OS noise.
+**/.DS_Store
+**/Thumbs.db
+**/.vscode
+**/.idea
+
+# Git
+.git
+.gitignore
+.gitattributes
+.github
+
+# Repo-level docs + templates that don't belong in the image.
+docs/
+releases-template/
+issued/
+.agents/
+.claude/
+.keys/
+NOTES.md
+CONTEXT.md
+CHANGELOG.md
+SELLAUTH_REFERENCE.md
+TERMS.md
