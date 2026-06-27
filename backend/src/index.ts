@@ -432,7 +432,7 @@ if (getBakedInvoiceId()) {
     console.warn(`[invoice] paid features disabled: ${inv.reason}`);
   } else {
     console.log(
-      `[invoice] active — ${inv.payload.email} (${inv.payload.invoiceId}) source=${inv.source}`,
+      `[invoice] active — ${inv.payload.invoiceId}${inv.payload.email ? ` (${inv.payload.email})` : ""} source=${inv.source}`,
     );
   }
 }

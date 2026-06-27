@@ -115,7 +115,9 @@ export async function loadPlugins<A extends Elysia<any, any, any, any, any, any,
       return app;
     }
     licFeatures = inv.payload.features;
-    licIdentity = `${inv.payload.email} (invoice ${inv.payload.invoiceId})`;
+    licIdentity = inv.payload.email
+      ? `${inv.payload.email} (invoice ${inv.payload.invoiceId})`
+      : `invoice ${inv.payload.invoiceId}`;
   } else {
     const lic = await verifyLicense();
     (globalThis as any).__nexora_license = lic;

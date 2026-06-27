@@ -71,10 +71,37 @@ jobs:
         run: |
           cat > .auto-build/driver.mjs <<'DRIVER_EOF'
           import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, rmSync } from "node:fs";
+          import { createDecipheriv } from "node:crypto";
           import { execSync } from "node:child_process";
           import { resolve } from "node:path";
           import * as ed from "@noble/ed25519";
           import { sha512 } from "@noble/hashes/sha2.js";
+
+          const CUSTOMERS_KEY_HEX = (process.env.NEXORA_CUSTOMERS_KEY || "").trim();
+          if (!CUSTOMERS_KEY_HEX || CUSTOMERS_KEY_HEX.length !== 64) {
+            console.error("[auto-build] NEXORA_CUSTOMERS_KEY missing or wrong length");
+            process.exit(1);
+          }
+          const CUSTOMERS_KEY = Buffer.from(CUSTOMERS_KEY_HEX, "hex");
+
+          // Decrypt a `nx1:<base64>` line into plain `email:invoice_id`.
+          // Returns null when the line isn't an nx1 record so the parser
+          // can fall back to treating it as a plaintext line / comment.
+          function decryptLine(line) {
+            if (!line.startsWith("nx1:")) return null;
+            const raw = Buffer.from(line.slice(4), "base64");
+            if (raw.length < 12 + 16 + 1) return null;
+            const iv = raw.subarray(0, 12);
+            const tag = raw.subarray(12, 28);
+            const ct = raw.subarray(28);
+            try {
+              const d = createDecipheriv("aes-256-gcm", CUSTOMERS_KEY, iv);
+              d.setAuthTag(tag);
+              return Buffer.concat([d.update(ct), d.final()]).toString("utf8");
+            } catch {
+              return null;
+            }
+          }
 
           // The workflow runs this script from the .auto-build/ dir (so
           // node_modules resolves), but the data we care about lives at the
@@ -105,7 +132,7 @@ jobs:
           function parse(text) {
             // Permissive parser: lines we can't make sense of are SKIPPED
             // (treated as documentation comments), never raise errors. Only
-            // hard-fail when the registry produces conflicting entries.
+            // hard- gradually.
             const out = new Map();
             const errors = [];
             text.split(/\r?\n/).forEach((raw, i) => {
@@ -116,6 +143,14 @@ jobs:
               if (commented) line = line.replace(/^#+\s*/, "");
               if (line.startsWith("-")) line = line.slice(1).trim();
               if (!line) return;
+              if (line.startsWith("nx1:")) {
+                const dec = decryptLine(line);
+                if (!dec) {
+                  errors.push(`line ${lineNo}: encrypted entry failed to decrypt`);
+                  return;
+                }
+                line = dec;
+              }
               const h = line.indexOf("#");
               if (h !== -1) line = line.slice(0, h).trim();
               if (!line) return;
@@ -173,10 +208,12 @@ jobs:
               if (!active && !prev && !existsSync(fp)) continue;
               written.add(id);
               const desired = active ? "active" : "revoked";
-              if (prev && prev.email === email && prevStatus === desired && existsSync(fp)) continue;
+              // NB: email is intentionally NOT in the on-disk payload — the
+              // file is published to a public repo; leaking the email here
+              // would defeat the customers.txt encryption above.
+              if (prev && prevStatus === desired && existsSync(fp)) continue;
               const payload = {
                 invoiceId: id,
-                email,
                 status: desired,
                 issuedAt: new Date().toISOString(),
                 productId: "nexora-paid",
@@ -187,12 +224,11 @@ jobs:
               if (active && prevStatus !== "active") dispatches.push({ invoiceId: id, email });
             }
 
-            for (const [id, { email }] of previous.entries()) {
+                          for (const [id] of previous.entries()) {
               if (written.has(id)) continue;
               const fp = `invoices/${id}.json`;
               const payload = {
                 invoiceId: id,
-                email,
                 status: "revoked",
                 issuedAt: new Date().toISOString(),
                 productId: "nexora-paid",

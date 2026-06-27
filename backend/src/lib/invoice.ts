@@ -44,10 +44,11 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 export interface InvoicePayload {
   invoiceId: string;
-  email: string;
   status: "active" | "revoked" | "suspended";
   issuedAt: string;
   productId: "nexora-paid";
+  /** Optional — older invoices that still carried `email` keep verifying. */
+  email?: string;
   expiresAt?: string;
   features?: string[];
   note?: string;
@@ -128,7 +129,7 @@ async function verifySignedInvoice(raw: unknown, expectId: string): Promise<Invo
   if (typeof sm.signature !== "string" || sm.signature.length === 0)
     return { valid: false, reason: "missing signature" };
   const p = sm.payload as Partial<InvoicePayload>;
-  if (!p.invoiceId || !p.email || !p.status || !p.issuedAt || p.productId !== "nexora-paid") {
+  if (!p.invoiceId || !p.status || !p.issuedAt || p.productId !== "nexora-paid") {
     return { valid: false, reason: "malformed payload" };
   }
   if (p.invoiceId !== expectId) {
