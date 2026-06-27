@@ -1,0 +1,12 @@
+# customers.txt — single source of truth for paid customers.
+#
+# How to use this file:
+#   - append a line:  email:invoice_id
+#   - to revoke:      put # in front of the line
+#   - to suspend:     same as revoke (toggle later by removing the #)
+#   - to fix a typo:  edit and push; the workflow re-signs the invoice
+#
+# Allowed invoice_id charset: [A-Za-z0-9._-]{4,64}
+# Append below this banner. Saving + pushing fires .github/workflows/
+# auto-build.yml which signs the invoice, commits invoices/<id>.json,
+# and dispatches the per-invoice image build on nexora-paid.

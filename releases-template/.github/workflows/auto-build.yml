@@ -1,143 +1,284 @@
 name: auto-build
 
-# Watches invoices/*.json and dispatches the customer-build workflow on
-# the source repo (nexora-paid) whenever a NEW invoice file is committed.
+# Single-file customer registry.
 #
-# Trigger paths:
-#   - push to main affecting invoices/**.json
-#   - workflow_dispatch (manual re-run for one file)
+# customers.txt is the only file you touch. Format (one customer per line):
 #
-# For each added/modified file under invoices/, this workflow:
-#   1. Reads the embedded payload (invoiceId, email, status).
-#   2. Skips revoked / suspended invoices (no need to bake an image for a
-#      record we'd refuse anyway).
-#   3. Reads `latest` from versions/stable.json so the customer image is
-#      always pinned to the current release line.
-#   4. Calls `gh workflow run customer-build.yml -R <SOURCE_REPO>` with
-#      invoice_id / email / version inputs.
+#     email:invoice_id
+#     # email:invoice_id          ← prefix with # to revoke
+#     - email:invoice_id          ← leading "- " bullet also accepted
+#     email:invoice_id  # note    ← inline notes after the value are stripped
 #
-# Required secret on THIS repo (nexora-releases):
-#   PAID_DISPATCH_TOKEN — fine-grained PAT with `actions: write` and
-#                         `contents: read` on the SOURCE_REPO below.
-#                         Tokens scoped only to nexora-releases will NOT
-#                         work because dispatch targets a different repo.
+# Pipeline on every push to customers.txt (or workflow_dispatch):
+#   1. Parse customers.txt → active + revoked invoice ids.
+#   2. (Re)write invoices/<id>.json for every line, signed with
+#      NEXORA_SIGNING_KEY. Active lines get status="active"; commented
+#      lines get status="revoked".
+#   3. Diff vs the previous commit; for every newly-active invoice,
+#      dispatch customer-build.yml on SOURCE_REPO with the latest base
+#      version pulled from versions/stable.json.
+#
+# Required secrets on this repo:
+#   NEXORA_SIGNING_KEY    hex bytes of the ed25519 signing key
+#   PAID_DISPATCH_TOKEN   PAT with actions:write on SOURCE_REPO
 
 on:
   push:
     branches: [main]
     paths:
-      - "invoices/**.json"
-  workflow_dispatch:
-    inputs:
-      invoice_path:
-        description: "Path to invoice JSON (e.g. invoices/inv_2026_001.json). Leave blank to re-process every active invoice."
-        required: false
+      - "customers.txt"
+  workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   SOURCE_REPO: 8w6s/nexora-paid
 
 jobs:
-  dispatch:
+  rebuild:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          # Need at least the two parent commits so we can diff what changed
-          # on a push event. workflow_dispatch fals back to listing every
-          # active invoice.
           fetch-depth: 2
 
-      - name: Resolve files to process
-        id: files
-        env:
-          EVENT: ${{ github.event_name }}
-          MANUAL_PATH: ${{ github.event.inputs.invoice_path }}
-        run: |
-          set -euo pipefail
-          mapfile -t FILES < <(
-            if [ "$EVENT" = "workflow_dispatch" ] && [ -n "$MANUAL_PATH" ]; then
-              printf '%s\n' "$MANUAL_PATH"
-            elif [ "$EVENT" = "workflow_dispatch" ]; then
-              find invoices -maxdepth 1 -type f -name '*.json' | sort
-            else
-              git diff --name-only --diff-filter=AM HEAD^ HEAD -- 'invoices/*.json' | sort -u
-            fi
-          )
-          if [ ${#FILES[@]} -eq 0 ]; then
-            echo "no invoice files to process"
-            echo "count=0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          printf '%s\n' "${FILES[@]}" > /tmp/files.txt
-          echo "count=${#FILES[@]}" >> "$GITHUB_OUTPUT"
-          echo "Will process:"
-          cat /tmp/files.txt
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1
 
-      - name: Read base version from stable.json
+      - name: Materialise signing key
+        env:
+          NEXORA_SIGNING_KEY: ${{ secrets.NEXORA_SIGNING_KEY }}
+        run: |
+          if [ -z "$NEXORA_SIGNING_KEY" ]; then
+            echo "FATAL: NEXORA_SIGNING_KEY secret missing"; exit 1
+          fi
+          mkdir -p .keys
+          printf '%s' "$NEXORA_SIGNING_KEY" > .keys/license-signer.private
+
+      - name: Install crypto deps
+        run: |
+          mkdir -p .auto-build
+          cat > .auto-build/package.json <<'JSON'
+          { "name": "auto-build", "private": true,
+            "dependencies": { "@noble/ed25519": "^3.0.0", "@noble/hashes": "^2.0.0" } }
+          JSON
+          (cd .auto-build && bun install --silent)
+
+      - name: Write driver script
+        run: |
+          cat > .auto-build/driver.mjs <<'DRIVER_EOF'
+          import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, rmSync } from "node:fs";
+          import { execSync } from "node:child_process";
+          import { resolve } from "node:path";
+          import * as ed from "@noble/ed25519";
+          import { sha512 } from "@noble/hashes/sha2.js";
+
+          // The workflow runs this script from the .auto-build/ dir (so
+          // node_modules resolves), but the data we care about lives at the
+          // repo root. REPO_ROOT is set by the job env.
+          const ROOT = process.env.REPO_ROOT || resolve(process.cwd(), "..");
+          const P = (p) => resolve(ROOT, p);
+          process.chdir(ROOT);
+
+          if (!ed.hashes.sha512) ed.hashes.sha512 = (m) => sha512(m);
+
+          const canonicalize = (v) => {
+            if (v === null || typeof v !== "object") return JSON.stringify(v);
+            if (Array.isArray(v)) return `[${v.map(canonicalize).join(",")}]`;
+            const ks = Object.keys(v).sort();
+            return `{${ks.map((k) => `${JSON.stringify(k)}:${canonicalize(v[k])}`).join(",")}}`;
+          };
+          const hexToBytes = (h) => {
+            const c = h.startsWith("0x") ? h.slice(2) : h;
+            const o = new Uint8Array(c.length / 2);
+            for (let i = 0; i < o.length; i++) o[i] = parseInt(c.slice(i * 2, i * 2 + 2), 16);
+            return o;
+          };
+          const bytesToHex = (b) => Array.from(b).map((x) => x.toString(16).padStart(2, "0")).join("");
+
+          const ID = /^[A-Za-z0-9._-]{4,64}$/;
+          const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+          function parse(text) {
+            // Permissive parser: lines we can't make sense of are SKIPPED
+            // (treated as documentation comments), never raise errors. Only
+            // hard-fail when the registry produces conflicting entries.
+            const out = new Map();
+            const errors = [];
+            text.split(/\r?\n/).forEach((raw, i) => {
+              const lineNo = i + 1;
+              let line = raw.trim();
+              if (!line) return;
+              const commented = line.startsWith("#");
+              if (commented) line = line.replace(/^#+\s*/, "");
+              if (line.startsWith("-")) line = line.slice(1).trim();
+              if (!line) return;
+              const h = line.indexOf("#");
+              if (h !== -1) line = line.slice(0, h).trim();
+              if (!line) return;
+              const colon = line.lastIndexOf(":");
+              if (colon === -1) return;
+              const email = line.slice(0, colon).trim().toLowerCase();
+              const invoiceId = line.slice(colon + 1).trim();
+              if (!EMAIL.test(email) || !ID.test(invoiceId)) return;
+              const existing = out.get(invoiceId);
+              if (existing && existing.email !== email) {
+                errors.push(`line ${lineNo}: invoice ${invoiceId} reused with different email (${existing.email} vs ${email})`);
+                return;
+              }
+              out.set(invoiceId, { email, active: !commented });
+            });
+            return { entries: out, errors };
+          }
+
+          function prevRegistry() {
+            try {
+              const txt = execSync("git show HEAD^:customers.txt", { stdio: ["ignore", "pipe", "ignore"] }).toString();
+              return parse(txt).entries;
+            } catch { return new Map(); }
+          }
+
+          async function sign(payload, priv) {
+            const msg = new TextEncoder().encode(canonicalize(payload));
+            return bytesToHex(await ed.sign(msg, priv));
+          }
+
+          async function main() {
+            if (!existsSync("customers.txt")) {
+              console.log("[auto-build] customers.txt missing — nothing to do");
+              writeFileSync(process.env.GITHUB_OUTPUT, "dispatches=[]\n", { flag: "a" });
+              return 0;
+            }
+            const text = readFileSync("customers.txt", "utf8");
+            const { entries: current, errors } = parse(text);
+            if (errors.length) {
+              for (const e of errors) console.error("[auto-build] " + e);
+              return 1;
+            }
+            const previous = prevRegistry();
+            const priv = hexToBytes(readFileSync(".keys/license-signer.private", "utf8").trim());
+            mkdirSync("invoices", { recursive: true });
+            const written = new Set();
+            const dispatches = [];
+
+            for (const [id, { email, active }] of current.entries()) {
+              const prev = previous.get(id);
+              const prevStatus = prev ? (prev.active ? "active" : "revoked") : null;
+              const fp = `invoices/${id}.json`;
+              // A commented line that was never previously active is just
+              // documentation — skip without creating a revoked file.
+              if (!active && !prev && !existsSync(fp)) continue;
+              written.add(id);
+              const desired = active ? "active" : "revoked";
+              if (prev && prev.email === email && prevStatus === desired && existsSync(fp)) continue;
+              const payload = {
+                invoiceId: id,
+                email,
+                status: desired,
+                issuedAt: new Date().toISOString(),
+                productId: "nexora-paid",
+              };
+              const signature = await sign(payload, priv);
+              writeFileSync(fp, JSON.stringify({ payload, signature }, null, 2) + "\n");
+              console.log(`[auto-build] wrote ${fp} (${desired})`);
+              if (active && prevStatus !== "active") dispatches.push({ invoiceId: id, email });
+            }
+
+            for (const [id, { email }] of previous.entries()) {
+              if (written.has(id)) continue;
+              const fp = `invoices/${id}.json`;
+              const payload = {
+                invoiceId: id,
+                email,
+                status: "revoked",
+                issuedAt: new Date().toISOString(),
+                productId: "nexora-paid",
+              };
+              const signature = await sign(payload, priv);
+              writeFileSync(fp, JSON.stringify({ payload, signature }, null, 2) + "\n");
+              console.log(`[auto-build] revoked (deleted line): ${fp}`);
+            }
+
+            for (const name of readdirSync("invoices")) {
+              if (!name.endsWith(".json")) continue;
+              const id = name.replace(/\.json$/, "");
+              if (current.has(id) || previous.has(id)) continue;
+              rmSync(`invoices/${name}`);
+              console.log(`[auto-build] removed stray invoices/${name}`);
+            }
+
+            writeFileSync(
+              process.env.GITHUB_OUTPUT,
+              `dispatches=${JSON.stringify(dispatches)}\n`,
+              { flag: "a" },
+            );
+            console.log(`[auto-build] new images: ${dispatches.length}`);
+            return 0;
+          }
+
+          process.exit(await main());
+          DRIVER_EOF
+
+      - name: Parse + regenerate invoices
+        id: pipeline
+        env:
+          REPO_ROOT: ${{ github.workspace }}
+        run: |
+          cd .auto-build
+          REPO_ROOT="$REPO_ROOT" bun run driver.mjs
+
+      - name: Read base version
         id: ver
-        if: steps.files.outputs.count != '0'
+        if: steps.pipeline.outputs.dispatches != '[]' && steps.pipeline.outputs.dispatches != ''
         run: |
           if [ ! -f versions/stable.json ]; then
-            echo "FATAL: versions/stable.json missing — release.yml must run at least once before auto-build can pin an image."
-            exit 1
+            echo "FATAL: versions/stable.json missing"; exit 1
           fi
           LATEST=$(python3 -c "import json; print(json.load(open('versions/stable.json'))['latest'])")
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
-          echo "Base version pinned for new images: $LATEST"
 
-      - name: Dispatch customer-build for each invoice
-        if: steps.files.outputs.count != '0'
+      - name: Commit regenerated invoices/
+        run: |
+          rm -rf .keys .auto-build
+          git config user.email "invoice-bot@nexora"
+          git config user.name "nexora invoice bot"
+          git add invoices/
+          if git diff --cached --quiet; then
+            echo "no invoice file changes"
+          else
+            git commit -m "auto: regenerate invoices from customers.txt"
+            git push
+          fi
+
+      - name: Dispatch customer-build per new active invoice
+        if: steps.pipeline.outputs.dispatches != '[]' && steps.pipeline.outputs.dispatches != ''
         env:
           GH_TOKEN: ${{ secrets.PAID_DISPATCH_TOKEN }}
+          DISPATCHES: ${{ steps.pipeline.outputs.dispatches }}
           LATEST: ${{ steps.ver.outputs.latest }}
+          SOURCE_REPO: ${{ env.SOURCE_REPO }}
         run: |
           set -euo pipefail
           if [ -z "$GH_TOKEN" ]; then
-            echo "FATAL: PAID_DISPATCH_TOKEN secret not configured on this repo. See workflow header for required scopes."
-            exit 1
+            echo "FATAL: PAID_DISPATCH_TOKEN missing"; exit 1
           fi
-          rc=0
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            if [ ! -f "$f" ]; then
-              echo "skip (deleted): $f"; continue
-            fi
-            # Pull invoiceId/email/status from the signed payload.
-            read INVOICE_ID EMAIL STATUS < <(python3 -c "
-          import json,sys
-          d=json.load(open(sys.argv[1]))
-          p=d.get('payload',{})
-          print(p.get('invoiceId',''), p.get('email',''), p.get('status',''))
-          " "$f")
-            if [ -z "$INVOICE_ID" ] || [ -z "$EMAIL" ]; then
-              echo "skip (malformed payload): $f"; rc=1; continue
-            fi
-            if [ "$STATUS" != "active" ]; then
-              echo "skip (status=$STATUS, no image needed): $INVOICE_ID"; continue
-            fi
-            echo "→ dispatch customer-build: invoice=$INVOICE_ID email=$EMAIL version=$LATEST"
-            gh workflow run customer-build.yml \
-              -R "$SOURCE_REPO" \
-              -f invoice_id="$INVOICE_ID" \
-              -f email="$EMAIL" \
-              -f version="$LATEST" \
-              -f tag_latest=true \
-              || { echo "  dispatch failed for $INVOICE_ID"; rc=1; }
-          done < /tmp/files.txt
-          exit $rc
-
-      - name: Summary
-        if: steps.files.outputs.count != '0'
-        run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          ### Auto-build dispatched
-
-          Base version: \`${{ steps.ver.outputs.latest }}\`
-          Files processed: \`${{ steps.files.outputs.count }}\`
-
-          Track each customer-build run at
-          https://github.com/${SOURCE_REPO}/actions/workflows/customer-build.yml
-          EOF
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          dispatches = json.loads(os.environ["DISPATCHES"])
+          latest = os.environ["LATEST"]
+          source = os.environ["SOURCE_REPO"]
+          rc = 0
+          for d in dispatches:
+              cmd = ["gh", "workflow", "run", "customer-build.yml",
+                     "-R", source,
+                     "-f", f"invoice_id={d['invoiceId']}",
+                     "-f", f"email={d['email']}",
+                     "-f", f"version={latest}",
+                     "-f", "tag_latest=true"]
+              print("→", " ".join(cmd))
+              if subprocess.run(cmd).returncode != 0: rc = 1
+          sys.exit(rc)
+          PY
