@@ -1,24 +1,26 @@
-# Files that must NEVER reach the image — they either conflict with the
-# in-image `bun install` (node_modules), expose secrets (.env, .keys), or
-# bloat the build context (logs, caches, test artefacts).
+# Files that must NEVER reach the image. Either they expose secrets, would
+# overwrite something `bun install` is about to (re)generate inside the
+# image, or are pure dev-session noise that bloats every customer pull.
 
-# Local dependency tree — image runs its own `bun install` and COPY would
-# otherwise try to overwrite that directory with stale host files.
+# Local dependency tree — image runs its own `bun install`.
 node_modules
 
-# Local SQLite + WAL/SHM sidecars. Customers ship clean DB, not the dev one.
+# Local SQLite, WAL/SHM sidecars, AND any backup copies. A backup of a
+# dev DB inside a customer image leaks orders/keys/emails to whoever pulls.
 sqlite.db
 sqlite.db-*
+sqlite.db.bak*
 *.sqlite
 *.sqlite-*
 
 # Local secrets / keys / license artefacts.
 .env
 .env.*
-!.env.example
 .keys
 *.license
 *.lic
+*.pem
+*.key
 
 # Build / test outputs.
 dist
@@ -27,12 +29,27 @@ coverage
 *.log
 .tsbuildinfo
 
+# Test files — they import dev-only fixtures and inflate image size.
+**/*.test.ts
+**/*.spec.ts
+**/__tests__/**
+
+# Dev-session noise.
+_*.txt
+*-listing.txt
+*-listing*.txt
+.dgc-tmp*
+.security-fix-probe*
+.dev-logs
+
 # Editor / OS noise.
 .DS_Store
 Thumbs.db
 .vscode
 .idea
 
-# Git itself
+# Git
 .git
 .gitignore
+.gitattributes
+.github

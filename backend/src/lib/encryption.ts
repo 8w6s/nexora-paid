@@ -44,12 +44,14 @@ function getEncryptionKey(): Buffer {
     return encryptionKey;
   }
 
-  // Resolve .keys relative to the app root (/app in Docker, or repo root locally).
-  // In Docker the working directory is /app; locally it varies, so we derive
-  // from the source file path: src/lib/encryption.ts → ../../ = backend/ → ../ = repo root.
-  // However in Docker the backend IS the root, so we go up to /app.
-  const currentDir = dirname(fileURLToPath(import.meta.url));
-  const appRoot = join(currentDir, "..", ".."); // /app/src/lib → /app
+  // Resolve .keys relative to the app root. In the compiled binary
+  // `import.meta.url` is a virtual `compile://` path, so prefer the
+  // NEXORA_APP_ROOT env var (the Dockerfile sets it to /app) and fall
+  // back to source-tree resolution for `bun --watch` dev mode.
+  const envRoot = process.env.NEXORA_APP_ROOT;
+  const appRoot = envRoot && envRoot.trim().length > 0
+    ? envRoot
+    : join(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const keysDir = join(appRoot, ".keys");
   const keyPath = join(keysDir, "db_encryption.key");
 
