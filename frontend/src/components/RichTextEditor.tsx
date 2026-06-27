@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 
 interface RichTextEditorProps {
   value: string;
@@ -33,6 +34,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     strikeThrough: false,
   });
   const [focused, setFocused] = useState(false);
+  // Link-prompt Modal state. Replaces native window.prompt() — that prompt
+  // blocked the JS thread, couldn't be styled or i18n'd, and returned a raw
+  // unvalidated string the editor pasted verbatim into href= (which lets a
+  // user smuggle javascript:alert(1) into product descriptions).
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkInput, setLinkInput] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
 
   // Sync value → DOM only when not focused (external change)
   useEffect(() => {
@@ -100,8 +109,40 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   const insertLink = () => {
-    const url = window.prompt("Enter URL:");
-    if (url) exec("createLink", url);
+    // Save the current selection BEFORE the Modal steals focus; restore on
+    // confirm so execCommand wraps the original highlight, not the modal's
+    // input field. Without this the link always lands at document end.
+    const sel = window.getSelection();
+    savedRangeRef.current = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
+    setLinkInput("");
+    setLinkError(null);
+    setLinkOpen(true);
+  };
+
+  // Allow only http(s) + mailto + relative paths; refuse javascript:, data:,
+  // vbscript:, file: etc. that could smuggle a payload into href=.
+  const SAFE_LINK_RE = new RegExp("^(https?:|mailto:|/|#)", "i");
+
+  const confirmLink = () => {
+    const url = linkInput.trim();
+    if (!url) {
+      setLinkError("URL is required");
+      return;
+    }
+    if (!SAFE_LINK_RE.test(url)) {
+      setLinkError("Only http(s), mailto: or relative URLs are allowed");
+      return;
+    }
+    // Restore the editor selection that the Modal interrupted.
+    const range = savedRangeRef.current;
+    if (range) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+    setLinkOpen(false);
+    setLinkError(null);
+    exec("createLink", url);
   };
 
   const applyHeading = (h: Heading) => {
@@ -304,6 +345,47 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         .rte-editor code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: .87em; }
         .rte-editor blockquote { border-left: 3px solid var(--brand); padding: 6px 14px; color: var(--ink-soft); margin: 8px 0; background: var(--surface-2); border-radius: 0 4px 4px 0; }
       `}</style>
+
+      <Modal
+        open={linkOpen}
+        onClose={() => setLinkOpen(false)}
+        title="Insert link"
+        size="sm"
+        footer={
+          <>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLinkOpen(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-sm" onClick={confirmLink}>
+              Insert
+            </button>
+          </>
+        }
+      >
+        <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: ".88rem" }}>
+          <span>URL</span>
+          <input
+            className="input"
+            type="url"
+            autoFocus
+            value={linkInput}
+            onChange={(e) => {
+              setLinkInput(e.target.value);
+              if (linkError) setLinkError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                confirmLink();
+              }
+            }}
+            placeholder="https://example.com"
+          />
+          {linkError ? (
+            <span style={{ color: "var(--price)", fontSize: ".82rem" }}>{linkError}</span>
+          ) : null}
+        </label>
+      </Modal>
     </div>
   );
 };
