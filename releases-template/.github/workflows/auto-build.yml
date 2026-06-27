@@ -262,9 +262,10 @@ jobs:
         id: pipeline
         env:
           REPO_ROOT: ${{ github.workspace }}
+          NEXORA_CUSTOMERS_KEY: ${{ secrets.NEXORA_CUSTOMERS_KEY }}
         run: |
           cd .auto-build
-          REPO_ROOT="$REPO_ROOT" bun run driver.mjs
+          bun run driver.mjs
 
       - name: Read base version
         id: ver
