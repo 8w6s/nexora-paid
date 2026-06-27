@@ -1,0 +1,143 @@
+name: auto-build
+
+# Watches invoices/*.json and dispatches the customer-build workflow on
+# the source repo (nexora-paid) whenever a NEW invoice file is committed.
+#
+# Trigger paths:
+#   - push to main affecting invoices/**.json
+#   - workflow_dispatch (manual re-run for one file)
+#
+# For each added/modified file under invoices/, this workflow:
+#   1. Reads the embedded payload (invoiceId, email, status).
+#   2. Skips revoked / suspended invoices (no need to bake an image for a
+#      record we'd refuse anyway).
+#   3. Reads `latest` from versions/stable.json so the customer image is
+#      always pinned to the current release line.
+#   4. Calls `gh workflow run customer-build.yml -R <SOURCE_REPO>` with
+#      invoice_id / email / version inputs.
+#
+# Required secret on THIS repo (nexora-releases):
+#   PAID_DISPATCH_TOKEN — fine-grained PAT with `actions: write` and
+#                         `contents: read` on the SOURCE_REPO below.
+#                         Tokens scoped only to nexora-releases will NOT
+#                         work because dispatch targets a different repo.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "invoices/**.json"
+  workflow_dispatch:
+    inputs:
+      invoice_path:
+        description: "Path to invoice JSON (e.g. invoices/inv_2026_001.json). Leave blank to re-process every active invoice."
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REPO: 8w6s/nexora-paid
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need at least the two parent commits so we can diff what changed
+          # on a push event. workflow_dispatch fals back to listing every
+          # active invoice.
+          fetch-depth: 2
+
+      - name: Resolve files to process
+        id: files
+        env:
+          EVENT: ${{ github.event_name }}
+          MANUAL_PATH: ${{ github.event.inputs.invoice_path }}
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < <(
+            if [ "$EVENT" = "workflow_dispatch" ] && [ -n "$MANUAL_PATH" ]; then
+              printf '%s\n' "$MANUAL_PATH"
+            elif [ "$EVENT" = "workflow_dispatch" ]; then
+              find invoices -maxdepth 1 -type f -name '*.json' | sort
+            else
+              git diff --name-only --diff-filter=AM HEAD^ HEAD -- 'invoices/*.json' | sort -u
+            fi
+          )
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "no invoice files to process"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "${FILES[@]}" > /tmp/files.txt
+          echo "count=${#FILES[@]}" >> "$GITHUB_OUTPUT"
+          echo "Will process:"
+          cat /tmp/files.txt
+
+      - name: Read base version from stable.json
+        id: ver
+        if: steps.files.outputs.count != '0'
+        run: |
+          if [ ! -f versions/stable.json ]; then
+            echo "FATAL: versions/stable.json missing — release.yml must run at least once before auto-build can pin an image."
+            exit 1
+          fi
+          LATEST=$(python3 -c "import json; print(json.load(open('versions/stable.json'))['latest'])")
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Base version pinned for new images: $LATEST"
+
+      - name: Dispatch customer-build for each invoice
+        if: steps.files.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.PAID_DISPATCH_TOKEN }}
+          LATEST: ${{ steps.ver.outputs.latest }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "FATAL: PAID_DISPATCH_TOKEN secret not configured on this repo. See workflow header for required scopes."
+            exit 1
+          fi
+          rc=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if [ ! -f "$f" ]; then
+              echo "skip (deleted): $f"; continue
+            fi
+            # Pull invoiceId/email/status from the signed payload.
+            read INVOICE_ID EMAIL STATUS < <(python3 -c "
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          p=d.get('payload',{})
+          print(p.get('invoiceId',''), p.get('email',''), p.get('status',''))
+          " "$f")
+            if [ -z "$INVOICE_ID" ] || [ -z "$EMAIL" ]; then
+              echo "skip (malformed payload): $f"; rc=1; continue
+            fi
+            if [ "$STATUS" != "active" ]; then
+              echo "skip (status=$STATUS, no image needed): $INVOICE_ID"; continue
+            fi
+            echo "→ dispatch customer-build: invoice=$INVOICE_ID email=$EMAIL version=$LATEST"
+            gh workflow run customer-build.yml \
+              -R "$SOURCE_REPO" \
+              -f invoice_id="$INVOICE_ID" \
+              -f email="$EMAIL" \
+              -f version="$LATEST" \
+              -f tag_latest=true \
+              || { echo "  dispatch failed for $INVOICE_ID"; rc=1; }
+          done < /tmp/files.txt
+          exit $rc
+
+      - name: Summary
+        if: steps.files.outputs.count != '0'
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ### Auto-build dispatched
+
+          Base version: \`${{ steps.ver.outputs.latest }}\`
+          Files processed: \`${{ steps.files.outputs.count }}\`
+
+          Track each customer-build run at
+          https://github.com/${SOURCE_REPO}/actions/workflows/customer-build.yml
+          EOF
