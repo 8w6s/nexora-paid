@@ -36,8 +36,17 @@ INVOICE="${INVOICE:-}"
 TOKEN="${TOKEN:-}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@nexora.local}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
-NODE_ENV="${NODE_ENV:-production}"
 PUBLIC_ORIGIN="${PUBLIC_ORIGIN:-http://localhost:${HOST_FRONTEND_PORT}}"
+
+# Production mode REQUIRES https:// — anything else makes the backend bail
+# on boot. Auto-pick NODE_ENV from the origin scheme so localhost installs
+# don't accidentally trip that guard.
+if [ -z "${NODE_ENV:-}" ]; then
+  case "$PUBLIC_ORIGIN" in
+    https://*) NODE_ENV=production ;;
+    *)         NODE_ENV=development ;;
+  esac
+fi
 
 # ─── helpers ───────────────────────────────────────────────────────────────
 log()  { printf '\033[1;36m[nexora]\033[0m %s\n' "$*"; }
