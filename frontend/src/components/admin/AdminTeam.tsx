@@ -92,6 +92,14 @@ const AdminSessionsCard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  // Pending session-revoke prompt: replaces the previous native confirm()
+  // calls with the global ConfirmModal pattern. Discriminator distinguishes
+  // "log out every other device" vs "revoke one specific session".
+  const [pendingRevoke, setPendingRevoke] = useState<
+    | { kind: "others" }
+    | { kind: "one"; id: string }
+    | null
+  >(null);
 
   const load = () => {
     setLoading(true);
@@ -106,8 +114,8 @@ const AdminSessionsCard: React.FC = () => {
     load();
   }, []);
 
-  const revokeOthers = async () => {
-    if (!confirm("Log out every other device for your account?")) return;
+  const revokeOthers = () => setPendingRevoke({ kind: "others" });
+  const performRevokeOthers = async () => {
     setBusy(true);
     try {
       const res = await api.post<{ ok: boolean; revokedSessions: number }>(
@@ -126,10 +134,8 @@ const AdminSessionsCard: React.FC = () => {
     }
   };
 
-  const revokeOne = async (id: string) => {
-    if (!confirm("Revoke this session? The device will be logged out immediately.")) {
-      return;
-    }
+  const revokeOne = (id: string) => setPendingRevoke({ kind: "one", id });
+  const performRevokeOne = async (id: string) => {
     try {
       await api.post(`/api/admin/account/sessions/${id}/revoke`, {});
       setOkMsg("Session revoked.");
@@ -248,6 +254,26 @@ const AdminSessionsCard: React.FC = () => {
           </tbody>
         </table>
       )}
+
+      <ConfirmModal
+        open={pendingRevoke !== null}
+        onClose={() => setPendingRevoke(null)}
+        onConfirm={() => {
+          const p = pendingRevoke;
+          setPendingRevoke(null);
+          if (!p) return;
+          if (p.kind === "others") void performRevokeOthers();
+          else void performRevokeOne(p.id);
+        }}
+        title={pendingRevoke?.kind === "others" ? "Log out other devices" : "Revoke session"}
+        message={
+          pendingRevoke?.kind === "others"
+            ? "Log out every other device for your account?"
+            : "Revoke this session? The device will be logged out immediately."
+        }
+        confirmText={pendingRevoke?.kind === "others" ? "Log out everywhere else" : "Revoke"}
+        danger
+      />
     </div>
   );
 };

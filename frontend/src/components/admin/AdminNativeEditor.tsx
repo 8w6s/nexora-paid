@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiRequestError, api } from "../../lib/api";
+import { ConfirmModal } from "../ConfirmModal";
 import { Icon } from "../Icon";
 import "./AdminNativeEditor.css";
 
@@ -61,6 +62,13 @@ export function AdminNativeEditor(): React.ReactElement {
   } | null>(null);
   const [viewCell, setViewCell] = useState<{ col: string; value: unknown } | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  // Pending delete: a ConfirmModal replaces the previous native confirm()
+  // calls — same flow for both single-row + bulk delete via the action discriminator.
+  const [pendingDelete, setPendingDelete] = useState<
+    | { kind: "bulk"; count: number }
+    | { kind: "single"; rowid: number }
+    | null
+  >(null);
 
   // Debounce search input
   useEffect(() => {
@@ -192,9 +200,12 @@ export function AdminNativeEditor(): React.ReactElement {
     setEditing({ mode: "insert", values });
   };
 
-  const deleteSelected = async () => {
+  const deleteSelected = () => {
     if (!selected || selectedRows.size === 0) return;
-    if (!confirm(`Delete ${selectedRows.size} selected row(s)? This cannot be undone.`)) return;
+    setPendingDelete({ kind: "bulk", count: selectedRows.size });
+  };
+  const performDeleteSelected = async () => {
+    if (!selected || selectedRows.size === 0) return;
     try {
       const res = await fetch(`/api/admin/db/table/${encodeURIComponent(selected)}/row`, {
         method: "DELETE",
@@ -230,15 +241,18 @@ export function AdminNativeEditor(): React.ReactElement {
     }
   };
 
-  const deleteRow = async (row: Record<string, unknown>) => {
+  const deleteRow = (row: Record<string, unknown>) => {
     if (!selected) return;
-    if (!confirm("Delete this row? This cannot be undone.")) return;
+    setPendingDelete({ kind: "single", rowid: Number(row._rowid) });
+  };
+  const performDeleteRow = async (rowid: number) => {
+    if (!selected) return;
     try {
       const res = await fetch(`/api/admin/db/table/${encodeURIComponent(selected)}/row`, {
         method: "DELETE",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowid: Number(row._rowid) }),
+        body: JSON.stringify({ rowid }),
       });
       if (!res.ok)
         throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`);
@@ -664,6 +678,26 @@ export function AdminNativeEditor(): React.ReactElement {
           </div>
         </div>
       ) : null}
+
+      <ConfirmModal
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const p = pendingDelete;
+          setPendingDelete(null);
+          if (!p) return;
+          if (p.kind === "bulk") void performDeleteSelected();
+          else void performDeleteRow(p.rowid);
+        }}
+        title="Delete row"
+        message={
+          pendingDelete?.kind === "bulk"
+            ? `Delete ${pendingDelete.count} selected row(s)? This cannot be undone.`
+            : "Delete this row? This cannot be undone."
+        }
+        confirmText="Delete"
+        danger
+      />
     </div>
   );
 }
