@@ -30,9 +30,37 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# ── colour helpers ──────────────────────────────────────────────────────
-$IsAnsi = $Host.UI.SupportsVirtualTerminal -eq $true -or `
-          ($PSStyle -and $PSStyle.OutputRendering -ne 'PlainText')
+# ── colour helpers ──────────────────────────────────
+# Force-enable VT escape parsing on Windows 10/11 conhost (PowerShell 5.1
+# defaults to off; PowerShell 7 + Windows Terminal already enable it).
+# Without this, ANSI codes print as literal "e[36m" garbage in the legacy
+# console host. The Win32 call is best-effort; if it fails we still try to
+# detect via $Host.UI.SupportsVirtualTerminal.
+try {
+    if ([Environment]::OSVersion.Platform -eq 'Win32NT' -and -not ('NexoraConsole.Vt' -as [type])) {
+        Add-Type -Namespace 'NexoraConsole' -Name 'Vt' -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+public static extern System.IntPtr GetStdHandle(int nStdHandle);
+[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool GetConsoleMode(System.IntPtr hConsoleHandle, out uint lpMode);
+[System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool SetConsoleMode(System.IntPtr hConsoleHandle, uint dwMode);
+'@ -ErrorAction Stop
+        $h = [NexoraConsole.Vt]::GetStdHandle(-11)
+        $m = 0
+        if ([NexoraConsole.Vt]::GetConsoleMode($h, [ref]$m)) {
+            [NexoraConsole.Vt]::SetConsoleMode($h, $m -bor 0x0004) | Out-Null
+        }
+    }
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+    # Non-Windows or restricted environment — fall back to detection.
+}
+
+$IsAnsi = $true
+if ($Host.UI.SupportsVirtualTerminal -eq $false -and -not $PSStyle) {
+    $IsAnsi = $false
+}
 
 function Style {
     param([string]$Text, [string]$Color = 'Reset')
