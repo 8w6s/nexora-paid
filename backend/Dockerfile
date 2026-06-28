@@ -68,7 +68,14 @@ RUN find /build/node_modules \
 # ───────────────────────────── 2. BUILD FRONTEND ────────────────────────────
 FROM oven/bun:1 AS build-frontend
 WORKDIR /fe
-ARG PUBLIC_API_ORIGIN=http://localhost:3000
+# IMPORTANT: PUBLIC_API_ORIGIN is BAKED into the client bundle at build time.
+# In the combined image, both backend (:3000) and frontend (:4321) run in the
+# same container; only the frontend port is exposed to the customer's host.
+# Setting PUBLIC_API_ORIGIN to "" forces browser-side fetch to use same-origin
+# relative URLs (/api/*), which the Astro middleware then proxies internally
+# to the backend on localhost:3000. Never bake an absolute backend URL here —
+# the customer's host has no route to it.
+ARG PUBLIC_API_ORIGIN=""
 ARG PUBLIC_SITE_URL=http://localhost:4321
 ENV PUBLIC_API_ORIGIN=$PUBLIC_API_ORIGIN \
     PUBLIC_SITE_URL=$PUBLIC_SITE_URL

@@ -76,8 +76,41 @@ function applySecurityHeaders(response: Response): Response {
   return response;
 }
 
+// Combined image runs backend on :3000 and frontend on :4321 inside the
+// same container, but the customer's host only exposes :4321 (the frontend).
+// Without a reverse proxy, browser-side fetch('/api/...') hits Astro instead
+// of the backend and 404s. We proxy /api/* through Astro SSR to the backend
+// on localhost:3000 so the customer's docker-compose only needs to expose
+// the frontend port.
+const BACKEND_INTERNAL = process.env.NEXORA_BACKEND_INTERNAL || "http://localhost:3000";
+
+async function proxyToBackend(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const target = BACKEND_INTERNAL + url.pathname + url.search;
+  const init: RequestInit = {
+    method: req.method,
+    headers: req.headers,
+    body: ["GET", "HEAD"].includes(req.method) ? undefined : await req.arrayBuffer(),
+    redirect: "manual",
+  };
+  try {
+    const r = await fetch(target, init);
+    return new Response(r.body, { status: r.status, headers: r.headers });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: "backend unreachable", code: "BACKEND_DOWN" }),
+      { status: 502, headers: { "content-type": "application/json" } },
+    );
+  }
+}
+
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const path = ctx.url.pathname;
+  // Proxy every /api/* call through to the backend service in the same
+  // container. Path-only, headers + body pass through.
+  if (path.startsWith("/api/")) {
+    return proxyToBackend(ctx.request);
+  }
   if (ALLOW.some((re) => re.test(path))) return applySecurityHeaders(await next());
   const verdict = await needsSetup();
   if (verdict === true) return ctx.redirect("/setup", 302);
