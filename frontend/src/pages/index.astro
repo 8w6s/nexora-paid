@@ -12,7 +12,7 @@ const org = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "Nexora",
-  url: (Astro.site ?? new URL("http://localhost:4321")).href,
+  url: (Astro.site ?? new URL(Astro.url.origin)).href,
 };
 ---
 
