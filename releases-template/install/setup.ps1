@@ -372,7 +372,10 @@ if ($generatedPw) {
     Write-Host "(unchanged - see $EnvFile)" -ForegroundColor DarkGray
 }
 Write-Host ''
-Write-Host '  Logs:    ' -NoNewline -ForegroundColor DarkGray; Write-Host "docker compose -f $ComposeFile logs -f"
-Write-Host '  Stop:    ' -NoNewline -ForegroundColor DarkGray; Write-Host "docker compose -f $ComposeFile down"
-Write-Host '  Upgrade: ' -NoNewline -ForegroundColor DarkGray; Write-Host "docker compose -f $ComposeFile pull && docker compose -f $ComposeFile up -d"
+Write-Host '  Logs:    ' -NoNewline -ForegroundColor DarkGray
+Write-Host "docker compose -f $ComposeFile logs -f"
+Write-Host '  Stop:    ' -NoNewline -ForegroundColor DarkGray
+Write-Host "docker compose -f $ComposeFile down"
+Write-Host '  Upgrade: ' -NoNewline -ForegroundColor DarkGray
+Write-Host 're-run this installer (irm | iex)'
 Write-Host ''

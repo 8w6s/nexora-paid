@@ -337,6 +337,5 @@ fi
 echo
 printf '  %sLogs:%s    docker compose -f %s logs -f\n' "${C_DIM}" "${C_RESET}" "$COMPOSE_FILE"
 printf '  %sStop:%s    docker compose -f %s down\n'    "${C_DIM}" "${C_RESET}" "$COMPOSE_FILE"
-printf '  %sUpgrade:%s docker compose -f %s pull && docker compose -f %s up -d\n' \
-  "${C_DIM}" "${C_RESET}" "$COMPOSE_FILE" "$COMPOSE_FILE"
+printf '  %sUpgrade:%s re-run this installer (curl | bash)\n' "${C_DIM}" "${C_RESET}"
 echo
