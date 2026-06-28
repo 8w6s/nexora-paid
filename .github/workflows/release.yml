@@ -49,6 +49,7 @@ jobs:
           push: true
           build-args: |
             NEXORA_RELEASES_PAT=${{ secrets.NEXORA_RELEASES_PAT }}
+            NEXORA_APP_VERSION=${{ steps.ver.outputs.version }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/nexora:${{ steps.ver.outputs.version }}-base
             ghcr.io/${{ github.repository_owner }}/nexora:${{ steps.ver.outputs.version }}

@@ -9,7 +9,10 @@
  *
  * Bumped per release via scripts/release.ts. Single source of truth.
  */
-export const APP_VERSION = "1.0.0";
+// Workflow bakes the real release tag into NEXORA_APP_VERSION at build
+// time (release.yml + customer-build.yml). Fallback "0.0.0-dev" only
+// fires when the binary runs without an env (local `bun run dev`).
+export const APP_VERSION = (process.env.NEXORA_APP_VERSION ?? "0.0.0-dev").trim();
 
 /**
  * Highest migration index this build knows how to run.

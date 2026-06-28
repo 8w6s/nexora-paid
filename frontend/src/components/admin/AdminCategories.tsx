@@ -7,6 +7,7 @@ import { Icon } from "../Icon";
 import { Modal } from "../Modal";
 import { Sk, SkeletonStyles } from "../Skeleton";
 import { useToast } from "../Toast";
+import { ImagePicker } from "./ImagePicker";
 
 interface Cat {
   id: string;
@@ -297,14 +298,10 @@ export const AdminCategories: React.FC = () => {
               />
             </label>
             <label>
-              <span>
-                Image URL <em>(optional)</em>
-              </span>
-              <input
-                className="input"
+              <span>Category image <em>(optional)</em></span>
+              <ImagePicker
                 value={editing.image}
-                onChange={(e) => setEditing({ ...editing, image: e.target.value })}
-                placeholder="https://…"
+                onChange={(u) => setEditing({ ...editing, image: u })}
               />
             </label>
             {err && <div className="err">{err}</div>}

@@ -111,6 +111,7 @@ WORKDIR /app
 ARG NEXORA_INVOICE_ID=""
 ARG NEXORA_INVOICE_EMAIL=""
 ARG NEXORA_RELEASES_REPO="8w6s/nexora-releases"
+ARG NEXORA_APP_VERSION="0.0-dev"
 # Read-only PAT for nexora-releases (contents:read on that ONE repo).
 # Baked at build time so customer admins never see it directly — they
 # can `docker inspect` of course, but it's a read-only token scoped to
@@ -121,6 +122,7 @@ ARG NEXORA_RELEASES_PAT=""
 ENV NEXORA_INVOICE_ID=${NEXORA_INVOICE_ID} \
     NEXORA_INVOICE_EMAIL=${NEXORA_INVOICE_EMAIL} \
     NEXORA_RELEASES_REPO=${NEXORA_RELEASES_REPO} \
+    NEXORA_APP_VERSION=${NEXORA_APP_VERSION} \
     NEXORA_GHCR_TOKEN=${NEXORA_RELEASES_PAT} \
     NEXORA_APP_ROOT=/app/backend \
     NEXORA_MIGRATIONS_DIR=/app/backend/src/db/migrations \

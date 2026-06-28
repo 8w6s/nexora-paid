@@ -6,6 +6,7 @@ import { NumberInput } from "../NumberInput";
 import { PasswordPromptModal } from "../PasswordPromptModal";
 import { useToast } from "../Toast";
 import { ToggleSwitch } from "../ToggleSwitch";
+import { ImagePicker } from "./ImagePicker";
 
 interface SettingsView {
   store_name?: string | null;
@@ -171,6 +172,10 @@ export const AdminSettings: React.FC = () => {
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
   const [metaTwitterCard, setMetaTwitterCard] = useState("summary_large_image");
+  // Storefront assets — URLs persisted via the settings API on save.
+  const [logoUrl, setLogoUrl] = useState("");
+  const [faviconUrl, setFaviconUrl] = useState("");
+  const [backgroundUrl, setBackgroundUrl] = useState("");
 
   // Checkout state
   const [conf, setConf] = useState("2");
@@ -621,24 +626,15 @@ export const AdminSettings: React.FC = () => {
               <div className="assets-row">
                 <div className="asset-upload-box">
                   <span className="asset-upload-title">Logo</span>
-                  <div className="asset-upload-area">
-                    <Icon name="plus" size={20} className="muted" />
-                    <span>Tap to select an image</span>
-                  </div>
+                  <ImagePicker value={logoUrl} onChange={setLogoUrl} label="Click or drop a logo" />
                 </div>
                 <div className="asset-upload-box">
                   <span className="asset-upload-title">Favicon</span>
-                  <div className="asset-upload-area">
-                    <Icon name="plus" size={20} className="muted" />
-                    <span>Tap to select an image</span>
-                  </div>
+                  <ImagePicker value={faviconUrl} onChange={setFaviconUrl} label="Click or drop a favicon" />
                 </div>
                 <div className="asset-upload-box">
                   <span className="asset-upload-title">Background</span>
-                  <div className="asset-upload-area">
-                    <Icon name="plus" size={20} className="muted" />
-                    <span>Tap to select an image</span>
-                  </div>
+                  <ImagePicker value={backgroundUrl} onChange={setBackgroundUrl} label="Click or drop a background" />
                 </div>
               </div>
             </div>

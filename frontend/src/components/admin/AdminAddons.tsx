@@ -6,6 +6,7 @@ import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
 import { useToast } from "../Toast";
+import { ImagePicker } from "./ImagePicker";
 
 interface Addon {
   id: string;
@@ -211,22 +212,7 @@ export const AdminAddons: React.FC = () => {
 
           <label className="pe-field-label">
             Image
-            <div
-              className="gallery-picker"
-              onClick={() => {
-                const u = prompt("Image URL:");
-                if (u) setForm((f) => ({ ...f, image: u }));
-              }}
-            >
-              {form.image ? (
-                <img src={form.image} alt="" style={{ maxHeight: 120, borderRadius: 8 }} />
-              ) : (
-                <>
-                  <Icon name="package" size={28} />
-                  <span>Tap to select an image</span>
-                </>
-              )}
-            </div>
+            <ImagePicker value={form.image} onChange={(u) => setForm((f) => ({ ...f, image: u }))} />
           </label>
 
           <p
