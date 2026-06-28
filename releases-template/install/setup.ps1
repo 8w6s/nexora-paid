@@ -122,12 +122,49 @@ $validateEmail = {
     Write-Warn 'invalid email shape'
     return $false
 }
+# Probe whether the host can actually bind a given port. Windows reserves
+# many low-thousands ports for Hyper-V / WSL / IIS even when nothing is
+# listening, so we don't trust a "free-looking" port until the OS lets us
+# bind it. Returns $true on success.
+function Test-PortBindable {
+    param([int]$Port)
+    $listener = $null
+    try {
+        $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Any, $Port)
+        $listener.Start()
+        return $true
+    } catch {
+        return $false
+    } finally {
+        if ($listener) { try { $listener.Stop() } catch {} }
+    }
+}
+
+function Find-FreePort {
+    param([int]$Start)
+    for ($p = $Start; $p -lt ($Start + 200); $p++) {
+        if (Test-PortBindable -Port $p) { return $p }
+    }
+    return 0
+}
+
 $validatePort = {
     param($v)
     $n = 0
-    if ([int]::TryParse($v, [ref]$n) -and $n -ge 1 -and $n -le 65535) { return $true }
-    Write-Warn 'port must be 1-65535'
-    return $false
+    if (-not ([int]::TryParse($v, [ref]$n)) -or $n -lt 1 -or $n -gt 65535) {
+        Write-Warn 'port must be 1-65535'
+        return $false
+    }
+    if (-not (Test-PortBindable -Port $n)) {
+        $suggested = Find-FreePort -Start ([Math]::Max($n + 1, 10000))
+        if ($suggested -gt 0) {
+            Write-Warn ("port $n is reserved or in use on this host - try " + $suggested + " or another free port")
+        } else {
+            Write-Warn "port $n cannot be bound on this host (Windows reserved range or another process). Pick a different one."
+        }
+        return $false
+    }
+    return $true
 }
 $validateOrigin = {
     param($v)
@@ -181,8 +218,17 @@ Write-Step 'Tell us about this install'
 
 if (-not $Invoice)      { $Invoice      = Read-Validated 'Your invoice id'           ''                    $validateInvoice }
 if (-not $AdminEmail)   { $AdminEmail   = Read-Validated 'Admin email'               'admin@nexora.local'  $validateEmail }
-if (-not $BackendPort)  { $BackendPort  = [int](Read-Validated 'Backend port (host)' '3000'                $validatePort) }
-if (-not $FrontendPort) { $FrontendPort = [int](Read-Validated 'Frontend port (host)' '4321'               $validatePort) }
+# Discover sensible defaults: the canonical 3000/4321 collide with Windows
+# reserved port ranges on a lot of hosts (Hyper-V/WSL2 grabs them). If
+# they're free, use them. Otherwise probe upward for the first port the
+# OS lets us bind.
+$beDefault = if (Test-PortBindable -Port 3000) { 3000 } else { Find-FreePort -Start 18000 }
+$feDefault = if (Test-PortBindable -Port 4321) { 4321 } else { Find-FreePort -Start ($beDefault + 1) }
+if ($beDefault -le 0) { $beDefault = 18000 }
+if ($feDefault -le 0) { $feDefault = 18001 }
+
+if (-not $BackendPort)  { $BackendPort  = [int](Read-Validated 'Backend port (host)'  "$beDefault" $validatePort) }
+if (-not $FrontendPort) { $FrontendPort = [int](Read-Validated 'Frontend port (host)' "$feDefault" $validatePort) }
 if (-not $PublicOrigin) {
     $defaultOrigin = "http://localhost:$FrontendPort"
     $PublicOrigin  = Read-Validated 'Public origin (URL customers will visit)' $defaultOrigin $validateOrigin

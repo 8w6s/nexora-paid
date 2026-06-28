@@ -91,12 +91,48 @@ validate_email() {
   return 1
 }
 
-validate_port() {
-  if printf '%s' "$1" | grep -Eq '^[0-9]{1,5}$' && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; then
+# Probe whether the host can bind a port. Cross-platform: prefer
+# Bun/Node-free tools (bash's /dev/tcp doesn't work for listening; ss/lsof
+# is cheap but only tells us about existing listeners). Best-effort:
+# treat "in use" as not-bindable; if neither tool is around we trust the
+# user.
+port_bindable() {
+  local p="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -lnt "sport = :$p" 2>/dev/null | grep -q ":$p\b" && return 1
     return 0
   fi
-  warn "port must be 1-65535"
-  return 1
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$p" -sTCP:LISTEN -P >/dev/null 2>&1 && return 1
+    return 0
+  fi
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -lnt 2>/dev/null | grep -q ":$p\b" && return 1
+    return 0
+  fi
+  return 0
+}
+
+find_free_port() {
+  local start="$1" p
+  for p in $(seq "$start" $((start + 200))); do
+    if port_bindable "$p"; then printf '%s\n' "$p"; return 0; fi
+  done
+  printf '%s\n' "$start"
+}
+
+validate_port() {
+  if ! printf '%s' "$1" | grep -Eq '^[0-9]{1,5}$' || [ "$1" -lt 1 ] || [ "$1" -gt 65535 ]; then
+    warn "port must be 1-65535"
+    return 1
+  fi
+  if ! port_bindable "$1"; then
+    local s
+    s=$(find_free_port $(( $1 > 18000 ? $1 + 1 : 18000 )))
+    warn "port $1 is in use on this host — try $s or another free port"
+    return 1
+  fi
+  return 0
 }
 
 validate_origin() {
@@ -134,8 +170,12 @@ step "Tell us about this install"
 INVOICE_DEFAULT="${INVOICE:-}"
 prompt INVOICE "Your invoice id" "$INVOICE_DEFAULT" validate_invoice
 prompt ADMIN_EMAIL "Admin email" "${ADMIN_EMAIL:-admin@nexora.local}" validate_email
-prompt HOST_BACKEND_PORT "Backend port (host)" "${HOST_BACKEND_PORT:-3000}" validate_port
-prompt HOST_FRONTEND_PORT "Frontend port (host)" "${HOST_FRONTEND_PORT:-4321}" validate_port
+BE_DEFAULT="${HOST_BACKEND_PORT:-3000}"
+if ! port_bindable "$BE_DEFAULT"; then BE_DEFAULT=$(find_free_port 18000); fi
+FE_DEFAULT="${HOST_FRONTEND_PORT:-4321}"
+if ! port_bindable "$FE_DEFAULT"; then FE_DEFAULT=$(find_free_port $((BE_DEFAULT + 1))); fi
+prompt HOST_BACKEND_PORT  "Backend port (host)"  "$BE_DEFAULT" validate_port
+prompt HOST_FRONTEND_PORT "Frontend port (host)" "$FE_DEFAULT" validate_port
 prompt PUBLIC_ORIGIN "Public origin (URL customers will visit)" \
   "${PUBLIC_ORIGIN:-http://localhost:${HOST_FRONTEND_PORT}}" validate_origin
 
