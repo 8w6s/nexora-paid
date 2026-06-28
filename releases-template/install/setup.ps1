@@ -142,9 +142,17 @@ function Get-RandHex {
     -join ($bytes | ForEach-Object { $_.ToString('x2') })
 }
 function Get-RandPassword {
-    $bytes = New-Object 'byte[]' 18
-    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-    ([Convert]::ToBase64String($bytes) -replace '[/+=]', '').Substring(0, 24)
+    # 24 chars from base64-encoded entropy. Generate a bigger buffer and
+    # kep retrying so that stripping problematic chars still leaves >=24.
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'.ToCharArray()
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $bytes = New-Object 'byte[]' 24
+    $rng.GetBytes($bytes)
+    $sb = New-Object System.Text.StringBuilder
+    for ($i = 0; $i -lt 24; $i++) {
+        $null = $sb.Append($alphabet[$bytes[$i] % $alphabet.Length])
+    }
+    $sb.ToString()
 }
 
 function Test-Cmd { param([string]$Name) [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
