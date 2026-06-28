@@ -21,8 +21,8 @@
 param(
     [string]$Invoice = $env:INVOICE,
     [string]$AdminEmail = $(if ($env:ADMIN_EMAIL) { $env:ADMIN_EMAIL } else { 'admin@nexora.local' }),
-    [int]   $BackendPort  = $(if ($env:HOST_BACKEND_PORT)  { [int]$env:HOST_BACKEND_PORT }  else { 3000 }),
-    [int]   $FrontendPort = $(if ($env:HOST_FRONTEND_PORT) { [int]$env:HOST_FRONTEND_PORT } else { 4321 }),
+    [int]   $BackendPort  = $(if ($env:HOST_BACKEND_PORT)  { [int]$env:HOST_BACKEND_PORT }  else { 0 }),
+    [int]   $FrontendPort = $(if ($env:HOST_FRONTEND_PORT) { [int]$env:HOST_FRONTEND_PORT } else { 0 }),
     [string]$PublicOrigin = $env:PUBLIC_ORIGIN,
     [string]$InstallDir   = $(Join-Path -Path (Get-Location) -ChildPath 'nexora'),
     [string]$ImageRepo    = 'ghcr.io/8w6s/nexora'
@@ -232,8 +232,8 @@ $feDefault = if (Test-PortBindable -Port 4321) { 4321 } else { Find-FreePort }
 if ($beDefault -le 0) { Write-Fail 'cannot find a free TCP port on this host' }
 if ($feDefault -le 0) { Write-Fail 'cannot find a free TCP port on this host' }
 
-if (-not $BackendPort)  { $BackendPort  = [int](Read-Validated 'Backend port (host)'  "$beDefault" $validatePort) }
-if (-not $FrontendPort) { $FrontendPort = [int](Read-Validated 'Frontend port (host)' "$feDefault" $validatePort) }
+if ($BackendPort  -le 0) { $BackendPort  = [int](Read-Validated 'Backend port (host)'  "$beDefault" $validatePort) }
+if ($FrontendPort -le 0) { $FrontendPort = [int](Read-Validated 'Frontend port (host)' "$feDefault" $validatePort) }
 if (-not $PublicOrigin) {
     $defaultOrigin = "http://localhost:$FrontendPort"
     $PublicOrigin  = Read-Validated 'Public origin (URL customers will visit)' $defaultOrigin $validateOrigin
