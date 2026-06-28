@@ -106,9 +106,10 @@ async function proxyToBackend(req: Request): Promise<Response> {
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const path = ctx.url.pathname;
-  // Proxy every /api/* call through to the backend service in the same
-  // container. Path-only, headers + body pass through.
-  if (path.startsWith("/api/")) {
+  // Proxy /api/* AND /uploads/* through to the backend service in the
+  // same container. The customer's host only exposes the frontend port,
+  // so any path the backend handles needs to be tunnelled through here.
+  if (path.startsWith("/api/") || path.startsWith("/uploads/")) {
     return proxyToBackend(ctx.request);
   }
   if (ALLOW.some((re) => re.test(path))) return applySecurityHeaders(await next());
