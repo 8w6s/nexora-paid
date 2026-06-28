@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { LOCALES, useT } from "../i18n";
+import { FlagIcon } from "./FlagIcon";
 
 export const LanguageSwitcher: React.FC = () => {
   const { locale, setLocale } = useT();
@@ -27,7 +28,7 @@ export const LanguageSwitcher: React.FC = () => {
         onClick={() => setOpen((v) => !v)}
         title={current.label}
       >
-        <span aria-hidden="true">{current.flag}</span>
+        <FlagIcon code={current.code} size={18} title={current.label} />
         <span className="lang-code">{current.code.toUpperCase()}</span>
       </button>
       {open && (
@@ -44,7 +45,7 @@ export const LanguageSwitcher: React.FC = () => {
                   setOpen(false);
                 }}
               >
-                <span aria-hidden="true">{l.flag}</span>
+                <FlagIcon code={l.code} size={18} title={l.label} />
                 <span>{l.label}</span>
               </button>
             </li>
