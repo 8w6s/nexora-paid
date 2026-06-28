@@ -69,7 +69,11 @@ interface I18nCtx {
 export const I18nContext = createContext<I18nCtx>({
   locale: FALLBACK,
   setLocale: () => {},
-  t: (k) => k,
+  // Default outside any provider — fall through to the English dictionary
+  // instead of echoing the raw key. Without this, any React island that
+  // doesn't sit inside I18nProvider (e.g. SetupWizard rendered standalone
+  // via client:idle) would show literal keys like "storefront.auth.show".
+  t: (key, vars) => translate(FALLBACK, key, vars),
 });
 
 export function useT() {

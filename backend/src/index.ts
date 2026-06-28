@@ -407,7 +407,28 @@ const baseApp = new Elysia()
     },
   )
 
-  // ───── Public routes (no auth required) ─────
+  // Static uploads served straight off the data volume. Path-traversal is
+  // blocked by enforcing a strict <hash>.<ext> filename pattern and resolving
+  // against a fixed root. No directory listing.
+  .get("/uploads/:name", async ({ params, set }) => {
+    const name = params.name;
+    if (!/^[a-f0-9]{32}\.(png|jpg|webp|gif|svg)$/.test(name)) {
+      set.status = 400;
+      return new Response("bad name", { status: 400 });
+    }
+    const { resolve } = await import("node:path");
+    const root = process.env.NEXORA_DATA_ROOT ?? (process.env.DB_PATH ? resolve(process.env.DB_PATH, "..") : "/app/data");
+    const fullPath = resolve(root, "uploads", name);
+    const f = Bun.file(fullPath);
+    if (!(await f.exists())) {
+      set.status = 404;
+      return new Response("not found", { status: 404 });
+    }
+    set.headers["cache-control"] = "public, max-age=31536000, immutable";
+    return new Response(f, { headers: { "content-type": f.type || "application/octet-stream" } });
+  })
+
+  // ───── Public routes (no auth required) ────
   .use(configRoutes);
 
 // Integrity verifier — reads manifest.signed.json, hashes every listed

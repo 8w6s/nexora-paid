@@ -1239,10 +1239,122 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       })),
     };
   })
+  .post("/upload-image", async ({ body, set }) => {
+    // Accept a single image file (multipart), store it on the data volume
+    // at /app/data/uploads/<sha256>.<ext>, return a /uploads/<file> URL the
+    // storefront can serve directly. No external CDN, no S3 — the bundled
+    // SQLite + volume model stays self-contained.
+    const file = (body as { file?: File }).file;
+    if (!file || !(file instanceof File)) {
+      set.status = 400;
+      return { error: "no file", code: "BAD_FILE" };
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      set.status = 413;
+      return { error: "file too big (max 8MB)", code: "TOO_BIG" };
+    }
+    const mime = file.type.toLowerCase();
+    const allowed: Record<string, string> = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/webp": "webp",
+      "image/gif": "gif",
+      "image/svg+xml": "svg",
+    };
+    const ext = allowed[mime];
+    if (!ext) {
+      set.status = 415;
+      return { error: `unsupported mime: ${mime}`, code: "BAD_MIME" };
+    }
+    const { createHash } = await import("node:crypto");
+    const { mkdirSync, writeFileSync } = await import("node:fs");
+    const { resolve, dirname } = await import("node:path");
+    const buf = Buffer.from(await file.arrayBuffer());
+    const hash = createHash("sha256").update(buf).digest("hex").slice(0, 32);
+    const root = process.env.NEXORA_DATA_ROOT ?? (process.env.DB_PATH ? resolve(process.env.DB_PATH, "..") : "/app/data");
+    const dir = resolve(root, "uploads");
+    try { mkdirSync(dir, { recursive: true }); } catch { /* exists */ }
+    const filename = `${hash}.${ext}`;
+    const fullPath = resolve(dir, filename);
+    writeFileSync(fullPath, buf);
+    return { url: `/uploads/${filename}`, size: buf.length, mime };
+  })
+  .post("/upload-image", async ({ body, set }) => {
+    // Accept a single image file (multipart), store it on the data volume
+    // at /app/data/uploads/<sha256>.<ext>, return a /uploads/<file> URL the
+    // storefront can serve directly. No external CDN, no S3 — the bundled
+    // SQLite + volume model stays self-contained.
+    const file = (body as { file?: File }).file;
+    if (!file || !(file instanceof File)) {
+      set.status = 400;
+      return { error: "no file", code: "BAD_FILE" };
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      set.status = 413;
+      return { error: "file too big (max 8MB)", code: "TOO_BIG" };
+    }
+    const mime = file.type.toLowerCase();
+    const allowed: Record<string, string> = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/webp": "webp",
+      "image/gif": "gif",
+      "image/svg+xml": "svg",
+    };
+    const ext = allowed[mime];
+    if (!ext) {
+      set.status = 415;
+      return { error: `unsuported mime: ${mime}`, code: "BAD_MIME" };
+    }
+    const { createHash } = await import("node:crypto");
+    const { mkdirSync, writeFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const buf = Buffer.from(await file.arrayBuffer());
+    const hash = createHash("sha256").update(buf).digest("hex").slice(0, 32);
+    const root = process.env.NEXORA_DATA_ROOT ?? (process.env.DB_PATH ? resolve(process.env.DB_PATH, "..") : "/app/data");
+    const dir = resolve(root, "uploads");
+    try { mkdirSync(dir, { recursive: true }); } catch { /* exists */ }
+    const filename = `${hash}.${ext}`;
+    writeFileSync(resolve(dir, filename), buf);
+    return { url: `/uploads/${filename}`, size: buf.length, mime };
+  })
   .get("/license", async () => {
-    // Customer-safe view of the verified license. Surfaces customerId/expiry/
-    // features so admins can sanity-check what their license actually entitles
-    // them to without leaking the buyer email cleartext to the panel.
+    // Customer-safe view of the licence state. Prefer the new invoice gate
+    // (combined image, baked invoice id); fall back to the legacy
+    // verifyLicense() result for v1 customers still on the .license file.
+    const inv = (globalThis as any).__nexora_invoice as
+      | {
+          valid: boolean;
+          reason?: string;
+          source?: string;
+          payload?: {
+            invoiceId: string;
+            email?: string;
+            status: string;
+            issuedAt: string;
+            expiresAt?: string;
+            features?: string[];
+            note?: string;
+          };
+        }
+      | undefined;
+    if (inv) {
+      if (!inv.valid) return { valid: false, reason: inv.reason ?? "invoice invalid" };
+      const p = inv.payload!;
+      const email = p.email ?? "";
+      const at = email.indexOf("@");
+      const emailMasked = at > 1 ? email[0] + "***" + email.slice(at) : "(redacted)";
+      return {
+        valid: true,
+        emailMasked,
+        productId: "nexora-paid",
+        customerId: p.invoiceId,
+        issuedAt: p.issuedAt,
+        expiresAt: p.expiresAt ?? null,
+        features: p.features ?? null,
+        note: p.note ?? null,
+      };
+    }
     const lic = (globalThis as any).__nexora_license as
       | {
           valid: boolean;

@@ -6,6 +6,7 @@ import { Icon } from "../Icon";
 import { NumberInput } from "../NumberInput";
 import { RichTextEditor } from "../RichTextEditor";
 import { useToast } from "../Toast";
+import { ImagePicker } from "./ImagePicker";
 
 /**
  * SellAuth-style full-page product editor with a tab bar.
@@ -359,51 +360,8 @@ export const AdminProductEditor: React.FC<{
 
           <div className="pe-form-row">
             <label className="pe-field-label">
-              <span>Image URL</span>
-              <div className="gallery-picker-wrapper">
-                <div
-                  className="gallery-picker"
-                  onClick={() => {
-                    const url = prompt("Enter Image URL:");
-                    if (!url) return;
-                    // Validate scheme client-side: backend rejects too, but a
-                    // browser UX hint is friendlier than a 400 round-trip and
-                    // keeps the modern-storefront preview from briefly
-                    // rendering <img src="javascript:..."> (inert in modern
-                    // engines but still leaves a broken-image flicker).
-                    try {
-                      const trimmed = url.trim();
-                      if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
-                        set("image", trimmed);
-                        return;
-                      }
-                      const u = new URL(trimmed);
-                      if (u.protocol !== "https:" && u.protocol !== "http:") {
-                        toast.error("Image URL must use http(s) or be an absolute /path");
-                        return;
-                      }
-                      set("image", trimmed);
-                    } catch {
-                      toast.error("Invalid image URL");
-                    }
-                  }}
-                >
-                  {form.image ? (
-                    <img src={form.image} alt="Preview" className="gallery-preview" />
-                  ) : (
-                    <>
-                      <Icon name="package" size={32} />
-                      <span>Tap to select an image from your content gallery.</span>
-                    </>
-                  )}
-                </div>
-                <input
-                  className="input"
-                  value={form.image}
-                  onChange={(e) => set("image", e.target.value)}
-                  placeholder="Or paste image URL directly here..."
-                />
-              </div>
+              <span>Product image</span>
+              <ImagePicker value={form.image} onChange={(u) => set("image", u)} />
             </label>
           </div>
 
