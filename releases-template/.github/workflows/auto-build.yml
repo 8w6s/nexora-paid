@@ -27,7 +27,13 @@ on:
     branches: [main]
     paths:
       - "customers.txt"
-  workflow_dispatch: {}
+      - "versions/stable.json"
+  workflow_dispatch:
+    inputs:
+      rebuild_all:
+        description: "Rebuild every active customer image with the current base version"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -221,7 +227,10 @@ jobs:
               const signature = await sign(payload, priv);
               writeFileSync(fp, JSON.stringify({ payload, signature }, null, 2) + "\n");
               console.log(`[auto-build] wrote ${fp} (${desired})`);
-              if (active && prevStatus !== "active") dispatches.push({ invoiceId: id, email });
+              const forceRebuild = process.env.REBUILD_ALL === "true" || process.env.VERSION_CHANGED === "true";
+              if (active && (prevStatus !== "active" || forceRebuild)) {
+                dispatches.push({ invoiceId: id, email });
+              }
             }
 
                           for (const [id] of previous.entries()) {
@@ -258,11 +267,24 @@ jobs:
           process.exit(await main());
           DRIVER_EOF
 
+      - name: Detect version change
+        id: ver_changed
+        run: |
+          # Was versions/stable.json part of this commit? When yes, every
+          # active customer image needs a rebuild against the new tag.
+          if git diff --name-only HEAD^ HEAD 2>/dev/null | grep -q "^versions/stable.json$"; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Parse + regenerate invoices
         id: pipeline
         env:
           REPO_ROOT: ${{ github.workspace }}
           NEXORA_CUSTOMERS_KEY: ${{ secrets.NEXORA_CUSTOMERS_KEY }}
+          REBUILD_ALL: ${{ github.event.inputs.rebuild_all }}
+          VERSION_CHANGED: ${{ steps.ver_changed.outputs.changed }}
         run: |
           cd .auto-build
           bun run driver.mjs
