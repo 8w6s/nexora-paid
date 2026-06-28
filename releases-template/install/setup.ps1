@@ -141,9 +141,16 @@ function Test-PortBindable {
 }
 
 function Find-FreePort {
-    param([int]$Start)
-    for ($p = $Start; $p -lt ($Start + 200); $p++) {
-        if (Test-PortBindable -Port $p) { return $p }
+    # Random pick in the high-but-not-ephemeral range (Windows ephemeral
+    # range starts at 49152; IANA registered ends at 49151). Try up to 50
+    # random ports between 20000 and 45000 before giving up.
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $buf = New-Object 'byte[]' 2
+    for ($attempt = 0; $attempt -lt 50; $attempt++) {
+        $rng.GetBytes($buf)
+        $n = [BitConverter]::ToUInt16($buf, 0)
+        $p = 20000 + ($n % 25001)  # 20000-45000
+        if (Test-PortBindable -Port $p) { return [int]$p }
     }
     return 0
 }
@@ -156,7 +163,7 @@ $validatePort = {
         return $false
     }
     if (-not (Test-PortBindable -Port $n)) {
-        $suggested = Find-FreePort -Start ([Math]::Max($n + 1, 10000))
+        $suggested = Find-FreePort
         if ($suggested -gt 0) {
             Write-Warn ("port $n is reserved or in use on this host - try " + $suggested + " or another free port")
         } else {
@@ -218,14 +225,12 @@ Write-Step 'Tell us about this install'
 
 if (-not $Invoice)      { $Invoice      = Read-Validated 'Your invoice id'           ''                    $validateInvoice }
 if (-not $AdminEmail)   { $AdminEmail   = Read-Validated 'Admin email'               'admin@nexora.local'  $validateEmail }
-# Discover sensible defaults: the canonical 3000/4321 collide with Windows
-# reserved port ranges on a lot of hosts (Hyper-V/WSL2 grabs them). If
-# they're free, use them. Otherwise probe upward for the first port the
-# OS lets us bind.
-$beDefault = if (Test-PortBindable -Port 3000) { 3000 } else { Find-FreePort -Start 18000 }
-$feDefault = if (Test-PortBindable -Port 4321) { 4321 } else { Find-FreePort -Start ($beDefault + 1) }
-if ($beDefault -le 0) { $beDefault = 18000 }
-if ($feDefault -le 0) { $feDefault = 18001 }
+# Sensible defaults: the canonical 3000/4321 collide with Windowsise pick random ports from the safe
+# 20000-45000 range.
+$beDefault = if (Test-PortBindable -Port 3000) { 3000 } else { Find-FreePort }
+$feDefault = if (Test-PortBindable -Port 4321) { 4321 } else { Find-FreePort }
+if ($beDefault -le 0) { Write-Fail 'cannot find a free TCP port on this host' }
+if ($feDefault -le 0) { Write-Fail 'cannot find a free TCP port on this host' }
 
 if (-not $BackendPort)  { $BackendPort  = [int](Read-Validated 'Backend port (host)'  "$beDefault" $validatePort) }
 if (-not $FrontendPort) { $FrontendPort = [int](Read-Validated 'Frontend port (host)' "$feDefault" $validatePort) }

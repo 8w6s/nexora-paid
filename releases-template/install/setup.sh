@@ -113,12 +113,18 @@ port_bindable() {
   return 0
 }
 
+# Random pick in the safe 20000-45000 band (above well-known/registered
+# but below the Linux ephemeral range start of 32768-60999 — overlap is
+# fine because port_bindable also checks "currently listening"). Tries
+# up to 50 random picks before giving up.
 find_free_port() {
-  local start="$1" p
-  for p in $(seq "$start" $((start + 200))); do
+  local p attempt=0
+  while [ "$attempt" -lt 50 ]; do
+    p=$((20000 + RANDOM % 25001))
     if port_bindable "$p"; then printf '%s\n' "$p"; return 0; fi
+    attempt=$((attempt + 1))
   done
-  printf '%s\n' "$start"
+  printf '%s\n' "0"
 }
 
 validate_port() {
@@ -128,8 +134,12 @@ validate_port() {
   fi
   if ! port_bindable "$1"; then
     local s
-    s=$(find_free_port $(( $1 > 18000 ? $1 + 1 : 18000 )))
-    warn "port $1 is in use on this host — try $s or another free port"
+    s=$(find_free_port)
+    if [ "$s" != "0" ]; then
+      warn "port $1 is in use on this host — try $s or another free port"
+    else
+      warn "port $1 is in use on this host — no free port found, try one manually"
+    fi
     return 1
   fi
   return 0
@@ -171,9 +181,11 @@ INVOICE_DEFAULT="${INVOICE:-}"
 prompt INVOICE "Your invoice id" "$INVOICE_DEFAULT" validate_invoice
 prompt ADMIN_EMAIL "Admin email" "${ADMIN_EMAIL:-admin@nexora.local}" validate_email
 BE_DEFAULT="${HOST_BACKEND_PORT:-3000}"
-if ! port_bindable "$BE_DEFAULT"; then BE_DEFAULT=$(find_free_port 18000); fi
+if ! port_bindable "$BE_DEFAULT"; then BE_DEFAULT=$(find_free_port); fi
 FE_DEFAULT="${HOST_FRONTEND_PORT:-4321}"
-if ! port_bindable "$FE_DEFAULT"; then FE_DEFAULT=$(find_free_port $((BE_DEFAULT + 1))); fi
+if ! port_bindable "$FE_DEFAULT"; then FE_DEFAULT=$(find_free_port); fi
+[ "$BE_DEFAULT" = "0" ] && fail "cannot find a free TCP port on this host"
+[ "$FE_DEFAULT" = "0" ] && fail "cannot find a free TCP port on this host"
 prompt HOST_BACKEND_PORT  "Backend port (host)"  "$BE_DEFAULT" validate_port
 prompt HOST_FRONTEND_PORT "Frontend port (host)" "$FE_DEFAULT" validate_port
 prompt PUBLIC_ORIGIN "Public origin (URL customers will visit)" \
