@@ -58,8 +58,10 @@ require_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command
 
 # ─── preflight ─────────────────────────────────────────────────────────────
 [ -n "$INVOICE" ] || die "INVOICE=<your invoice id> is required (e.g. INVOICE=inv_2026_001)"
-# TOKEN is OPTIONAL when the Nexora package on GHCR is public (default since
-# v1.1+). Set it only if your fleet uses a private registry namespace.
+# TOKEN is OPTIONAL: only needed if your Nexora GHCR namespace is private.
+# The default release line publishes public images and the invoice-fetch
+# token is baked into the image at build time (NEXORA_GHCR_TOKEN in the
+# container env), so the host machine doesn't need any extra credentials.
 : "${TOKEN:=}"
 
 # Charset check — same shape the build workflow enforces.

@@ -28,12 +28,42 @@ FROM oven/bun:1 AS build-backend
 WORKDIR /build
 COPY backend/ ./
 RUN bun install --frozen-lockfile || bun install
+# Maximum obfuscation:
+#   --minify              identifiers + whitespace + syntax (default chord)
+#   --drop=console        rip every console.* call out of the bundle so dev
+#                         logs can't leak hints about internal structure
+#   --drop=debugger       same for stray debugger statements
+#   --sourcemap=none      no `.map` file → no original filenames/line nos
+#   --target=bun          let bun keep its own builtins external
+# bun build doesn't support esbuild's --drop=console flag yet; rely on
+# --minify-identifiers (built into --minify) to mangle every internal name
+# so a `strings` dump on nexora.js reveals nothing useful even though
+# console.* calls survive.
 RUN bun build src/index.ts \
       --minify \
+      --minify-syntax \
+      --minify-whitespace \
+      --minify-identifiers \
       --sourcemap=none \
       --target=bun \
-      --outfile /build/nexora.js
-RUN test -s /build/nexora.js
+      --outfile /build/nexora.js \
+  && test -s /build/nexora.js
+
+# Strip ALL non-runtime cruft from node_modules before the COPY into the
+# runtime stage. Saves disk + removes upstream package source/tests/docs
+# from the customer image surface.
+RUN find /build/node_modules \
+      \( -name "*.md" -o -name "*.markdown" \
+         -o -name "*.ts" ! -name "*.d.ts" \
+         -o -name "*.map" -o -name "*.flow" -o -name "*.tsbuildinfo" \
+         -o -name "LICENSE*" -o -name "license*" -o -name "CHANGELOG*" \
+         -o -name "AUTHORS*" -o -name "CONTRIBUTORS*" -o -name "HISTORY*" \) \
+      -type f -delete \
+  && find /build/node_modules \
+      \( -name "test" -o -name "tests" -o -name "__tests__" \
+         -o -name "example" -o -name "examples" -o -name "docs" \
+         -o -name "doc" -o -name ".github" -o -name ".husky" \) \
+      -type d -prune -exec rm -rf {} +
 
 # ───────────────────────────── 2. BUILD FRONTEND ────────────────────────────
 FROM oven/bun:1 AS build-frontend
@@ -47,6 +77,26 @@ RUN bun install --frozen-lockfile || bun install
 RUN bun run build
 RUN test -d /fe/dist/server
 
+# Production install drops devDependencies (typescript, vite, prettier,
+# @shikijs, etc.) — those are build-time only. Saves ~150 MB on the
+# final image.
+RUN rm -rf node_modules \
+  && (bun install --production --frozen-lockfile || bun install --production)
+
+# Trim upstream package cruft from the now-smaller production tree.
+RUN find /fe/node_modules \
+      \( -name "*.md" -o -name "*.markdown" \
+         -o -name "*.ts" ! -name "*.d.ts" \
+         -o -name "*.map" -o -name "*.flow" -o -name "*.tsbuildinfo" \
+         -o -name "LICENSE*" -o -name "license*" -o -name "CHANGELOG*" \
+         -o -name "AUTHORS*" -o -name "CONTRIBUTORS*" -o -name "HISTORY*" \) \
+      -type f -delete \
+  && find /fe/node_modules \
+      \( -name "test" -o -name "tests" -o -name "__tests__" \
+         -o -name "example" -o -name "examples" -o -name "docs" \
+         -o -name "doc" -o -name ".github" -o -name ".husky" \) \
+      -type d -prune -exec rm -rf {} +
+
 # ───────────────────────────── 3. RUNTIME ───────────────────────────────────
 FROM oven/bun:1-slim AS runtime
 WORKDIR /app
@@ -54,9 +104,17 @@ WORKDIR /app
 ARG NEXORA_INVOICE_ID=""
 ARG NEXORA_INVOICE_EMAIL=""
 ARG NEXORA_RELEASES_REPO="8w6s/nexora-releases"
+# Read-only PAT for nexora-releases (contents:read on that ONE repo).
+# Baked at build time so customer admins never see it directly — they
+# can `docker inspect` of course, but it's a read-only token scoped to
+# the private registry the maintainer controls. Rotate by re-running
+# customer-build.yml with a fresh NEXORA_RELEASES_PAT secret; the in-app
+# update flow then pulls a new image with the new token.
+ARG NEXORA_RELEASES_PAT=""
 ENV NEXORA_INVOICE_ID=${NEXORA_INVOICE_ID} \
     NEXORA_INVOICE_EMAIL=${NEXORA_INVOICE_EMAIL} \
     NEXORA_RELEASES_REPO=${NEXORA_RELEASES_REPO} \
+    NEXORA_GHCR_TOKEN=${NEXORA_RELEASES_PAT} \
     NEXORA_APP_ROOT=/app/backend \
     NEXORA_MIGRATIONS_DIR=/app/backend/src/db/migrations \
     PORT=3000 \
