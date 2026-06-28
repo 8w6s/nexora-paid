@@ -61,7 +61,12 @@ function Write-Step { param([string]$Msg) Write-Host ""; Write-Host (Style '▸ 
 function Write-Info { param([string]$Msg) Write-Host ('  ' + (Style $Msg 'Info')) }
 function Write-Ok   { param([string]$Msg) Write-Host (('  ' + (Style '✓ ' 'Ok')) + $Msg) }
 function Write-Warn { param([string]$Msg) Write-Host (('  ' + (Style '! ' 'Warn')) + $Msg) }
-function Write-Fail { param([string]$Msg) Write-Host ""; Write-Host ('  ' + (Style '✗ ' 'Err')) + $Msg) -ErrorAction Continue; exit 1 }
+function Write-Fail {
+    param([string]$Msg)
+    Write-Host ''
+    Write-Host (('  ' + (Style '✗ ' 'Err')) + $Msg)
+    exit 1
+}
 
 function Read-Validated {
     param(
