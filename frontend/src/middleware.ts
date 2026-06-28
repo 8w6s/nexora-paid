@@ -11,19 +11,38 @@ const ALLOW = [/^\/setup(\/|$)/, /^\/_/, /^\/favicon/, /\.[a-z0-9]+$/i];
 let cache: { needsSetup: boolean; at: number } | null = null;
 const TTL = 5000;
 
-async function needsSetup(): Promise<boolean> {
+async function needsSetup(): Promise<boolean | null> {
   const now = Date.now();
   if (cache && now - cache.at < TTL) return cache.needsSetup;
   try {
-    const r = await fetch(`${API_ORIGIN}/api/setup/status`, {
-      headers: { accept: "application/json" },
-    });
-    const j = (await r.json()) as { needsSetup?: boolean };
-    cache = { needsSetup: !!j.needsSetup, at: now };
+    // Short retry lop — when both backend + frontend start in the same
+    // container, the SSR sometimes hits the API before it has bound. A
+    // few quick retries beats falsely deciding "no setup needed" and
+    // serving / instead of /setup.
+    let lastErr: unknown;
+    for (let i = 0; i < 5; i++) {
+      try {
+        const r = await fetch(`${API_ORIGIN}/api/setup/status`, {
+          headers: { accept: "application/json" },
+          signal: AbortSignal.timeout(2000),
+        });
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        const j = (await r.json()) as { needsSetup?: boolean };
+        cache = { needsSetup: !!j.needsSetup, at: now };
+        return cache.needsSetup;
+      } catch (e) {
+        lastErr = e;
+        await new Promise((res) => setTimeout(res, 300 + i * 200));
+      }
+    }
+    console.warn("[middleware] needsSetup probe failed after retries:", lastErr);
+    // API truly unreachable — leave cache untouched and return null so the
+    // caller decides what to do (we render the 503 page instead of silently
+    // serving an empty store).
+    return null;
   } catch {
-    cache = { needsSetup: false, at: now }; // API down → don't trap the user
+    return null;
   }
-  return cache.needsSetup;
 }
 
 // f-frontend-1 (deep audit, 2026-06-27): set baseline security headers on every
@@ -60,6 +79,15 @@ function applySecurityHeaders(response: Response): Response {
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const path = ctx.url.pathname;
   if (ALLOW.some((re) => re.test(path))) return applySecurityHeaders(await next());
-  if (await needsSetup()) return ctx.redirect("/setup", 302);
+  const verdict = await needsSetup();
+  if (verdict === true) return ctx.redirect("/setup", 302);
+  if (verdict === null) {
+    // API unreachable — likely backend hasn't bound yet right after compose up.
+    // Return a friendly 503 instead of a hollow shell that confuses the user.
+    return new Response(
+      "Nexora API is starting — refresh in a few seconds.",
+      { status: 503, headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "5" } },
+    );
+  }
   return applySecurityHeaders(await next());
 });
