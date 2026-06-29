@@ -313,6 +313,8 @@ services:
       - "${HOST_FRONTEND_PORT}:4321"
     volumes:
       - nexora-db:/app/data
+      - nexora-updater-sock:/var/run
+      - ./nexora.license:/app/nexora.license:ro
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:3000/api/health >/dev/null || exit 1"]
       interval: 30s
@@ -320,8 +322,28 @@ services:
       retries: 3
       start_period: 30s
 
+  # In-place update sidecar. Talks to the host's docker socket so it can
+  # pull a new image and recreate the nexora container without you SSHing in.
+  # Communicates with the app via a unix socket on a shared volume.
+  updater:
+    image: ${IMAGE_REPO}:${TAG}
+    restart: unless-stopped
+    entrypoint: ["bun", "run", "/app/updater/server.js"]
+    environment:
+      NEXORA_VOLUME: nexora-db
+      COMPOSE_FILE: /compose/docker-compose.yml
+      PROJECT: nexora
+      BACKEND_HEALTH_URL: http://nexora:3000/api/health/deep
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - nexora-updater-sock:/var/run
+      - ./docker-compose.yml:/compose/docker-compose.yml:ro
+      - nexora-backups:/var/lib/nexora/backups
+
 volumes:
   nexora-db:
+  nexora-updater-sock:
+  nexora-backups:
 YAML
 ok "compose file ready"
 

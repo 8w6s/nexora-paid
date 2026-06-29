@@ -17,6 +17,7 @@ interface CheckResp {
   publishedAt: string | null;
   notes: string | null;
   canApply: boolean;
+  hasUpdater?: boolean;
   error?: string;
   code?: string;
 }
@@ -174,17 +175,7 @@ export const AdminUpdateCard: React.FC = () => {
             <span className="upd-k">Channel</span>
             <span className="upd-v">{info.channel}</span>
           </div>
-          {info.changelogUrl && (
-            <div className="upd-row">
-              <span className="upd-k">Notes</span>
-              <span className="upd-v">
-                <a href={info.changelogUrl} target="_blank" rel="noreferrer">
-                  Changelog →
-                </a>
-              </span>
-            </div>
-          )}
-          <div className="upd-actions">
+                    <div className="upd-actions">
             {info.canApply ? (
               <button
                 type="button"
@@ -200,10 +191,14 @@ export const AdminUpdateCard: React.FC = () => {
                 Apply update
               </button>
             ) : (
-              <span className="upd-faint">
-                In-place apply unavailable — re-deploy with <code>docker-compose.updater.yml</code>{" "}
-                overlay to enable.
-              </span>
+              <div className="upd-faint">
+                In-place updater is not running on this host. To update manually:
+                <pre style={{ marginTop: 8, padding: 8, background: "var(--bg-2)", fontSize: ".85em", borderRadius: 4, overflow: "auto" }}>
+{`cd $(dirname ./docker-compose.yml)
+docker compose pull
+docker compose up -d`}
+                </pre>
+              </div>
             )}
           </div>
         </div>

@@ -158,10 +158,15 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
         imageRepo: m.imageRepo,
         imageTag: m.imageTag,
         sha256: m.sha256 ?? null,
-        changelogUrl: m.changelogUrl ?? null,
+        // changelogUrl intentionally omitted — points to private GitHub repo
+        // that customers can't access; surfacing it just produces broken links.
         publishedAt: m.publishedAt ?? null,
         notes: m.notes ?? null,
+        // Surface the gate explicitly so the UI can show a manual-update
+        // hint instead of just hiding the button (silent UX is worse than a
+        // visible "you need to redeploy manually" notice).
         canApply: updateAvailable && supportsInPlaceApply(),
+        hasUpdater: supportsInPlaceApply(),
       };
     } catch (e) {
       set.status = 502;
