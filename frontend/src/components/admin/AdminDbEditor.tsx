@@ -139,7 +139,7 @@ export function AdminDbEditor(): React.ReactElement {
     return (
       <div className="nx-dbe" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center", padding: "60px 32px", maxWidth: 480 }}>
-          <Icon name="lock" size={48} />
+          <Icon name="shield" size={48} />
           <h2 style={{ marginTop: 18, marginBottom: 8, fontSize: "1.2rem" }}>SQL Console Disabled</h2>
           <p style={{ color: "var(--muted)", fontSize: ".9rem", lineHeight: 1.6 }}>
             The raw SQL console is gated behind the <code>NEXORA_ENABLE_RAW_SQL=true</code> environment variable for security.

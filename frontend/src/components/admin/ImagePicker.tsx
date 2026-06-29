@@ -54,7 +54,7 @@ export const ImagePicker: React.FC<{
     e.target.value = ""; // allow re-picking the same file
   }
 
-  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+  function onDrop(e: React.DragEvent<HTMLButtonElement>) {
     e.preventDefault();
     setDrag(false);
     const f = e.dataTransfer.files?.[0];

@@ -1268,7 +1268,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     }
     const { createHash } = await import("node:crypto");
     const { mkdirSync, writeFileSync } = await import("node:fs");
-    const { resolve, dirname } = await import("node:path");
+    const { resolve } = await import("node:path");
     const buf = Buffer.from(await file.arrayBuffer());
     const hash = createHash("sha256").update(buf).digest("hex").slice(0, 32);
     const root = process.env.NEXORA_DATA_ROOT ?? (process.env.DB_PATH ? resolve(process.env.DB_PATH, "..") : "/app/data");
