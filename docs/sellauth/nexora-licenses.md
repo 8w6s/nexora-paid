@@ -34,13 +34,13 @@ Pick the option that fits how long you plan to run the shop. You can always rene
 **Linux / macOS / WSL:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/8w6s/nexora-releases/main/install/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/8w6s/nexora-install/main/setup.sh | bash
 ```
 
 **Windows (PowerShell, run as Admin):**
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/8w6s/nexora-releases/main/install/setup.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/8w6s/nexora-install/main/setup.ps1 | iex
 ```
 
 The script auto-generates secrets, pulls your per-invoice image, and walks you through admin setup in a browser.

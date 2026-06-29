@@ -45,7 +45,9 @@ export interface Env {
   PRODUCT_ID: string;
   SUPPORTED_FEATURES: string;
   // Optional vars / secrets
-  INSTALL_SH_URL?: string;
+  INSTALL_REPO?: string;     // default: "8w6s/nexora-install"
+  INSTALL_BRANCH?: string;   // default: "main"
+  INSTALL_SH_URL?: string;   // full override, beats INSTALL_REPO/BRANCH
   INSTALL_PS1_URL?: string;
   SUPPORT_EMAIL?: string;
   SUPPORT_DISCORD?: string;
@@ -81,7 +83,7 @@ function buildInvoiceId(orderId: string | number | undefined): string {
   return `inv_${[...r].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function ok(body: string, contentType = "text/markdown; charset=utf-8"): Response {
+function ok(body: string, contentType = "text/plain; charset=utf-8"): Response {
   return new Response(body, {
     status: 200,
     headers: { "content-type": contentType },
@@ -154,7 +156,9 @@ async function handleDeliver(req: Request, env: Env): Promise<Response> {
   let signedLicense: string;
   try {
     const signature = await signLicensePayload(payload, env.LICENSE_SIGNING_KEY_HEX);
-    signedLicense = JSON.stringify({ payload, signature }, null, 2);
+    // Single-line JSON — delivery body collapses it anyway, and saving as
+    // one line means the buyer can copy a single string into a file.
+    signedLicense = JSON.stringify({ payload, signature });
   } catch (e) {
     console.error("[fulfill] license sign failed", e);
     return fail(500, "license sign failed");
@@ -183,10 +187,10 @@ async function handleDeliver(req: Request, env: Env): Promise<Response> {
     licenseJson: signedLicense,
     installShUrl:
       env.INSTALL_SH_URL ??
-      `https://raw.githubusercontent.com/${env.GH_REPO}/${env.GH_BRANCH}/install/setup.sh`,
+      `https://raw.githubusercontent.com/${env.INSTALL_REPO ?? "8w6s/nexora-install"}/${env.INSTALL_BRANCH ?? "main"}/setup.sh`,
     installPs1Url:
       env.INSTALL_PS1_URL ??
-      `https://raw.githubusercontent.com/${env.GH_REPO}/${env.GH_BRANCH}/install/setup.ps1`,
+      `https://raw.githubusercontent.com/${env.INSTALL_REPO ?? "8w6s/nexora-install"}/${env.INSTALL_BRANCH ?? "main"}/setup.ps1`,
     supportEmail: env.SUPPORT_EMAIL ?? "support@nexora.sh",
     supportDiscord: env.SUPPORT_DISCORD,
   });
@@ -216,15 +220,24 @@ export default {
     }
 
     // Path-token auth: /deliver/<URL_TOKEN>
-    // Fallback to /deliver only if SELAUTH_WEBHOOK_SECRET is configured —
+    // Fallback to /deliver only if SELLAUTH_WEBHOOK_SECRET is configured —
     // requiring the HMAC layer to be the sole auth in that case.
     if (url.pathname.startsWith("/deliver")) {
       let tail = url.pathname.slice("/deliver".length);
       if (tail.startsWith("/")) tail = tail.slice(1);
+      // Strip any trailing slash SellAuth might append.
+      if (tail.endsWith("/")) tail = tail.slice(0, -1);
+      const expected = (env.URL_TOKEN ?? "").trim();
       const tokenOk =
-        !!env.URL_TOKEN && tail.length > 0 && constantTimeStrEq(tail, env.URL_TOKEN);
+        expected.length > 0 && tail.length > 0 && constantTimeStrEq(tail, expected);
       if (!tokenOk) {
-        // Allow plain /deliver only when HMAC is the auth mechanism.
+        // Diagnostic: log lengths + first/last 4 chars so we can see WHY
+        // the compare failed without leaking either side.
+        console.warn(
+          `[fulfill] reject token: gotLen=${tail.length} expLen=${expected.length} ` +
+            `gotPrefix=${tail.slice(0, 4)} gotSuffix=${tail.slice(-4)} ` +
+            `expPrefix=${expected.slice(0, 4)} expSuffix=${expected.slice(-4)}`,
+        );
         if (tail.length === 0 && env.SELLAUTH_WEBHOOK_SECRET) {
           return handleDeliver(req, env);
         }

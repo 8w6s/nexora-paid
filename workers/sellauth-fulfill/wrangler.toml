@@ -14,6 +14,7 @@ GH_BRANCH = "main"
 CUSTOMERS_PATH = "customers.txt"
 PRODUCT_ID = "nexora-paid"
 SUPPORTED_FEATURES = "search-suggest,admin-bulk,admin-export,admin-customers-csv"
+SUPPORT_EMAIL = "nexorasupport2321@protonmail.com"
 
 # Secrets set via `wrangler secret put <NAME>`:
 #   SELLAUTH_WEBHOOK_SECRET   HMAC signing secret SellAuth → Worker

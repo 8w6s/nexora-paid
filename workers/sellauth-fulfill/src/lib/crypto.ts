@@ -20,8 +20,11 @@ function ab(view: Uint8Array): ArrayBuffer {
 }
 
 export function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-  if (clean.length % 2 !== 0) throw new Error("hex length must be even");
+  const trimmed = hex.trim();
+  const clean = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
+  if (clean.length % 2 !== 0) {
+    throw new Error(`hex length must be even (got ${clean.length} after trim)`);
+  }
   const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) {
     const b = Number.parseInt(clean.slice(i * 2, i * 2 + 2), 16);
@@ -110,6 +113,9 @@ export async function encryptCustomerLine(
     false,
     ["encrypt"],
   );
+  // SubtleCrypto returns ciphertext || tag(16). Auto-build's decryptor
+  // (driver.mjs, mirroring add-customer.ts) expects iv | tag | ct — so
+  // we split and rearrange before emitting the nx1: blob.
   const ctTag = new Uint8Array(
     await crypto.subtle.encrypt(
       { name: "AES-GCM", iv: ab(iv) },
@@ -117,9 +123,12 @@ export async function encryptCustomerLine(
       ab(enc.encode(plaintext)),
     ),
   );
-  const out = new Uint8Array(iv.length + ctTag.length);
+  const ct = ctTag.subarray(0, ctTag.length - 16);
+  const tag = ctTag.subarray(ctTag.length - 16);
+  const out = new Uint8Array(iv.length + tag.length + ct.length);
   out.set(iv, 0);
-  out.set(ctTag, iv.length);
+  out.set(tag, iv.length);
+  out.set(ct, iv.length + tag.length);
   return `nx1:${bytesToBase64(out)}`;
 }
 
