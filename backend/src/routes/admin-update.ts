@@ -143,6 +143,11 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
       const m = await fetchManifest();
       const updateAvailable = cmpSemver(m.latest, APP_VERSION) > 0;
       const blockedByMin = cmpSemver(APP_VERSION, m.min) < 0;
+      // Surface check results in logs so operators / monitoring can spot a
+      //
+      if (updateAvailable) {
+        console.log(`[update] new version available: ${m.latest} (running ${APP_VERSION})`);
+      }
       return {
         current: APP_VERSION,
         latest: m.latest,
