@@ -210,10 +210,11 @@ export const AdminUpdateCard: React.FC = () => {
               </button>
             ) : (
               <div className="upd-faint">
-                In-place updater is not running on this host. To update manually:
+                In-place updater is not running on this host. SSH into your
+                server, cd into the folder that contains{" "}
+                <code>docker-compose.yml</code>, then run:
                 <pre style={{ marginTop: 8, padding: 8, background: "var(--bg-2)", fontSize: ".85em", borderRadius: 4, overflow: "auto" }}>
-{`cd $(dirname ./docker-compose.yml)
-docker compose pull
+{`docker compose pull
 docker compose up -d`}
                 </pre>
               </div>
