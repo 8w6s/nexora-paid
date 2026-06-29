@@ -57,7 +57,7 @@ Optional vars (override via `wrangler secret put` or `wrangler.toml`):
 
 | Name | Default | Purpose |
 |---|---|---|
-| `INSTALL_URL` | `https://install.nexora.sh/setup.sh` | one-line install command shown to buyer |
+| `INSTALL_URL` | `https://raw.githubusercontent.com/<GH_REPO>/<GH_BRANCH>/install/setup.sh` | one-line install command shown to buyer |
 | `SUPPORT_EMAIL` | `support@nexora.sh` | support email shown in delivery body |
 | `SUPPORT_DISCORD` | _(absent)_ | optional Discord invite URL |
 

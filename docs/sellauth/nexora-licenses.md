@@ -31,7 +31,7 @@ Pick the option that fits how long you plan to run the shop. You can always rene
 ## One-command install
 
 ```bash
-curl -fsSL https://install.nexora.sh/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/8w6s/nexora-releases/main/install/setup.sh | bash
 ```
 
 That's it. The script auto-generates secrets, pulls your per-invoice image, and walks you through admin setup in a browser.

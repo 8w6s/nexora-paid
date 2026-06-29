@@ -180,7 +180,9 @@ async function handleDeliver(req: Request, env: Env): Promise<Response> {
     email,
     tier,
     licenseJson: signedLicense,
-    installUrl: env.INSTALL_URL ?? "https://install.nexora.sh/setup.sh",
+    installUrl:
+      env.INSTALL_URL ??
+      `https://raw.githubusercontent.com/${env.GH_REPO}/${env.GH_BRANCH}/install/setup.sh`,
     supportEmail: env.SUPPORT_EMAIL ?? "support@nexora.sh",
     supportDiscord: env.SUPPORT_DISCORD,
   });
