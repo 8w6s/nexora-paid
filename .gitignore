@@ -92,3 +92,23 @@ backend/Show
 scripts/tui-*.log
 frontend/cookies.txt
 .gstack/
+
+# Nested-git tool repos (not part of Nexora app)
+gstack/
+pixel-agents/
+mimocode-src/
+
+# Maintainer scratch / RC reference screenshots
+header-rc5.png
+home-after.png
+lang-dropdown-rc5.png
+native-editor-final.png
+test-pay-page.png
+tree-clean.txt
+
+# Stray debug / listing scratch files
+backend/.dgc-tmp.txt
+backend/.security-fix-probe.txt
+backend/_listing*.txt
+backend/_root.txt
+backend/_top.txt
