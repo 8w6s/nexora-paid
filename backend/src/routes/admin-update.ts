@@ -1,6 +1,7 @@
 
 import { existsSync } from "node:fs";
 import { Elysia, t } from "elysia";
+import { compare as semverCompare } from "semver";
 import { APP_VERSION } from "../lib/app-version.ts";
 import { SESSION_COOKIE, validateSession } from "../lib/auth.ts";
 import { degradedGate } from "../lib/integrity-state.ts";
@@ -44,14 +45,16 @@ interface VersionManifest {
 }
 
 function cmpSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/, "").split(".").map(Number);
-  const pb = b.replace(/^v/, "").split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    const ai = pa[i] ?? 0;
-    const bi = pb[i] ?? 0;
-    if (ai !== bi) return ai - bi;
+  // Use semver-compliant comparison. The naive split-by-dot version mangled
+  // pre-release tags ("1.0.0-rc10" parsed to [1,0,NaN]), making rc->rc updates
+  // invisible to /update/check. semver.compare is already a dependency.
+  // Strip leading "v" (releases publish "v1.0.0", APP_VERSION is bare).
+  const norm = (s: string) => s.replace(/^v/, "");
+  try {
+    return semverCompare(norm(a), norm(b));
+  } catch {
+    return 0;
   }
-  return 0;
 }
 
 // Signed-manifest rollout flag. With NEXORA_REQUIRE_SIGNED=1 we fetch
