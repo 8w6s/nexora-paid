@@ -64,24 +64,34 @@ interface IconProps {
 }
 
 export const Icon: React.FC<IconProps> = ({ name, size = 18, className, style }) => {
+  // <img src> cannot inherit `currentColor` from CSS — the SVG would render
+  // with its document-root color (which we authored as currentColor → fals
+  // back to black). CSS mask-image solves this: the SVG becomes a stencil
+  // that gets filled with the element's actual color, so duotone SVGs that
+  // baked `currentColor` and `opacity=".5"` keep their two-tone look but
+  // pick up the surrounding text colour.
+  const url = `/icons-solar/${name}.svg`;
   return (
-    <img
-      src={`/icons-solar/${name}.svg`}
-      alt=""
-      width={size}
-      height={size}
+    <span
+      role="img"
+      aria-hidden="true"
       className={className}
       style={{
         display: "inline-block",
         verticalAlign: "middle",
-        // currentColor is baked into the SVG; let the surrounding text colour
-        // drive it via CSS filter / mask is overkill — `<img>` already renders
-        // the duotone fills correctly without inheriting `color`. Callers who
-        // need recolour can pass style.filter.
+        width: size,
+        height: size,
+        backgroundColor: "currentColor",
+        WebkitMaskImage: `url(${url})`,
+        maskImage: `url(${url})`,
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
         ...style,
       }}
-      aria-hidden="true"
-      draggable={false}
     />
   );
 };
