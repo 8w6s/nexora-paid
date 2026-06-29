@@ -1,3 +1,4 @@
+import { APP_VERSION } from "./app-version.ts";
 import { NEXORA_VERSION } from "./version.ts";
 
 export type LicenseInfo = { valid: true; email: string } | { valid: false; reason: string };
@@ -96,7 +97,12 @@ export function printBootBanner(
     : `${dim}not bootstrapped${reset}`;
 
   console.log("");
-  console.log(`  ${bold}${cyan}⚡ NEXORA API${reset} ${dim}v${NEXORA_VERSION}${reset}`);
+  // Show the SHIPPED release tag (APP_VERSION) as the headline — that's
+  // what operators identify their install by. NEXORA_VERSION is the plugin
+  // contract semver and is plumbing detail, not customer-visible identity.
+  console.log(
+    `  ${bold}${cyan}⚡ NEXORA${reset} ${dim}${APP_VERSION}${reset} ${dim}(plugin contract v${NEXORA_VERSION})${reset}`,
+  );
   console.log("");
   console.log(
     `  ${bold}➜${reset}  ${bold}Local:${reset}    ${cyan}http://localhost:${port}${reset}`,
