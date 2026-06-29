@@ -165,7 +165,11 @@ async function handleDeliver(req: Request, env: Env): Promise<Response> {
   }
 
   try {
-    const plaintext = `${email}:${invoiceId}:${tier}`;
+    // Driver on nexora-releases parses lastIndexOf(":") and expects
+    // "email:invoice_id" only. Tier is encoded in the license JSON, not
+    // in the registry line. Keeping the encrypted form 2-part means we
+    // stay backward-compat with add-customer.ts.
+    const plaintext = `${email}:${invoiceId}`;
     const line = await encryptCustomerLine(plaintext, env.NEXORA_CUSTOMERS_KEY);
     await appendLineToFile({
       repo: env.GH_REPO,

@@ -217,18 +217,25 @@ jobs:
               // NB: email is intentionally NOT in the on-disk payload — the
               // file is published to a public repo; leaking the email here
               // would defeat the customers.txt encryption above.
-              if (prev && prevStatus === desired && existsSync(fp)) continue;
-              const payload = {
-                invoiceId: id,
-                status: desired,
-                issuedAt: new Date().toISOString(),
-                productId: "nexora-paid",
-              };
-              const signature = await sign(payload, priv);
-              writeFileSync(fp, JSON.stringify({ payload, signature }, null, 2) + "\n");
-              console.log(`[auto-build] wrote ${fp} (${desired})`);
               const forceRebuild = process.env.REBUILD_ALL === "true" || process.env.VERSION_CHANGED === "true";
-              if (active && (prevStatus !== "active" || forceRebuild)) {
+              const fileUpToDate = prev && prevStatus === desired && existsSync(fp);
+              // Only skip writing the file when it's already in the desired
+              // state — but ALWAYS evaluate dispatch below. The previous
+              // `continue` here ate the dispatch path for active invoices
+              // whose JSON happened to already exist (eg. when a prior run
+              // wrote it but its dispatch failed mid-flight).
+              if (!fileUpToDate) {
+                const payload = {
+                  invoiceId: id,
+                  status: desired,
+                  issuedAt: new Date().toISOString(),
+                  productId: "nexora-paid",
+                };
+                const signature = await sign(payload, priv);
+                writeFileSync(fp, JSON.stringify({ payload, signature }, null, 2) + "\n");
+                console.log(`[auto-build] wrote ${fp} (${desired})`);
+              }
+              if (active && (prevStatus !== "active" || !fileUpToDate || forceRebuild)) {
                 dispatches.push({ invoiceId: id, email });
               }
             }

@@ -163,10 +163,49 @@ require_cmd() {
 banner
 step "Checking prerequisites"
 
-require_cmd docker
 require_cmd openssl
+
+# Docker check + offer auto-install (Linux only, via get.docker.com).
+# macOS / WSL hosts: we bail with instructions because get.docker.com
+# doesn't install Docker Desktop for them.
+auto_install_docker() {
+  local os; os=$(uname -s 2>/dev/null || echo unknown)
+  if [ "$os" != "Linux" ]; then
+    fail "auto-install only supports Linux. Install Docker Desktop manually for $os, then re-run setup.sh."
+  fi
+  info "downloading official Docker install script from get.docker.com"
+  if ! curl -fsSL https://get.docker.com -o /tmp/get-docker.sh; then
+    fail "could not download get.docker.com (check internet, then re-run)"
+  fi
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    info "running installer with sudo — you may be prompted for your password"
+    sudo sh /tmp/get-docker.sh || fail "docker install failed"
+    if [ -n "${SUDO_USER:-${USER:-}}" ]; then
+      sudo usermod -aG docker "${SUDO_USER:-$USER}" 2>/dev/null || true
+      warn "you were added to the 'docker' group — log out and back in to use docker without sudo"
+    fi
+  else
+    sh /tmp/get-docker.sh || fail "docker install failed"
+  fi
+  rm -f /tmp/get-docker.sh
+  # Start + enable the service when systemd is around.
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl enable --now docker 2>/dev/null || true
+  fi
+  ok "docker installed"
+}
+
+if ! command -v docker >/dev/null 2>&1; then
+  warn "docker is not installed on this host"
+  prompt INSTALL_DOCKER "Install docker for me now? (y/N)" "n"
+  case "$INSTALL_DOCKER" in
+    y|Y|yes|YES) auto_install_docker ;;
+    *) fail "docker is required. Install it (https://docs.docker.com/engine/install/), then re-run this script." ;;
+  esac
+fi
+
 if ! docker compose version >/dev/null 2>&1; then
-  fail "docker compose plugin missing — install docker-compose-plugin (or Docker Desktop's bundled compose)"
+  fail "docker compose plugin missing — install docker-compose-plugin (or use Docker Desktop's bundled compose)"
 fi
 
 if ! docker info >/dev/null 2>&1; then
