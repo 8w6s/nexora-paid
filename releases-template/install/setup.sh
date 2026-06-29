@@ -322,23 +322,23 @@ services:
       retries: 3
       start_period: 30s
 
-  # In-place update sidecar. Talks to the host's docker socket so it can
-  # pull a new image and recreate the nexora container without you SSHing in.
-  # Communicates with the app via a unix socket on a shared volume.
+  # In-place update sidecar. Mounts the host docker socket so it can pull
+  # new images + recreate the nexora container in response to /api/admin/update/apply
+  # without the operator SSHing in. Talks to the backend via a unix socket
+  # on a shared volume.
   updater:
-    image: ${IMAGE_REPO}:${TAG}
+    image: ghcr.io/8w6s/nexora-updater:latest
     restart: unless-stopped
-    entrypoint: ["bun", "run", "/app/updater/server.js"]
     environment:
       NEXORA_VOLUME: nexora-db
-      COMPOSE_FILE: /compose/docker-compose.yml
+      COMPOSE_FILE: /nexora/docker-compose.yml
       PROJECT: nexora
       BACKEND_HEALTH_URL: http://nexora:3000/api/health/deep
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - nexora-updater-sock:/var/run
-      - ./docker-compose.yml:/compose/docker-compose.yml:ro
-      - nexora-backups:/var/lib/nexora/backups
+      - ./docker-compose.yml:/nexora/docker-compose.yml:ro
+      - nexora-backups:/var/backups/nexora
 
 volumes:
   nexora-db:
