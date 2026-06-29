@@ -20,14 +20,38 @@ bun install
 wrangler login                   # opens browser, authorizes Cloudflare
 ```
 
-Set the four secrets (paste value when prompted):
+### Auth model
+
+SellAuth's Dynamic Delivery does **not** expose a webhook-signing secret
+on every plan. We default to a URL-path token: the operator generates a
+random token, registers `https://<worker>.workers.dev/deliver/<TOKEN>` as
+SellAuth's Delivery URL, and only that path accepts POSTs.
+
+Generate a token locally:
 
 ```bash
-wrangler secret put SELLAUTH_WEBHOOK_SECRET    # from SellAuth → Webhooks
+openssl rand -hex 32
+# example output: a3f5...8e2b
+```
+
+Then set the required secrets (paste the value when prompted):
+
+```bash
+wrangler secret put URL_TOKEN                  # the hex token above
 wrangler secret put NEXORA_CUSTOMERS_KEY       # 64-hex, same as repo secret
 wrangler secret put LICENSE_SIGNING_KEY_HEX    # 64-hex from .keys/license-signer.private
 wrangler secret put GH_PAT                     # GitHub PAT, Contents:write on nexora-releases
 ```
+
+Optional second auth layer (used together if SellAuth signs the body):
+
+```bash
+wrangler secret put SELLAUTH_WEBHOOK_SECRET    # only set if SellAuth exposes this UI
+```
+
+When `SELLAUTH_WEBHOOK_SECRET` is set AND the request carries
+`x-sellauth-signature`, the Worker HMAC-verifies the body in addition to
+the path token check. Both layers are independent — either alone suffices.
 
 Optional vars (override via `wrangler secret put` or `wrangler.toml`):
 
