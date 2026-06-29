@@ -1,0 +1,22 @@
+name = "sellauth-fulfill"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Logs visible via `wrangler tail` (live) or Cloudflare dashboard.
+[observability]
+enabled = true
+
+# Public vars (not secrets). Override per-environment if needed.
+[vars]
+GH_REPO = "8w6s/nexora-releases"
+GH_BRANCH = "main"
+CUSTOMERS_PATH = "customers.txt"
+PRODUCT_ID = "nexora-paid"
+SUPPORTED_FEATURES = "search-suggest,admin-bulk,admin-export,admin-customers-csv"
+
+# Secrets set via `wrangler secret put <NAME>`:
+#   SELLAUTH_WEBHOOK_SECRET   HMAC signing secret SellAuth → Worker
+#   NEXORA_CUSTOMERS_KEY      64-hex AES-256-GCM key for customers.txt encryption
+#   LICENSE_SIGNING_KEY_HEX   64-hex Ed25519 private key (license signer)
+#   GH_PAT                    GitHub PAT, Contents:write on GH_REPO

@@ -112,3 +112,7 @@ backend/.security-fix-probe.txt
 backend/_listing*.txt
 backend/_root.txt
 backend/_top.txt
+
+# Cloudflare Worker build artifacts
+workers/**/.wrangler/
+workers/**/node_modules/
