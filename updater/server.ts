@@ -23,8 +23,12 @@ const BACKUP_DIR = process.env.BACKUP_DIR ?? "/var/backups/nexora";
 const COMPOSE_FILE = process.env.COMPOSE_FILE ?? "/nexora/docker-compose.yml";
 const NEXORA_VOLUME = process.env.NEXORA_VOLUME ?? "nexora-db";
 const PROJECT = process.env.COMPOSE_PROJECT_NAME ?? "nexora";
+// Deep health: verifies DB ping + schema version + updater socket.
+// Plain /api/health is process-alive only — it would pass even if a schema
+// rename broke every query. Dep is the right gate for "is the new image
+// actually serving correctly".
 const BACKEND_HEALTH_URL =
-  process.env.BACKEND_HEALTH_URL ?? "http://nexora-backend:3000/api/health";
+  process.env.BACKEND_HEALTH_URL ?? "http://nexora-backend:3000/api/health/deep";
 
 mkdirSync(BACKUP_DIR, { recursive: true });
 mkdirSync(dirname(SOCKET_PATH), { recursive: true });
@@ -175,13 +179,30 @@ async function composeUp(j: Job, version: string): Promise<void> {
 
 async function waitHealthy(j: Job): Promise<boolean> {
   step(j, `healthcheck ${BACKEND_HEALTH_URL}`);
-  const deadline = Date.now() + 60_000;
+  // 120s deadline: cold-boot SQLite + migration + Astro SSR warmup can
+  // exceed 60s on small VPS (the typical Nexora customer host).
+  const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     try {
       const r = await fetch(BACKEND_HEALTH_URL, { signal: AbortSignal.timeout(3_000) });
       if (r.ok) {
-        step(j, `healthcheck ok`);
-        return true;
+        // /api/health/deep returns 200 even when DB ping fails — body holds
+        // the real verdict ({ok:false, db:{ok:false,error:...}}). Parse it
+        // so a broken schema after update is caught (and triggers rollback)
+        // instead of being recorded as a successful deploy.
+        try {
+          const body = (await r.json()) as { ok?: boolean; db?: { ok?: boolean } };
+          if (body.ok === true && body.db?.ok === true) {
+            step(j, `healthcheck ok (deep)`);
+            return true;
+          }
+          // 200 but body says not ready — keep polling.
+        } catch {
+          // Body not JSON (shallow /api/health endpoint, or older build) —
+          // fall back to status-only acceptance.
+          step(j, `healthcheck ok (shallow)`);
+          return true;
+        }
       }
     } catch {
       // ignore until deadline
