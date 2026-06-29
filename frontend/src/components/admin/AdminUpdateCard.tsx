@@ -48,6 +48,20 @@ const fmtDate = (iso: string | null | undefined) => {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 };
 
+// Relative age shown next to the date so the admin can tell at a glance
+// whether a release is fresh or stale ("released 12 minutes ago" vs
+// "released 6 days ago"). Falls back to fmtDate when iso is unparsable.
+const fmtAge = (iso: string | null | undefined): string => {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const diffSec = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  if (diffSec < 3600) return `${Math.round(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.round(diffSec / 3600)}h ago`;
+  return `${Math.round(diffSec / 86400)}d ago`;
+};
+
 export const AdminUpdateCard: React.FC = () => {
   const [info, setInfo] = useState<CheckResp | null>(null);
   const [loading, setLoading] = useState(false);
@@ -168,7 +182,11 @@ export const AdminUpdateCard: React.FC = () => {
             <span className="upd-k">Latest</span>
             <span className="upd-v">
               {info.latest}{" "}
-              {info.publishedAt && <span className="upd-faint">· {fmtDate(info.publishedAt)}</span>}
+              {info.publishedAt && (
+                <span className="upd-faint">
+                  · {fmtDate(info.publishedAt)} ({fmtAge(info.publishedAt)})
+                </span>
+              )}
             </span>
           </div>
           <div className="upd-row">
