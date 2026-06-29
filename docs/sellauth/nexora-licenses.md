@@ -28,13 +28,22 @@ Run it on a $5 VPS. Accept Litecoin directly into your own HD wallet. Ship digit
 
 Pick the option that fits how long you plan to run the shop. You can always renew later — your data stays untouched.
 
+
 ## One-command install
+
+**Linux / macOS / WSL:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/8w6s/nexora-releases/main/install/setup.sh | bash
 ```
 
-That's it. The script auto-generates secrets, pulls your per-invoice image, and walks you through admin setup in a browser.
+**Windows (PowerShell, run as Admin):**
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/8w6s/nexora-releases/main/install/setup.ps1 | iex
+```
+
+The script auto-generates secrets, pulls your per-invoice image, and walks you through admin setup in a browser.
 
 ## Tech specs
 

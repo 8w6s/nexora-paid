@@ -45,7 +45,8 @@ export interface Env {
   PRODUCT_ID: string;
   SUPPORTED_FEATURES: string;
   // Optional vars / secrets
-  INSTALL_URL?: string;
+  INSTALL_SH_URL?: string;
+  INSTALL_PS1_URL?: string;
   SUPPORT_EMAIL?: string;
   SUPPORT_DISCORD?: string;
 }
@@ -180,9 +181,12 @@ async function handleDeliver(req: Request, env: Env): Promise<Response> {
     email,
     tier,
     licenseJson: signedLicense,
-    installUrl:
-      env.INSTALL_URL ??
+    installShUrl:
+      env.INSTALL_SH_URL ??
       `https://raw.githubusercontent.com/${env.GH_REPO}/${env.GH_BRANCH}/install/setup.sh`,
+    installPs1Url:
+      env.INSTALL_PS1_URL ??
+      `https://raw.githubusercontent.com/${env.GH_REPO}/${env.GH_BRANCH}/install/setup.ps1`,
     supportEmail: env.SUPPORT_EMAIL ?? "support@nexora.sh",
     supportDiscord: env.SUPPORT_DISCORD,
   });

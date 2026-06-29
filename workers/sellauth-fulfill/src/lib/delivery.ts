@@ -10,7 +10,8 @@ interface DeliveryInput {
   email: string;
   tier: Tier;
   licenseJson: string; // already pretty-printed JSON
-  installUrl: string;
+  installShUrl: string;
+  installPs1Url: string;
   supportEmail: string;
   supportDiscord?: string;
 }
@@ -42,10 +43,18 @@ ${i.licenseJson}
 
 ## 2. Install on your server
 
-SSH into your VPS (Ubuntu / Debian recommended), then run:
+SSH into your VPS, then run the script for your OS.
+
+**Linux / macOS / WSL:**
 
 \`\`\`bash
-curl -fsSL ${i.installUrl} | bash
+curl -fsSL ${i.installShUrl} | bash
+\`\`\`
+
+**Windows (PowerShell, run as Admin):**
+
+\`\`\`powershell
+iwr -useb ${i.installPs1Url} | iex
 \`\`\`
 
 When prompted, paste your invoice id: \`${i.invoiceId}\`
