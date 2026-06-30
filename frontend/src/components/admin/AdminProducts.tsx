@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, fmtUsd } from "../../lib/api";
 import { ConfirmModal } from "../ConfirmModal";
+import { Dropdown } from "../Dropdown";
 import { Icon } from "../Icon";
 import { Modal } from "../Modal";
 import { Sk, SkeletonStyles } from "../Skeleton";
@@ -246,18 +247,17 @@ export const AdminProducts: React.FC = () => {
               }}
             >
               <span>Assign to Variant</span>
-              <select
-                className="input"
+              <Dropdown
                 value={keysVariantId}
-                onChange={(e) => setKeysVariantId(e.target.value)}
-              >
-                <option value="">— General / Product Direct —</option>
-                {keysFor.variants.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} ({fmtUsd(v.priceUsd)})
-                  </option>
-                ))}
-              </select>
+                onChange={setKeysVariantId}
+                options={[
+                  { value: "", label: "— General / Product Direct —" },
+                  ...keysFor.variants.map((v) => ({
+                value: v.id,
+                    label: `${v.name} (${fmtUsd(v.priceUsd)})`,
+                  })),
+                ]}
+              />
             </label>
           )}
 
@@ -271,16 +271,16 @@ export const AdminProducts: React.FC = () => {
             }}
           >
             <span>Key Type</span>
-            <select
-              className="input"
+            <Dropdown
               value={keysType}
-              onChange={(e) => setKeysType(e.target.value as any)}
-            >
-              <option value="code">Serial / Code</option>
-              <option value="account">Account (user:pass)</option>
-              <option value="file">File (URL)</option>
-              <option value="instructions">Instructions / Content</option>
-            </select>
+              onChange={(v) => setKeysType(v as typeof keysType)}
+              options={[
+                { value: "code", label: "Serial / Code" },
+                { value: "account", label: "Account (user:pass)" },
+                { value: "file", label: "File (URL)" },
+                { value: "instructions", label: "Instructions / Content" },
+              ]}
+            />
           </label>
         </div>
 

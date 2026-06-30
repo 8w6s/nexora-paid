@@ -30,7 +30,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 700;
-  color: var(--muted, #6b7280);
+  color: var(--ink-faint);
   padding: 8px 12px 12px;
   border-bottom: 1px solid var(--line, #e5e7eb);
   margin-bottom: 6px;
@@ -55,7 +55,7 @@
 }
 
 .nx-nae__tbl-btn:hover {
-  background: var(--surface-alt, #f9fafb);
+  background: var(--surface-2);
   color: var(--ink, #111827);
 }
 
@@ -95,7 +95,7 @@
 
 .nx-nae__meta {
   font-size: 13px;
-  color: var(--muted, #6b7280);
+  color: var(--ink-faint);
   margin-top: 4px;
 }
 
@@ -124,7 +124,7 @@
 }
 
 .nx-nae__btn:hover:not(:disabled) {
-  background: var(--brand-hover, #2563eb);
+  background: var(--brand);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
   transform: translateY(-1px);
 }
@@ -145,7 +145,7 @@
 }
 
 .nx-nae__btn--ghost:hover:not(:disabled) {
-  background: var(--surface-alt, #f9fafb);
+  background: var(--surface-2);
   box-shadow: none;
   transform: none;
   border-color: var(--line-strong, #d1d5db);
@@ -166,7 +166,7 @@
   cursor: pointer;
   padding: 8px;
   border-radius: 7px;
-  color: var(--muted, #6b7280);
+  color: var(--ink-faint);
   font-size: 15px;
   transition: all 120ms ease;
   display: inline-flex;
@@ -177,7 +177,7 @@
 }
 
 .nx-nae__btn-icon:hover {
-  background: var(--surface-alt, #f3f4f6);
+  background: var(--surface-2);
   color: var(--ink, #111827);
 }
 
@@ -210,12 +210,12 @@
 .nx-nae__table th {
   text-align: left;
   padding: 12px 16px;
-  background: var(--surface-alt, #f9fafb);
+  background: var(--surface-2);
   position: sticky;
   top: 0;
   font-weight: 600;
   font-size: 11px;
-  color: var(--muted, #6b7280);
+  color: var(--ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--line, #e5e7eb);
@@ -264,7 +264,7 @@
 }
 
 .nx-nae__table tbody tr:nth-child(even) {
-  background: var(--surface-alt, rgba(249, 250, 251, 0.5));
+  background: var(--surface-2));
 }
 
 .nx-nae__table tbody tr:nth-child(even):hover {
@@ -278,7 +278,7 @@
 }
 
 .nx-nae__null {
-  color: var(--muted, #9ca3af);
+  color: var(--ink-faint);
   font-style: italic;
   font-size: 11px;
 }
@@ -289,7 +289,7 @@
   align-items: center;
   gap: 12px;
   font-size: 13px;
-  color: var(--muted, #6b7280);
+  color: var(--ink-faint);
   padding: 8px 4px;
 }
 
@@ -371,7 +371,7 @@
 .nx-nae__col-head-type {
   font-family: ui-monospace, monospace;
   font-size: 9px;
-  color: var(--muted, #9ca3af);
+  color: var(--ink-faint);
   text-transform: lowercase;
   letter-spacing: 0;
   font-weight: 400;
@@ -413,7 +413,7 @@
 .nx-nae__empty {
   padding: 60px 32px;
   text-align: center;
-  color: var(--muted, #9ca3af);
+  color: var(--ink-faint);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -484,7 +484,7 @@
 .nx-nae__field-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--muted, #6b7280);
+  color: var(--ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: flex;
@@ -495,7 +495,7 @@
 .nx-nae__field-type {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: var(--muted, #9ca3af);
+  color: var(--ink-faint);
   font-weight: 400;
   text-transform: lowercase;
 }
@@ -533,7 +533,7 @@
 
 .nx-nae__field-null {
   font-size: 11px;
-  color: var(--muted, #9ca3af);
+  color: var(--ink-faint);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -549,9 +549,9 @@
 .nx-nae__view-type {
   font-family: ui-monospace, monospace;
   font-size: 10px;
-  color: var(--muted, #9ca3af);
+  color: var(--ink-faint);
   font-weight: 400;
-  background: var(--surface-alt, #f3f4f6);
+  background: var(--surface-2);
   padding: 3px 8px;
   border-radius: 4px;
   margin-left: 10px;
@@ -572,7 +572,7 @@
   font-family: ui-monospace, "JetBrains Mono", "SF Mono", monospace;
   line-height: 1.6;
   color: var(--ink, #1f2937);
-  background: var(--surface-alt, #f9fafb);
+  background: var(--surface-2);
   padding: 16px;
   border: 1px solid var(--line, #e5e7eb);
   border-radius: 10px;

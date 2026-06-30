@@ -164,7 +164,7 @@ export const ProductList: React.FC = () => {
         .catalog { display: flex; flex-direction: column; }
         .toolbar { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
         .search { position: relative; flex: 1 1 280px; display: flex; align-items: center; }
-        .search > svg, .search > i { position: absolute; left: 14px; color: var(--ink-faint); pointer-events: none; }
+        .search > svg, .search > i, .search > span[role="img"] { position: absolute; left: 14px; color: var(--ink-faint); pointer-events: none; }
         .search input { width: 100%; height: 44px; padding: 0 40px 0 42px; border: 1px solid var(--line-strong); border-radius: 100px; background: var(--surface); color: var(--ink); font-family: var(--font-sans); font-size: .92rem; outline: none; transition: border-color .16s, box-shadow .16s; }
         .search input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft, rgba(79,70,229,.12)); }
         .search .clear { position: absolute; right: 12px; background: none; border: none; color: var(--ink-faint); cursor: pointer; display: flex; }
