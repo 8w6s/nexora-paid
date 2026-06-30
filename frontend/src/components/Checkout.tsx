@@ -242,7 +242,7 @@ const PayView: React.FC<{ orderId: string; token: string | null }> = ({ orderId,
           </div>
           <ul className="keys">
             {detail.deliveredKeys.map((k, i) => (
-              <li key={i}>
+              <li key={`${i}:${k.code}`}>
                 <span className="k-idx">#{i + 1}</span>
                 <code>{k.code}</code>
                 <CopyBtn value={k.code} small />

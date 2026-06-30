@@ -504,7 +504,10 @@ export const AdminProductEditor: React.FC<{
               style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "14px" }}
             >
               {variants.map((v, i) => (
-                <div key={i} className="pe-variant-editor-row">
+                // Stable key by id (not index) — reordering / inserting a
+                // variant otherwise leaks the previous row's input state
+                // into the new position.
+                <div key={v.id ?? `new-${i}`} className="pe-variant-editor-row">
                   <label className="pe-field-label">
                     <span>Variant Name</span>
                     <input
@@ -570,7 +573,10 @@ export const AdminProductEditor: React.FC<{
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
             {customFields.map((f, i) => (
-              <div key={i} className="pe-cf-row">
+              // Composite key — custom fields don't carry a server id yet,
+              // but mixing label + position keeps focus and validation
+              // state from jumping rows when the user reorders / deletes.
+              <div key={`${i}:${f.label}`} className="pe-cf-row">
                 <label className="pe-field-label" style={{ flex: 1 }}>
                   Label
                   <input

@@ -83,7 +83,7 @@ export const OrderDetailView: React.FC<{ orderId: string }> = ({ orderId }) => {
           </div>
           <ul>
             {o?.deliveredKeys.map((k, i) => (
-              <li key={i}>
+              <li key={`${i}:${k.code}`}>
                 <code>{k.code}</code>
               </li>
             ))}
