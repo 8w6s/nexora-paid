@@ -1,6 +1,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { Dropdown } from "../Dropdown";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { useToast } from "../Toast";
@@ -302,45 +303,40 @@ export const AdminBlacklist: React.FC = () => {
         <div className="adm-section-label">Add to {mode}</div>
         {err && <div className="pe-err">{err}</div>}
         <div className="bl-add-row">
-          <select
-            className="input"
+          <Dropdown
             value={form.type}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, type: e.target.value as BlockType, value: "" }))
+            onChange={(v) =>
+              setForm((f) => ({ ...f, type: v as BlockType, value: "" }))
             }
-          >
-            {Object.entries(TYPE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
+            options={Object.entries(TYPE_LABELS).map(([k, v]) => ({
+              value: k,
+              label: v,
+            }))}
+          />
 
           {form.type === "country" ? (
-            <select
-              className="input"
+            <Dropdown
               value={form.value}
-              onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-            >
-              <option value="">Select country…</option>
-              {COUNTRIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setForm((f) => ({ ...f, value: v }))}
+              placeholder="Select country…"
+              options={[
+                { value: "", label: "Select country…" },
+                ...COUNTRIES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           ) : form.type === "vpn" ? (
-            <select
-              className="input"
+            <Dropdown
               value={form.value}
-              onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-            >
-              <option value="">Select option…</option>
-              <option value="vpn">VPN</option>
-              <option value="proxy">Proxy</option>
-              <option value="tor">Tor</option>
-              <option value="datacenter">Datacenter</option>
-            </select>
+              onChange={(v) => setForm((f) => ({ ...f, value: v }))}
+              placeholder="Select option…"
+              options={[
+                { value: "", label: "Select option…" },
+                { value: "vpn", label: "VPN" },
+                { value: "proxy", label: "Proxy" },
+                { value: "tor", label: "Tor" },
+                { value: "datacenter", label: "Datacenter" },
+              ]}
+            />
           ) : (
             <input
               className="input"

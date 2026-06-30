@@ -2,6 +2,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { ConfirmModal } from "../ConfirmModal";
+import { Dropdown } from "../Dropdown";
 import { EmptyState } from "../EmptyState";
 import { Icon } from "../Icon";
 import { useToast } from "../Toast";
@@ -190,14 +191,14 @@ export const AdminGroups: React.FC = () => {
           </label>
           <label className="pe-field-label">
             Visibility
-            <select
-              className="input"
+            <Dropdown
               value={form.active ? "public" : "hidden"}
-              onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === "public" }))}
-            >
-              <option value="public">Public</option>
-              <option value="hidden">Hidden</option>
-            </select>
+              onChange={(v) => setForm((f) => ({ ...f, active: v === "public" }))}
+              options={[
+                { value: "public", label: "Public" },
+                { value: "hidden", label: "Hidden" },
+              ]}
+            />
           </label>
 
           <div className="grp-section-title" style={{ marginTop: 8 }}>
