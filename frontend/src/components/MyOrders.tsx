@@ -2,11 +2,16 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n";
 import { ApiRequestError, api, fmtUsd, type OrderSummary } from "../lib/api";
+import { useAuthOptional } from "./AuthContext";
 import { Icon } from "./Icon";
 import { SkeletonStyles, SkRows } from "./Skeleton";
 
 export const MyOrders: React.FC = () => {
   const { t } = useT();
+  // Gate the /api/orders call on hydrated auth state so a guest browsing
+  // /orders directly never triggers a 401 in the console. Falls back to
+  // optimistic fetch (legacy behaviour) if AuthProvider isn't mounted.
+  const auth = useAuthOptional();
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -22,6 +27,15 @@ export const MyOrders: React.FC = () => {
   };
 
   useEffect(() => {
+    // Wait until auth context resolves. Skip the fetch entirely when the
+    // user is known to be logged out — show the login prompt instead.
+    if (auth) {
+      if (auth.loading) return;
+      if (!auth.user) {
+        setNeedLogin(true);
+        return;
+      }
+    }
     api
       .get<OrderSummary[]>("/api/orders")
       .then(setOrders)
@@ -29,7 +43,7 @@ export const MyOrders: React.FC = () => {
         if (e instanceof ApiRequestError && e.status === 401) setNeedLogin(true);
         else setErr(e.message);
       });
-  }, []);
+  }, [auth?.user?.id, auth?.loading]);
 
   if (needLogin)
     return (

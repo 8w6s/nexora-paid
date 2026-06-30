@@ -285,17 +285,17 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
       <ProductReviews slug={product.slug} />
 
       <style>{`
-        .pd { padding: 22px 20px 70px; }
+        .pd { width: 100%; min-width: 0; padding: 22px 20px 70px; }
         .crumbs { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--ink-faint); margin-bottom: 18px; flex-wrap: wrap; }
         .crumbs a { color: var(--ink-soft); font-weight: 500; text-decoration: none; cursor: pointer; }
         .crumbs a:hover { color: var(--brand); }
         .crumbs span[aria-current] { color: var(--ink); font-weight: 600; }
-        .pd-grid { display: grid; grid-template-columns: minmax(280px, 0.9fr) 1.1fr; gap: 30px; align-items: start; }
+        .pd-grid { min-width: 0; display: grid; grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr); gap: 30px; align-items: start; }
         .pd-media { position: relative; aspect-ratio: 4/3; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); background: var(--surface-2); }
         .pd-media img { width: 100%; height: 100%; object-fit: cover; }
         .pd-soldout { position: absolute; inset: 0; background: rgba(31,35,41,.55); color: #fff; font-weight: 700; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
         .pd-tag { position: absolute; left: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 5px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(4px); color: var(--auto,#137333); font-weight: 600; font-size: .78rem; padding: 5px 11px; border-radius: 100px; }
-        .pd-info { display: flex; flex-direction: column; gap: 14px; }
+        .pd-info { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
         .cat-pill { align-self: flex-start; background: var(--tag-soft); color: var(--tag); }
         .pd-name { font-size: 1.9rem; line-height: 1.2; }
         .pd-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .84rem; }
@@ -319,8 +319,8 @@ export const ProductDetail: React.FC<{ product: Product }> = ({ product }) => {
         .pd-trust span { font-size: .8rem; color: var(--ink-faint); }
         .pd-related { margin-top: 56px; }
         .pd-related h2 { font-size: 1.3rem; margin-bottom: 18px; }
-        .rel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; max-width: 720px; }
-        @media (max-width: 760px) { .pd-grid { grid-template-columns: 1fr; gap: 20px; } .pd-name { font-size: 1.5rem; } }
+        .rel-grid { min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 20px; max-width: 720px; }
+        @media (max-width: 760px) { .pd { padding-inline: 16px; } .pd-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; } .pd-name { font-size: 1.5rem; } }
       `}</style>
     </div>
   );

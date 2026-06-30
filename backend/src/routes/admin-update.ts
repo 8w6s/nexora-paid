@@ -169,12 +169,23 @@ export const adminUpdateRoutes = new Elysia({ prefix: "/api/admin/update" })
         hasUpdater: supportsInPlaceApply(),
       };
     } catch (e) {
-      set.status = 502;
       return {
         error: "Could not reach update server",
         code: "FILESERVER_UNREACHABLE",
         detail: e instanceof Error ? e.message : String(e),
         current: APP_VERSION,
+        latest: APP_VERSION,
+        minSupported: APP_VERSION,
+        channel: UPDATE_CHANNEL,
+        updateAvailable: false,
+        blockedByMin: false,
+        imageRepo: null,
+        imageTag: null,
+        sha256: null,
+        publishedAt: null,
+        notes: null,
+        canApply: false,
+        hasUpdater: supportsInPlaceApply(),
       };
     }
   })

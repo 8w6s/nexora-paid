@@ -183,7 +183,7 @@ export const CartDrawer: React.FC = () => {
 
       <style>{`
         .cart-backdrop { position: fixed; inset: 0; background: rgba(31,35,41,.4); z-index: 1000; }
-        .cart-drawer { position: fixed; top: 0; right: 0; width: 100%; max-width: 420px; height: 100vh; z-index: 1001; display: flex; flex-direction: column; background: var(--bg); border-left: 1px solid var(--line-strong); }
+        .cart-drawer { position: fixed; top: 0; right: 0; width: min(420px, 100vw); height: 100vh; z-index: 1001; display: flex; flex-direction: column; background: var(--bg); border-left: 1px solid var(--line-strong); }
         .drawer-header { padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; background: var(--surface); border-bottom: 1px solid var(--line); }
         .drawer-header h2 { font-size: 1.1rem; }
         .btn-close { background: transparent; border: none; color: var(--ink-soft); cursor: pointer; padding: 2px; }

@@ -116,3 +116,8 @@ backend/_top.txt
 # Cloudflare Worker build artifacts
 workers/**/.wrangler/
 workers/**/node_modules/
+
+# Codex QA artifacts (screenshots + dev logs from automated browser sweeps)
+.codex/
+AGENTS.md
+

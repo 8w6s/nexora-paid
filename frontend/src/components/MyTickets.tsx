@@ -2,6 +2,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n";
 import { ApiRequestError, api } from "../lib/api";
+import { useAuthOptional } from "./AuthContext";
 import { Icon } from "./Icon";
 import { SkeletonStyles, SkRows } from "./Skeleton";
 
@@ -26,6 +27,8 @@ interface TicketDetail extends Ticket {
 
 export const MyTickets: React.FC = () => {
   const { t } = useT();
+  // Same auth gating as MyOrders — avoid console-noise 401 for guests.
+  const auth = useAuthOptional();
   const [list, setList] = useState<Ticket[] | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [view, setView] = useState<"list" | "new" | "thread">("list");
@@ -49,7 +52,18 @@ export const MyTickets: React.FC = () => {
         else setErr(e.message);
       });
   };
-  useEffect(loadList, []);
+  useEffect(() => {
+    // Skip the fetch (and its inevitable 401) when we already know the
+    // user is a guest. Hydration: wait one tick if auth is still loading.
+    if (auth) {
+      if (auth.loading) return;
+      if (!auth.user) {
+        setNeedLogin(true);
+        return;
+      }
+    }
+    loadList();
+  }, [auth?.user?.id, auth?.loading]);
 
   const openThread = async (id: string) => {
     setErr(null);

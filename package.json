@@ -27,9 +27,11 @@
     "@opentui/core": "^0.4.1",
     "@opentui/solid": "^0.4.1",
     "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "concurrently": "^10.0.3",
     "ink": "^7.0.6",
-    "react": "^19.2.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "solid-js": "^1.9.13"
   }
 }

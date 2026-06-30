@@ -33,7 +33,10 @@ export const AdminLogin: React.FC = () => {
           <span>Email</span>
           <input
             className="input"
+            id="admin-email"
+            name="email"
             type="email"
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

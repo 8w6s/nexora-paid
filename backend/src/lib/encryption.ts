@@ -49,14 +49,19 @@ function getEncryptionKey(): Buffer {
   // NEXORA_APP_ROOT env var (the Dockerfile sets it to /app) and fall
   // back to source-tree resolution for `bun --watch` dev mode.
   const envRoot = process.env.NEXORA_APP_ROOT;
-  const appRoot = envRoot && envRoot.trim().length > 0
-    ? envRoot
-    : join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const keysDir = join(appRoot, ".keys");
-  const keyPath = join(keysDir, "db_encryption.key");
+  const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+  const appRoot = envRoot && envRoot.trim().length > 0 ? envRoot : sourceRoot;
+  const keyCandidates =
+    envRoot && envRoot.trim().length > 0
+      ? [join(appRoot, ".keys", "db_encryption.key")]
+      : [
+          join(sourceRoot, ".keys", "db_encryption.key"),
+          join(sourceRoot, "backend", ".keys", "db_encryption.key"),
+        ];
 
   try {
-    if (existsSync(keyPath)) {
+    const keyPath = keyCandidates.find((candidate) => existsSync(candidate));
+    if (keyPath) {
       const savedKey = readFileSync(keyPath, "utf8").trim();
       const buf = Buffer.from(savedKey, "hex");
       if (buf.length === 32) {
@@ -76,11 +81,13 @@ function getEncryptionKey(): Buffer {
       );
     }
 
+    const keysDir = join(appRoot, ".keys");
+    const generatedKeyPath = join(keysDir, "db_encryption.key");
     if (!existsSync(keysDir)) mkdirSync(keysDir, { recursive: true });
     const newKey = randomBytes(32);
-    writeFileSync(keyPath, newKey.toString("hex"), "utf8");
+    writeFileSync(generatedKeyPath, newKey.toString("hex"), "utf8");
     console.warn(
-      `[encryption] Generated new dev key at ${keyPath}. Set DATABASE_ENCRYPTION_KEY in production.`,
+      `[encryption] Generated new dev key at ${generatedKeyPath}. Set DATABASE_ENCRYPTION_KEY in production.`,
     );
     encryptionKey = newKey;
     return encryptionKey;
