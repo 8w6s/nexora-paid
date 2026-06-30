@@ -46,10 +46,22 @@ export const AdminOrderDetail: React.FC<{ orderId: string; onBack: () => void }>
   const toast = useToast();
 
   useEffect(() => {
+    // Switching between orders fast (eg. clicking through the list)
+    // would otherwise let the previous fetch race the new one and stomp
+    // state with stale data. Drop the result if the component unmounted
+    // or the orderId already changed.
+    let alive = true;
     api
       .get<OrderDetail>(`/api/admin/orders/${orderId}`)
-      .then(setO)
-      .catch((e) => setErr(e instanceof Error ? e.message : "Load failed"));
+      .then((d) => {
+        if (alive) setO(d);
+      })
+      .catch((e) => {
+        if (alive) setErr(e instanceof Error ? e.message : "Load failed");
+      });
+    return () => {
+      alive = false;
+    };
   }, [orderId]);
 
   const resendEmail = async () => {

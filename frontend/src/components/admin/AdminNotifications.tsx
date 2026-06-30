@@ -1,7 +1,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { Icon } from "../Icon";
+import { Icon, type IconName } from "../Icon";
 
 type NotifChannel = "email" | "discord" | "telegram" | "webhook";
 
@@ -106,7 +106,7 @@ const defaultSettings = (): NotifSettings =>
     EVENTS.map((e) => [e.key, { email: false, discord: false, telegram: false, webhook: false }]),
   );
 
-const CHANNEL_ICONS: Record<NotifChannel, string> = {
+const CHANNEL_ICONS: Record<NotifChannel, IconName> = {
   email: "receipt",
   discord: "bell",
   telegram: "arrow-right",
@@ -206,7 +206,7 @@ export const AdminNotifications: React.FC = () => {
             <div className="notif-event-col">Event</div>
             {(["email", "discord", "telegram", "webhook"] as NotifChannel[]).map((ch) => (
               <div key={ch} className="notif-ch-col">
-                <Icon name={CHANNEL_ICONS[ch] as any} size={14} />
+                <Icon name={CHANNEL_ICONS[ch]} size={14} />
                 <span>{ch.charAt(0).toUpperCase() + ch.slice(1)}</span>
               </div>
             ))}
