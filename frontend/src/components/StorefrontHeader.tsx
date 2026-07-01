@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { useConfig } from "./ConfigContext";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface Stats {
   sales: number;
@@ -49,7 +48,6 @@ export const StorefrontHeader: React.FC = () => {
           <strong>{s.rating.toFixed(2)}</strong>
           <span>{labelOrFallback("storefront.stats.rating", "Rating")}</span>
         </div>
-        <LanguageSwitcher />
       </div>
       <style>{`
         .sf-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 26px; margin-bottom: 18px; gap: 18px; flex-wrap: wrap; }
