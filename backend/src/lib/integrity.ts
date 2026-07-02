@@ -227,7 +227,29 @@ export async function verifyManifest(opts: VerifyOptions = {}): Promise<Integrit
   const mismatches: FileMismatch[] = [];
   let checked = 0;
   for (const [relPath, expected] of Object.entries(signed.payload.files)) {
+    // Defense in depth: even a valid signature shouldn't grant power to
+    // hash arbitrary paths outside the app root. A misauthored manifest
+    // (or a signing-key compromise) could otherwise probe host files
+    // by feeding "../etc/passwd" and reading the mismatch actual back.
+    // Absolute paths and parent-traversal are rejected as manifest_malformed
+    // before we consult the filesystem.
+    if (isAbsolute(relPath) || relPath.includes("..") || relPath.startsWith("/")) {
+      return {
+        ok: false,
+        reason: "manifest_malformed",
+        mismatches: [{ path: relPath, expected, actual: null }],
+        buildId: signed.payload.buildId,
+      };
+    }
     const abs = resolve(root, relPath);
+    if (!abs.startsWith(root)) {
+      return {
+        ok: false,
+        reason: "manifest_malformed",
+        mismatches: [{ path: relPath, expected, actual: null }],
+        buildId: signed.payload.buildId,
+      };
+    }
     if (!existsSync(abs)) {
       mismatches.push({ path: relPath, expected, actual: null });
       continue;
