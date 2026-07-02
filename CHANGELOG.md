@@ -4,11 +4,13 @@ All notable changes to Nexora Paid are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] — 2026-07-02
 
-The work in this section is staged for **v1.1.0**. Customers running v1.0.0
-do not need to act yet; the in-place update flow will pick this up once the
-release is cut.
+First public v1.1 release. Aggregates 23 rc iterations of hardening,
+UX polish, and infrastructure work on top of v1.0.0. Every rc is
+tagged individually — v1.0.0-rc1 through v1.0.0-rc23 — for anyone
+who wants to bisect an issue to the exact iteration that introduced
+it. This section summarises the delta from v1.0.0.
 
 ### Security — pre-sale hardening pass
 
