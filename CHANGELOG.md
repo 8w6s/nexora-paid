@@ -4,7 +4,13 @@ All notable changes to Nexora Paid are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] — 2026-07-02
+## [1.0.0] — 2026-07-03
+
+First public release for sale. 189 commits and 24 RC iterations
+of hardening on top of the internal v1.0.0-rc1. Full pentest report
+(4 rounds, 39 attack vectors, 0 exploit) + source audit of all
+sensitive libraries (encryption, hd, watcher, inventory, integrity,
+sanitize, updater-handshake).
 
 First public v1.1 release. Aggregates 23 rc iterations of hardening,
 UX polish, and infrastructure work on top of v1.0.0. Every rc is
@@ -161,8 +167,8 @@ it. This section summarises the delta from v1.0.0.
 - catbox: 10 cases (URL parsing, sanitization, oversize early refusal,
   HTTP error / non-URL response, userhash env forwarding).
 
-## [1.0.0] — 2026-06-25
+## [1.0.0-internal] — 2026-06-25
 
-Initial public release. See
-<https://github.com/8w6s/nexora-paid/releases/tag/v1.0.0> for the full
-v1.0.0 announcement; this changelog tracks v1.1.0+ deltas.
+Internal pre-release milestone (never sold). Superseded by v1.0.0 (2026-07-03)
+which retagged this commit chain after 189 additional commits + 24 RC
+iterations of hardening. Left here for git bisect reference.
