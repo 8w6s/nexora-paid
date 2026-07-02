@@ -100,6 +100,13 @@ export function sanitizeHtml(input: unknown): string {
   out = out.replace(dangerousSelfClose, "");
   out = out.replace(commentRe, "");
 
+  // Encode any remaining "<" that doesn't start a valid tag as <
+  // Otherwise strings like "< script>text" render as literal "< script>"
+  // in the description, leaking noise (and confusing tolerant parsers
+  // that might later try to reconstruct a tag). tagRe below still
+  // handles well-formed tags; this handles the leftover angle brackets.
+  out = out.replace(new RegExp("<(?!/?[a-zA-Z])", "g"), ENT_LT);
+
   out = out.replace(
     tagRe,
     (_match, slash, rawTag, rawAttrs) => {
