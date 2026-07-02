@@ -121,3 +121,9 @@ workers/**/node_modules/
 .codex/
 AGENTS.md
 
+
+# Pentest artifacts (local red-team scripts)
+.pentest*.py
+.pentest*.sh
+.san-test*.ts
+
